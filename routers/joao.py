@@ -106,7 +106,10 @@ async def status():
     any_ok = supabase_check.ok or ssh_check.ok
     overall = "healthy" if all_ok else ("degraded" if any_ok else "down")
 
-    recent = await supabase_client.query_recent_activity(limit=5)
+    try:
+        recent = await supabase_client.query_recent_activity(limit=5)
+    except Exception:
+        recent = []
 
     return StatusResponse(
         status=overall,
