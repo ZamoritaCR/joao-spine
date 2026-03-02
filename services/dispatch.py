@@ -150,7 +150,13 @@ async def dispatch_to_agent(
 ) -> dict:
     """Dispatch a task to a Council agent via the local HTTP listener."""
     if not LOCAL_DISPATCH_URL:
-        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+        raise RuntimeError(
+            "JOAO_LOCAL_DISPATCH_URL not configured — set it in Railway env vars"
+        )
+    if not DISPATCH_SECRET:
+        raise RuntimeError(
+            "JOAO_DISPATCH_SECRET not configured — set it in Railway env vars"
+        )
 
     payload = {
         "agent": agent,
@@ -166,6 +172,14 @@ async def dispatch_to_agent(
             json=payload,
             headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
         )
+        if response.status_code == 401:
+            raise RuntimeError(
+                "Local dispatch rejected auth — JOAO_DISPATCH_SECRET mismatch "
+                "between Railway and Ubuntu server"
+            )
+        if response.status_code == 422:
+            detail = response.json().get("detail", response.text)
+            raise RuntimeError(f"Local dispatch schema error: {detail}")
         response.raise_for_status()
         return response.json()
 
@@ -174,6 +188,8 @@ async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
     """Send a raw command to an agent's tmux session via the local listener."""
     if not LOCAL_DISPATCH_URL:
         raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+    if not DISPATCH_SECRET:
+        raise RuntimeError("JOAO_DISPATCH_SECRET not configured")
 
     payload = {"agent": agent, "task": command}
 
@@ -183,6 +199,8 @@ async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
             json=payload,
             headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
         )
+        if response.status_code in (401, 422):
+            raise RuntimeError(f"Local dispatch error {response.status_code}: {response.text}")
         response.raise_for_status()
         return response.json()
 

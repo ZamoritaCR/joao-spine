@@ -46,8 +46,10 @@ class DispatchResponse(BaseModel):
     message: str
 
 
-def verify_secret(authorization: str):
+def verify_secret(authorization: str | None):
     """Verify the dispatch secret from Railway spine."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
     if authorization != f"Bearer {DISPATCH_SECRET}":
         raise HTTPException(status_code=401, detail="Invalid dispatch secret")
 
@@ -132,7 +134,7 @@ async def list_agents():
 
 
 @app.post("/dispatch", response_model=DispatchResponse)
-async def dispatch(cmd: DispatchCommand, authorization: str = Header(...)):
+async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None)):
     """Dispatch a task to a Council agent via tmux."""
     verify_secret(authorization)
 
@@ -163,7 +165,7 @@ async def dispatch(cmd: DispatchCommand, authorization: str = Header(...)):
 
 
 @app.post("/dispatch/raw")
-async def dispatch_raw(cmd: DispatchCommand, authorization: str = Header(...)):
+async def dispatch_raw(cmd: DispatchCommand, authorization: str | None = Header(None)):
     """Send a raw command to a tmux session (no Claude Code wrapper)."""
     verify_secret(authorization)
 
