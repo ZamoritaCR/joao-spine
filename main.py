@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-import logging
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configure JSON logging before importing modules that log at import time
+from middleware.logging_config import configure_json_logging, RequestLoggingMiddleware
+
+configure_json_logging()
+
+import logging
+
 from fastapi import FastAPI
 
 from mcp_server import mcp
 from routers.joao import router as joao_router
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Request logging middleware
+app.add_middleware(RequestLoggingMiddleware)
 
 # REST routes
 app.include_router(joao_router)
