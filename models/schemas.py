@@ -91,6 +91,23 @@ class ContentResponse(BaseModel):
     idea_vault_id: str | None = None
 
 
+# ── Voice Models ───────────────────────────────────────────────────────────
+
+class VoiceIntent(BaseModel):
+    intent: str = Field(..., description="dispatch | status | check | idea | unknown")
+    agent: str | None = None
+    task: str | None = None
+    priority: str = "normal"
+    project: str | None = None
+
+
+class VoiceCommandResponse(BaseModel):
+    transcript: str
+    intent: VoiceIntent
+    result: dict[str, Any] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
 # ── Internal Models ─────────────────────────────────────────────────────────
 
 class AIResult(BaseModel):

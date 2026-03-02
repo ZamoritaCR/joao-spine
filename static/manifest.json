@@ -1,0 +1,24 @@
+{
+  "name": "JOAO Command",
+  "short_name": "JOAO",
+  "description": "Voice dispatch to the Council",
+  "start_url": "/joao/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#00ff88",
+  "icons": [
+    {
+      "src": "/static/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

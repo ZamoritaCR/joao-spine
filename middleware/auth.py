@@ -71,6 +71,19 @@ async def require_dispatch_auth(
     return request_id
 
 
+async def require_api_key(
+    request: Request,
+    x_joao_api_key: Annotated[str | None, Header()] = None,
+) -> None:
+    """Simple API key auth for voice endpoints."""
+    secret = os.environ.get("JOAO_API_KEY") or os.environ.get("JOAO_DISPATCH_HMAC_SECRET", "")
+    if not secret:
+        logger.warning("JOAO_API_KEY not set — voice auth disabled")
+        return
+    if not x_joao_api_key or not hmac.compare_digest(secret, x_joao_api_key):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 def validate_agent_name(session_name: str) -> None:
     """Raise ValueError if session_name is not in the agent allowlist."""
     if session_name.upper() not in ALLOWED_AGENTS:

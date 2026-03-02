@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -16,11 +17,16 @@ configure_json_logging()
 import logging
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from mcp_server import mcp
 from routers.joao import router as joao_router
+from routers.voice import router as voice_router
 
 logger = logging.getLogger(__name__)
+
+_STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -42,6 +48,17 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # REST routes
 app.include_router(joao_router)
+app.include_router(voice_router)
+
+
+# PWA entry point
+@app.get("/joao/app", include_in_schema=False)
+async def pwa_app():
+    return FileResponse(_STATIC_DIR / "index.html", media_type="text/html")
+
+
+# Static files (must be after explicit routes)
+app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # MCP mount — SSE transport at /mcp (exposes /mcp/sse endpoint)
 mcp_app = mcp.sse_app()
