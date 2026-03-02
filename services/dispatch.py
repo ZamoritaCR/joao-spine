@@ -102,7 +102,7 @@ async def health_check() -> tuple[SshCheck, TmuxCheck]:
     target = f"{cfg['username']}@{cfg['host']}:{cfg['port']}"
     t0 = time.monotonic()
     try:
-        async with asyncssh.connect(**cfg) as conn:
+        async with asyncssh.connect(**cfg, login_timeout=3) as conn:
             ssh_latency = round((time.monotonic() - t0) * 1000, 1)
             ssh_check = SshCheck(ok=True, latency_ms=ssh_latency, target=target)
 
