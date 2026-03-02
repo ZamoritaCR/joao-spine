@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 from supabase import create_client, Client
 
-from models.schemas import AgentOutputRecord, IdeaVaultRecord, SessionLogRecord, SubCheck
+from models.schemas import AgentOutputRecord, DispatchLogRecord, IdeaVaultRecord, SessionLogRecord, SubCheck
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,16 @@ async def insert_agent_output(record: AgentOutputRecord) -> dict[str, Any]:
     result = client.table("agent_outputs").insert(data).execute()
     row = result.data[0] if result.data else {}
     logger.info("agent_outputs insert id=%s", row.get("id"))
+    return row
+
+
+async def insert_dispatch_log(record: DispatchLogRecord) -> dict[str, Any]:
+    """Log a council dispatch to Supabase for audit trail."""
+    client = get_client()
+    data = record.model_dump()
+    result = client.table("dispatch_log").insert(data).execute()
+    row = result.data[0] if result.data else {}
+    logger.info("dispatch_log insert id=%s agent=%s", row.get("id"), record.agent)
     return row
 
 

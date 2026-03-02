@@ -10,6 +10,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from models.schemas import (
     AgentOutputRecord,
+    DispatchLogRecord,
     IdeaVaultRecord,
     SessionLogRecord,
 )
@@ -154,3 +155,95 @@ async def query_memory(query: str, limit: int = 10) -> str:
             f"  Created: {r.get('created_at', '?')}"
         )
     return "\n".join(lines)
+
+
+# ── Council Dispatch MCP Tools ────────────────────────────────────────────
+
+
+@mcp.tool()
+async def council_dispatch(
+    agent: str,
+    task: str,
+    priority: str = "normal",
+    context: str = "",
+    project: str = "",
+) -> str:
+    """Dispatch a task to a Council agent (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA).
+
+    The agent receives the task in their tmux session and executes autonomously.
+
+    Args:
+        agent: Agent name — BYTE (engineering), ARIA (architecture), CJ (product),
+               SOFIA (design), DEX (support), GEMMA (research)
+        task: Detailed task description for the agent
+        priority: normal, urgent, or critical
+        context: Optional additional context
+        project: Optional project name
+    """
+    try:
+        result = await dispatch.dispatch_to_agent(
+            agent=agent,
+            task=task,
+            priority=priority,
+            context=context or None,
+            project=project or None,
+        )
+    except Exception as e:
+        return f"Dispatch failed: {e}"
+
+    try:
+        await supabase_client.insert_dispatch_log(
+            DispatchLogRecord(
+                agent=agent,
+                task=task,
+                priority=priority,
+                project=project or None,
+                status=result.get("status", "unknown"),
+                session=result.get("session"),
+            )
+        )
+    except Exception:
+        pass
+
+    return (
+        f"Dispatched to {agent}:\n"
+        f"Task: {task[:200]}\n"
+        f"Priority: {priority}\n"
+        f"Session: {result.get('session', 'unknown')}\n"
+        f"Status: {result.get('status', 'unknown')}"
+    )
+
+
+@mcp.tool()
+async def council_status() -> str:
+    """Check which Council agents are active and their tmux session status."""
+    try:
+        result = await dispatch.get_agents()
+    except Exception as e:
+        return f"Failed to reach local server: {e}"
+
+    agents = result.get("agents", {})
+    lines = ["Council Agent Status:"]
+    for name, info in agents.items():
+        status = "ACTIVE" if info.get("active") else "INACTIVE"
+        lines.append(f"  {name}: {status} (session: {info.get('session', '?')})")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def council_session_output(agent: str) -> str:
+    """Get the recent terminal output from a Council agent's tmux session.
+
+    Args:
+        agent: Agent name (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA)
+    """
+    try:
+        result = await dispatch.get_session(agent)
+    except Exception as e:
+        return f"Failed to get session for {agent}: {e}"
+
+    return (
+        f"Agent: {result.get('agent', agent)}\n"
+        f"Session: {result.get('session', '?')}\n"
+        f"--- Output ---\n{result.get('output', 'No output')}"
+    )

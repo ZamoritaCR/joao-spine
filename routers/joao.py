@@ -13,6 +13,9 @@ from models.schemas import (
     AIResult,
     AudioRequest,
     ContentResponse,
+    CouncilDispatchRequest,
+    CouncilDispatchResponse,
+    DispatchLogRecord,
     DispatchRequest,
     DispatchResponse,
     HealthResponse,
@@ -219,3 +222,87 @@ async def text(req: TextRequest):
         ai_result=ai_result,
         metadata={"context": req.context},
     )
+
+
+# ── Council Dispatch (via Cloudflare tunnel) ──────────────────────────────
+
+@router.post("/council/dispatch", response_model=CouncilDispatchResponse)
+async def council_dispatch(req: CouncilDispatchRequest):
+    """Dispatch a task to a Council agent via the local HTTP listener."""
+    from datetime import datetime, timezone
+
+    try:
+        result = await dispatch.dispatch_to_agent(
+            agent=req.agent,
+            task=req.task,
+            priority=req.priority,
+            context=req.context,
+            project=req.project,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.exception("Council dispatch failed")
+        raise HTTPException(status_code=503, detail=f"Dispatch failed: {e}")
+
+    # Log to Supabase
+    try:
+        await supabase_client.insert_dispatch_log(
+            DispatchLogRecord(
+                agent=req.agent,
+                task=req.task,
+                priority=req.priority,
+                project=req.project,
+                status=result.get("status", "unknown"),
+                session=result.get("session"),
+            )
+        )
+    except Exception:
+        logger.warning("Failed to log dispatch to Supabase", exc_info=True)
+
+    return CouncilDispatchResponse(
+        status="dispatched",
+        agent=req.agent,
+        task_preview=req.task[:100],
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        server_response=result,
+    )
+
+
+@router.get("/council/agents")
+async def council_agents():
+    """Get agent status from the local server."""
+    try:
+        return await dispatch.get_agents()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/council/sessions")
+async def council_sessions():
+    """Get tmux session outputs from the local server."""
+    try:
+        return await dispatch.get_sessions()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/council/session/{agent}")
+async def council_session(agent: str):
+    """Get a specific agent's tmux session output."""
+    try:
+        return await dispatch.get_session(agent)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.get("/council/health")
+async def council_health():
+    """Check if the local dispatch listener is reachable via tunnel."""
+    return await dispatch.tunnel_health_check()

@@ -1,4 +1,4 @@
-"""SSH + tmux dispatch to home server via asyncssh."""
+"""SSH + tmux dispatch to home server via asyncssh, with HTTP tunnel fallback."""
 
 from __future__ import annotations
 
@@ -8,10 +8,15 @@ import stat
 import time
 
 import asyncssh
+import httpx
 
 from models.schemas import SshCheck, TmuxCheck
 
 logger = logging.getLogger(__name__)
+
+# HTTP tunnel config (Cloudflare tunnel to local dispatch listener)
+LOCAL_DISPATCH_URL = os.environ.get("JOAO_LOCAL_DISPATCH_URL", "")
+DISPATCH_SECRET = os.environ.get("JOAO_DISPATCH_SECRET", "")
 
 
 def _resolve_ssh_key() -> list[str]:
@@ -131,3 +136,103 @@ async def health_check() -> tuple[SshCheck, TmuxCheck]:
 def _shell_escape(cmd: str) -> str:
     """Escape a command for tmux send-keys."""
     return "'" + cmd.replace("'", "'\\''") + "'"
+
+
+# ── HTTP Tunnel Dispatch (Cloudflare tunnel → local listener) ──────────────
+
+
+async def dispatch_to_agent(
+    agent: str,
+    task: str,
+    priority: str = "normal",
+    context: str | None = None,
+    project: str | None = None,
+) -> dict:
+    """Dispatch a task to a Council agent via the local HTTP listener."""
+    if not LOCAL_DISPATCH_URL:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+
+    payload = {
+        "agent": agent,
+        "task": task,
+        "priority": priority,
+        "context": context,
+        "project": project,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{LOCAL_DISPATCH_URL}/dispatch",
+            json=payload,
+            headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
+    """Send a raw command to an agent's tmux session via the local listener."""
+    if not LOCAL_DISPATCH_URL:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+
+    payload = {"agent": agent, "task": command}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            f"{LOCAL_DISPATCH_URL}/dispatch/raw",
+            json=payload,
+            headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_agents() -> dict:
+    """Get agent status from local server via tunnel."""
+    if not LOCAL_DISPATCH_URL:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{LOCAL_DISPATCH_URL}/agents")
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_sessions() -> dict:
+    """Get all tmux session outputs from local server."""
+    if not LOCAL_DISPATCH_URL:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{LOCAL_DISPATCH_URL}/sessions")
+        response.raise_for_status()
+        return response.json()
+
+
+async def get_session(agent: str) -> dict:
+    """Get a specific agent's tmux session output."""
+    if not LOCAL_DISPATCH_URL:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{LOCAL_DISPATCH_URL}/session/{agent}")
+        response.raise_for_status()
+        return response.json()
+
+
+async def tunnel_health_check() -> dict:
+    """Check if the local dispatch listener is reachable via tunnel."""
+    if not LOCAL_DISPATCH_URL:
+        return {"ok": False, "error": "JOAO_LOCAL_DISPATCH_URL not configured"}
+
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{LOCAL_DISPATCH_URL}/health")
+            latency = round((time.monotonic() - t0) * 1000, 1)
+            if response.status_code == 200:
+                return {"ok": True, "latency_ms": latency, "data": response.json()}
+            return {"ok": False, "latency_ms": latency, "error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        latency = round((time.monotonic() - t0) * 1000, 1)
+        return {"ok": False, "latency_ms": latency, "error": str(e)[:200]}

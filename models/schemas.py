@@ -125,3 +125,30 @@ class AgentOutputRecord(BaseModel):
     output: str
     status: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ── Council Dispatch Models ────────────────────────────────────────────────
+
+class CouncilDispatchRequest(BaseModel):
+    agent: str = Field(..., description="Council agent name (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA)")
+    task: str = Field(..., description="Task description for the agent")
+    priority: str = Field("normal", description="Priority: normal, urgent, critical")
+    context: str | None = Field(None, description="Optional context")
+    project: str | None = Field(None, description="Project name")
+
+
+class CouncilDispatchResponse(BaseModel):
+    status: str
+    agent: str
+    task_preview: str
+    timestamp: str
+    server_response: dict[str, Any] = Field(default_factory=dict)
+
+
+class DispatchLogRecord(BaseModel):
+    agent: str
+    task: str
+    priority: str = "normal"
+    project: str | None = None
+    status: str = "dispatched"
+    session: str | None = None

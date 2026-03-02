@@ -45,3 +45,24 @@ CREATE TABLE IF NOT EXISTS agent_outputs (
 
 CREATE INDEX IF NOT EXISTS idx_agent_outputs_created_at ON agent_outputs (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_outputs_session ON agent_outputs (session_name);
+
+-- Dispatch log: audit trail for council agent dispatches
+CREATE TABLE IF NOT EXISTS dispatch_log (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    agent TEXT NOT NULL,
+    task TEXT NOT NULL,
+    priority TEXT DEFAULT 'normal',
+    project TEXT,
+    context TEXT,
+    status TEXT DEFAULT 'dispatched',
+    session TEXT,
+    result TEXT,
+    error TEXT,
+    dispatched_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispatch_log_agent ON dispatch_log(agent);
+CREATE INDEX IF NOT EXISTS idx_dispatch_log_status ON dispatch_log(status);
+CREATE INDEX IF NOT EXISTS idx_dispatch_log_dispatched_at ON dispatch_log(dispatched_at DESC);
