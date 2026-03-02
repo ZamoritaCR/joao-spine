@@ -13,10 +13,7 @@ from services import ai_processor, dispatch, supabase_client, telegram
 
 import time
 
-mcp = FastMCP(
-    "joao-spine",
-    stateless_http=True,
-)
+mcp = FastMCP("joao-spine")
 
 
 @mcp.tool()

@@ -38,8 +38,8 @@ app = FastAPI(
 # REST routes
 app.include_router(joao_router)
 
-# MCP mounts — SSE first (prefix matching), then Streamable HTTP
-mcp_app = mcp.streamable_http_app()
+# MCP mount — SSE transport at /mcp (exposes /mcp/sse endpoint)
+mcp_app = mcp.sse_app()
 app.mount("/mcp", mcp_app)
 
 
