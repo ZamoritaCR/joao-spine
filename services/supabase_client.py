@@ -4,24 +4,52 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
+import httpx
 from supabase import create_client, Client
 
-from models.schemas import AgentOutputRecord, IdeaVaultRecord, SessionLogRecord
+from models.schemas import AgentOutputRecord, IdeaVaultRecord, SessionLogRecord, SubCheck
 
 logger = logging.getLogger(__name__)
 
 _client: Client | None = None
 
 
+def _get_key() -> str:
+    """Prefer SUPABASE_SERVICE_ROLE_KEY, fall back to SUPABASE_KEY."""
+    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_KEY"]
+
+
 def get_client() -> Client:
     global _client
     if _client is None:
         url = os.environ["SUPABASE_URL"]
-        key = os.environ["SUPABASE_KEY"]
-        _client = create_client(url, key)
+        _client = create_client(url, _get_key())
     return _client
+
+
+async def health_check() -> SubCheck:
+    """Probe Supabase REST API connectivity and auth."""
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
+    if not url or not key:
+        return SubCheck(ok=False, error="SUPABASE_URL or key not configured")
+    t0 = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(
+                f"{url}/rest/v1/",
+                headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            )
+        latency_ms = round((time.monotonic() - t0) * 1000, 1)
+        if resp.status_code < 500:
+            return SubCheck(ok=True, latency_ms=latency_ms)
+        return SubCheck(ok=False, latency_ms=latency_ms, error=f"HTTP {resp.status_code}")
+    except Exception as e:
+        latency_ms = round((time.monotonic() - t0) * 1000, 1)
+        return SubCheck(ok=False, latency_ms=latency_ms, error=str(e)[:200])
 
 
 async def insert_idea_vault(record: IdeaVaultRecord) -> dict[str, Any]:

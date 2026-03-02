@@ -17,6 +17,7 @@ from models.schemas import (
     IdeaVaultRecord,
     MeetingRequest,
     SessionLogRecord,
+    StatusChecks,
     StatusResponse,
     TextRequest,
     VisionRequest,
@@ -89,9 +90,33 @@ async def health():
 
 @router.get("/status", response_model=StatusResponse)
 async def status():
+    import asyncio
+    import os
+
     uptime = time.time() - _start_time
+
+    supabase_check, (ssh_check, tmux_check) = await asyncio.gather(
+        supabase_client.health_check(),
+        dispatch.health_check(),
+    )
+
+    all_ok = supabase_check.ok and ssh_check.ok and tmux_check.ok
+    any_ok = supabase_check.ok or ssh_check.ok
+    overall = "healthy" if all_ok else ("degraded" if any_ok else "down")
+
     recent = await supabase_client.query_recent_activity(limit=5)
-    return StatusResponse(uptime_seconds=round(uptime, 2), recent_activity=recent)
+
+    return StatusResponse(
+        status=overall,
+        version=os.environ.get("RAILWAY_GIT_COMMIT_SHA", os.environ.get("GIT_SHA")),
+        uptime_seconds=round(uptime, 2),
+        checks=StatusChecks(
+            supabase=supabase_check,
+            ssh=ssh_check,
+            tmux=tmux_check,
+        ),
+        recent_activity=recent,
+    )
 
 
 @router.post("/dispatch", response_model=DispatchResponse)

@@ -45,13 +45,38 @@ class HealthResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class SubCheck(BaseModel):
+    ok: bool
+    latency_ms: float | None = None
+    error: str | None = None
+
+
+class SshCheck(SubCheck):
+    target: str | None = None
+
+
+class TmuxCheck(SubCheck):
+    sessions: list[str] = Field(default_factory=list)
+
+
+class StatusChecks(BaseModel):
+    supabase: SubCheck
+    ssh: SshCheck
+    tmux: TmuxCheck
+
+
 class StatusResponse(BaseModel):
-    status: str = "ok"
+    status: str  # "healthy" | "degraded" | "down"
+    service: str = "joao-spine"
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    version: str | None = None
     uptime_seconds: float
+    checks: StatusChecks
     recent_activity: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class DispatchResponse(BaseModel):
+    request_id: str | None = None
     session_name: str
     command: str
     status: str
