@@ -5,7 +5,9 @@ from __future__ import annotations
 import logging
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+
+from middleware.auth import require_dispatch_auth, validate_agent_name, validate_command_safety
 
 from models.schemas import (
     AIResult,
@@ -120,14 +122,26 @@ async def status():
 
 
 @router.post("/dispatch", response_model=DispatchResponse)
-async def dispatch_endpoint(req: DispatchRequest):
+async def dispatch_endpoint(
+    req: DispatchRequest,
+    request_id: str = Depends(require_dispatch_auth),
+):
+    try:
+        validate_agent_name(req.session_name)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    try:
+        validate_command_safety(req.command)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     t0 = time.time()
     result = await dispatch.dispatch_command(
         session_name=req.session_name, command=req.command, wait=req.wait
     )
     duration_ms = int((time.time() - t0) * 1000)
 
-    # Log to session_log
     await supabase_client.insert_session_log(
         SessionLogRecord(
             endpoint="/joao/dispatch",
@@ -136,10 +150,10 @@ async def dispatch_endpoint(req: DispatchRequest):
             output_summary=(result.get("output") or "")[:200],
             status=result["status"],
             duration_ms=duration_ms,
+            metadata={"request_id": request_id},
         )
     )
 
-    # Log to agent_outputs
     from models.schemas import AgentOutputRecord
     await supabase_client.insert_agent_output(
         AgentOutputRecord(
@@ -147,10 +161,11 @@ async def dispatch_endpoint(req: DispatchRequest):
             command=req.command,
             output=result.get("output") or "",
             status=result["status"],
+            metadata={"request_id": request_id},
         )
     )
 
-    return DispatchResponse(**result)
+    return DispatchResponse(request_id=request_id, **result)
 
 
 @router.post("/audio", response_model=ContentResponse)
