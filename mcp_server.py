@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import time
+
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from models.schemas import (
     AgentOutputRecord,
@@ -11,9 +15,19 @@ from models.schemas import (
 )
 from services import ai_processor, dispatch, supabase_client, telegram
 
-import time
+_RAILWAY_HOST = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 
-mcp = FastMCP("joao-spine")
+_allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+if _RAILWAY_HOST:
+    _allowed_hosts.append(_RAILWAY_HOST)
+
+mcp = FastMCP(
+    "joao-spine",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=_allowed_hosts,
+    ),
+)
 
 
 @mcp.tool()
