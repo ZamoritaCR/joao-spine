@@ -14,9 +14,11 @@ from models.schemas import SshCheck, TmuxCheck
 
 logger = logging.getLogger(__name__)
 
-# HTTP tunnel config (Cloudflare tunnel to local dispatch listener)
-LOCAL_DISPATCH_URL = os.environ.get("JOAO_LOCAL_DISPATCH_URL", "")
-DISPATCH_SECRET = os.environ.get("JOAO_DISPATCH_SECRET", "")
+def _tunnel_config() -> tuple[str, str]:
+    """Read tunnel config fresh from env vars (not cached at import time)."""
+    url = os.environ.get("JOAO_LOCAL_DISPATCH_URL", "")
+    secret = os.environ.get("JOAO_DISPATCH_SECRET", "")
+    return url, secret
 
 
 def _resolve_ssh_key() -> list[str]:
@@ -141,6 +143,16 @@ def _shell_escape(cmd: str) -> str:
 # ── HTTP Tunnel Dispatch (Cloudflare tunnel → local listener) ──────────────
 
 
+def _require_tunnel() -> tuple[str, str]:
+    """Get tunnel URL and secret, raising RuntimeError if not configured."""
+    url, secret = _tunnel_config()
+    if not url:
+        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured — set it in Railway env vars")
+    if not secret:
+        raise RuntimeError("JOAO_DISPATCH_SECRET not configured — set it in Railway env vars")
+    return url, secret
+
+
 async def dispatch_to_agent(
     agent: str,
     task: str,
@@ -149,14 +161,7 @@ async def dispatch_to_agent(
     project: str | None = None,
 ) -> dict:
     """Dispatch a task to a Council agent via the local HTTP listener."""
-    if not LOCAL_DISPATCH_URL:
-        raise RuntimeError(
-            "JOAO_LOCAL_DISPATCH_URL not configured — set it in Railway env vars"
-        )
-    if not DISPATCH_SECRET:
-        raise RuntimeError(
-            "JOAO_DISPATCH_SECRET not configured — set it in Railway env vars"
-        )
+    url, secret = _require_tunnel()
 
     payload = {
         "agent": agent,
@@ -168,9 +173,9 @@ async def dispatch_to_agent(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
-            f"{LOCAL_DISPATCH_URL}/dispatch",
+            f"{url}/dispatch",
             json=payload,
-            headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
+            headers={"Authorization": f"Bearer {secret}"},
         )
         if response.status_code == 401:
             raise RuntimeError(
@@ -186,18 +191,15 @@ async def dispatch_to_agent(
 
 async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
     """Send a raw command to an agent's tmux session via the local listener."""
-    if not LOCAL_DISPATCH_URL:
-        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
-    if not DISPATCH_SECRET:
-        raise RuntimeError("JOAO_DISPATCH_SECRET not configured")
+    url, secret = _require_tunnel()
 
     payload = {"agent": agent, "task": command}
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
-            f"{LOCAL_DISPATCH_URL}/dispatch/raw",
+            f"{url}/dispatch/raw",
             json=payload,
-            headers={"Authorization": f"Bearer {DISPATCH_SECRET}"},
+            headers={"Authorization": f"Bearer {secret}"},
         )
         if response.status_code in (401, 422):
             raise RuntimeError(f"Local dispatch error {response.status_code}: {response.text}")
@@ -207,46 +209,44 @@ async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
 
 async def get_agents() -> dict:
     """Get agent status from local server via tunnel."""
-    if not LOCAL_DISPATCH_URL:
-        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+    url, _secret = _require_tunnel()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{LOCAL_DISPATCH_URL}/agents")
+        response = await client.get(f"{url}/agents")
         response.raise_for_status()
         return response.json()
 
 
 async def get_sessions() -> dict:
     """Get all tmux session outputs from local server."""
-    if not LOCAL_DISPATCH_URL:
-        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+    url, _secret = _require_tunnel()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{LOCAL_DISPATCH_URL}/sessions")
+        response = await client.get(f"{url}/sessions")
         response.raise_for_status()
         return response.json()
 
 
 async def get_session(agent: str) -> dict:
     """Get a specific agent's tmux session output."""
-    if not LOCAL_DISPATCH_URL:
-        raise RuntimeError("JOAO_LOCAL_DISPATCH_URL not configured")
+    url, _secret = _require_tunnel()
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{LOCAL_DISPATCH_URL}/session/{agent}")
+        response = await client.get(f"{url}/session/{agent}")
         response.raise_for_status()
         return response.json()
 
 
 async def tunnel_health_check() -> dict:
     """Check if the local dispatch listener is reachable via tunnel."""
-    if not LOCAL_DISPATCH_URL:
+    url, secret = _tunnel_config()
+    if not url:
         return {"ok": False, "error": "JOAO_LOCAL_DISPATCH_URL not configured"}
 
     t0 = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{LOCAL_DISPATCH_URL}/health")
+            response = await client.get(f"{url}/health")
             latency = round((time.monotonic() - t0) * 1000, 1)
             if response.status_code == 200:
                 return {"ok": True, "latency_ms": latency, "data": response.json()}

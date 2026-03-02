@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 
 from mcp.server.fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
 from mcp.server.transport_security import TransportSecuritySettings
 
 from models.schemas import (
@@ -180,6 +183,7 @@ async def council_dispatch(
         context: Optional additional context
         project: Optional project name
     """
+    logger.info("council_dispatch called: agent=%s task=%s", agent, task[:80])
     try:
         result = await dispatch.dispatch_to_agent(
             agent=agent,
@@ -188,7 +192,9 @@ async def council_dispatch(
             context=context or None,
             project=project or None,
         )
+        logger.info("council_dispatch success: %s", result)
     except Exception as e:
+        logger.exception("council_dispatch failed")
         return f"Dispatch failed: {e}"
 
     try:
@@ -203,31 +209,38 @@ async def council_dispatch(
             )
         )
     except Exception:
-        pass
+        logger.warning("Failed to log dispatch to Supabase", exc_info=True)
 
-    return (
-        f"Dispatched to {agent}:\n"
-        f"Task: {task[:200]}\n"
-        f"Priority: {priority}\n"
-        f"Session: {result.get('session', 'unknown')}\n"
-        f"Status: {result.get('status', 'unknown')}"
-    )
+    try:
+        return (
+            f"Dispatched to {agent}:\n"
+            f"Task: {task[:200]}\n"
+            f"Priority: {priority}\n"
+            f"Session: {result.get('session', 'unknown')}\n"
+            f"Status: {result.get('status', 'unknown')}"
+        )
+    except Exception as e:
+        logger.exception("council_dispatch response formatting failed")
+        return f"Dispatched to {agent} but error formatting response: {e}"
 
 
 @mcp.tool()
 async def council_status() -> str:
     """Check which Council agents are active and their tmux session status."""
+    logger.info("council_status called")
     try:
         result = await dispatch.get_agents()
-    except Exception as e:
-        return f"Failed to reach local server: {e}"
+        logger.info("council_status got result: %s", result)
 
-    agents = result.get("agents", {})
-    lines = ["Council Agent Status:"]
-    for name, info in agents.items():
-        status = "ACTIVE" if info.get("active") else "INACTIVE"
-        lines.append(f"  {name}: {status} (session: {info.get('session', '?')})")
-    return "\n".join(lines)
+        agents = result.get("agents", {})
+        lines = ["Council Agent Status:"]
+        for name, info in agents.items():
+            status = "ACTIVE" if info.get("active") else "INACTIVE"
+            lines.append(f"  {name}: {status} (session: {info.get('session', '?')})")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.exception("council_status failed")
+        return f"Failed to reach local server: {e}"
 
 
 @mcp.tool()
@@ -237,13 +250,16 @@ async def council_session_output(agent: str) -> str:
     Args:
         agent: Agent name (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA)
     """
+    logger.info("council_session_output called: agent=%s", agent)
     try:
         result = await dispatch.get_session(agent)
-    except Exception as e:
-        return f"Failed to get session for {agent}: {e}"
+        logger.info("council_session_output got %d bytes", len(result.get("output", "")))
 
-    return (
-        f"Agent: {result.get('agent', agent)}\n"
-        f"Session: {result.get('session', '?')}\n"
-        f"--- Output ---\n{result.get('output', 'No output')}"
-    )
+        return (
+            f"Agent: {result.get('agent', agent)}\n"
+            f"Session: {result.get('session', '?')}\n"
+            f"--- Output ---\n{result.get('output', 'No output')}"
+        )
+    except Exception as e:
+        logger.exception("council_session_output failed")
+        return f"Failed to get session for {agent}: {e}"

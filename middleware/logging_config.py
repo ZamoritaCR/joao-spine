@@ -49,6 +49,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Logs request start/end with latency. Propagates X-Request-ID."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip MCP SSE endpoints — BaseHTTPMiddleware cannot handle streaming responses
+        if request.url.path.startswith("/mcp/"):
+            return await call_next(request)
+
         request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
         request.state.request_id = request_id
         t0 = time.monotonic()
