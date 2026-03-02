@@ -1,0 +1,138 @@
+openapi: 3.1.0
+info:
+  title: JOAO Council API
+  description: Dispatch tasks to Council agents and check their status
+  version: 2.0.0
+servers:
+  - url: https://joao-spine-production.up.railway.app
+paths:
+  /joao/council/agents:
+    get:
+      operationId: getCouncilAgents
+      summary: Check which Council agents are online
+      description: Returns the status of all 6 Council agents (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA) and whether their tmux sessions are active.
+      responses:
+        "200":
+          description: Agent status list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agents:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        session:
+                          type: string
+                        active:
+                          type: boolean
+  /joao/council/dispatch:
+    post:
+      operationId: dispatchToAgent
+      summary: Dispatch a task to a Council agent
+      description: Send a task to a specific agent. The agent receives it in their tmux session and executes autonomously.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agent
+                - task
+              properties:
+                agent:
+                  type: string
+                  enum: [BYTE, ARIA, CJ, SOFIA, DEX, GEMMA]
+                  description: "Agent name: BYTE (engineering), ARIA (architecture), CJ (product), SOFIA (design), DEX (support), GEMMA (research)"
+                task:
+                  type: string
+                  description: Detailed task description for the agent
+                priority:
+                  type: string
+                  enum: [normal, urgent, critical]
+                  default: normal
+                context:
+                  type: string
+                  description: Optional additional context
+                project:
+                  type: string
+                  description: Optional project name
+      responses:
+        "200":
+          description: Task dispatched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  agent:
+                    type: string
+                  task_preview:
+                    type: string
+                  timestamp:
+                    type: string
+                  server_response:
+                    type: object
+  /joao/council/sessions:
+    get:
+      operationId: getCouncilSessions
+      summary: Get recent output from all active agent sessions
+      description: Returns the last 50 lines of terminal output from each active agent's tmux session. Use this to check progress on dispatched tasks.
+      responses:
+        "200":
+          description: Session outputs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: object
+  /joao/council/session/{agent}:
+    get:
+      operationId: getAgentSession
+      summary: Get detailed output from a specific agent's session
+      description: Returns the last 200 lines of terminal output from a specific agent's tmux session.
+      parameters:
+        - name: agent
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [BYTE, ARIA, CJ, SOFIA, DEX, GEMMA]
+      responses:
+        "200":
+          description: Agent session output
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent:
+                    type: string
+                  session:
+                    type: string
+                  output:
+                    type: string
+  /joao/council/health:
+    get:
+      operationId: getCouncilHealth
+      summary: Check if the Council dispatch system is operational
+      description: Verifies connectivity from Railway to the Ubuntu server via Cloudflare tunnel.
+      responses:
+        "200":
+          description: Health check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  latency_ms:
+                    type: number
