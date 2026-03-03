@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -13,6 +14,7 @@ from models.schemas import (
     AIResult,
     AudioRequest,
     ContentResponse,
+    ContextResponse,
     CouncilDispatchRequest,
     CouncilDispatchResponse,
     DispatchLogRecord,
@@ -20,6 +22,8 @@ from models.schemas import (
     DispatchResponse,
     HealthResponse,
     IdeaVaultRecord,
+    LogEntry,
+    LogResponse,
     MeetingRequest,
     SessionLogRecord,
     StatusChecks,
@@ -306,3 +310,52 @@ async def council_session(agent: str):
 async def council_health():
     """Check if the local dispatch listener is reachable via tunnel."""
     return await dispatch.tunnel_health_check()
+
+
+# ── Context & Log Endpoints (joao-interface memory) ───────────────────────
+
+_MEMORY_DIR = Path("/home/zamoritacr/joao-interface/memory")
+_CONTEXT_FILE = _MEMORY_DIR / "JOAO_MASTER_CONTEXT.md"
+_SESSION_LOG_FILE = _MEMORY_DIR / "JOAO_SESSION_LOG.md"
+
+
+@router.get("/context", response_model=ContextResponse)
+async def get_context():
+    """Read both memory files and return their contents."""
+    context_text = ""
+    session_log_text = ""
+
+    if _CONTEXT_FILE.exists():
+        context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
+    if _SESSION_LOG_FILE.exists():
+        session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+
+    last_mod = max(
+        _CONTEXT_FILE.stat().st_mtime if _CONTEXT_FILE.exists() else 0,
+        _SESSION_LOG_FILE.stat().st_mtime if _SESSION_LOG_FILE.exists() else 0,
+    )
+
+    from datetime import datetime, timezone
+
+    last_updated = datetime.fromtimestamp(last_mod, tz=timezone.utc).isoformat() if last_mod else "never"
+
+    return ContextResponse(
+        context=context_text,
+        session_log=session_log_text,
+        last_updated=last_updated,
+    )
+
+
+@router.post("/log", response_model=LogResponse)
+async def append_log(entry: LogEntry):
+    """Append a log entry to the session log file."""
+    from datetime import datetime, timezone
+
+    ts = entry.timestamp or datetime.now(timezone.utc).isoformat()
+
+    line = f"\n**[{ts}] {entry.role}:** {entry.content}\n"
+
+    with open(_SESSION_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(line)
+
+    return LogResponse(status="logged")

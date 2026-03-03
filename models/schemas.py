@@ -169,3 +169,21 @@ class DispatchLogRecord(BaseModel):
     project: str | None = None
     status: str = "dispatched"
     session: str | None = None
+
+
+# ── Context / Log Models (joao-interface) ─────────────────────────────────
+
+class ContextResponse(BaseModel):
+    context: str
+    session_log: str
+    last_updated: str
+
+
+class LogEntry(BaseModel):
+    role: str = Field(..., description="user or assistant")
+    content: str = Field(..., description="Log message content")
+    timestamp: str | None = Field(None, description="ISO timestamp, auto-filled if omitted")
+
+
+class LogResponse(BaseModel):
+    status: str = "logged"
