@@ -392,13 +392,30 @@ async def chat_proxy(req: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
-    # Build system prompt from memory files (may be empty on Railway — that's OK)
+    # Load context: local files first, tunnel fallback for Railway
     context_text = ""
     session_log_text = ""
     if _CONTEXT_FILE.exists():
         context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
-    if _SESSION_LOG_FILE.exists():
-        session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+        if _SESSION_LOG_FILE.exists():
+            session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+    else:
+        # Running on Railway — fetch from tunnel
+        tunnel_url = os.environ.get(
+            "JOAO_TUNNEL_URL",
+            "https://route-reasonably-mario-portraits.trycloudflare.com",
+        )
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=10) as http:
+                resp = await http.get(f"{tunnel_url}/joao/context")
+                resp.raise_for_status()
+                data = resp.json()
+                context_text = data.get("context", "")
+                session_log_text = data.get("session_log", "")
+        except Exception as e:
+            logger.warning("Failed to fetch context from tunnel: %s", e)
 
     system_prompt = context_text or "You are JOÃO, a persistent AI companion."
     if session_log_text:
