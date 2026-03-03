@@ -432,7 +432,7 @@ async def chat_proxy(req: ChatRequest):
         full_response = ""
         try:
             async with client.messages.stream(
-                model="claude-haiku-4-5-20251001",
+                model="claude-sonnet-4-6" if req.model == "sonnet" else "claude-haiku-4-5-20251001",
                 max_tokens=2048,
                 system=[
                     {

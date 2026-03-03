@@ -199,3 +199,4 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(..., description="Conversation messages")
     session_id: str = Field("default", description="Session identifier")
+    model: str = Field("haiku", description="Model: 'haiku' (default) or 'sonnet'")
