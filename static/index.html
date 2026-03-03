@@ -222,7 +222,30 @@ async function startRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+    // Pick best supported mimeType: webm (Android/Chrome), mp4 (iOS/Safari), fallback
+    let mimeType = 'audio/webm';
+    let ext = 'webm';
+    if (typeof MediaRecorder.isTypeSupported === 'function') {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+        ext = 'webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4';
+        ext = 'mp4';
+      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+        mimeType = 'audio/ogg;codecs=opus';
+        ext = 'ogg';
+      } else {
+        // Let browser pick default
+        mimeType = '';
+        ext = 'webm';
+      }
+    }
+
+    mediaRecorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) audioChunks.push(e.data);
@@ -230,8 +253,8 @@ async function startRecording() {
 
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
-      const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      await processAudio(blob);
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      await processAudio(blob, ext);
     };
 
     mediaRecorder.start();
@@ -243,7 +266,13 @@ async function startRecording() {
     resultCard.classList.remove('visible');
   } catch (err) {
     setStatus('error');
-    transcript.textContent = 'Microphone access denied';
+    if (err.name === 'NotAllowedError') {
+      transcript.textContent = 'Microphone access denied';
+    } else if (err.name === 'NotSupportedError') {
+      transcript.textContent = 'Audio recording not supported on this browser';
+    } else {
+      transcript.textContent = 'Could not start recording: ' + err.message;
+    }
   }
 }
 
@@ -257,10 +286,10 @@ function stopRecording() {
   setStatus('processing');
 }
 
-async function processAudio(blob) {
+async function processAudio(blob, ext = 'webm') {
   const key = getApiKey();
   const formData = new FormData();
-  formData.append('audio', blob, 'audio.webm');
+  formData.append('audio', blob, 'audio.' + ext);
 
   try {
     const resp = await fetch(API_BASE + '/joao/voice/command', {
@@ -358,7 +387,7 @@ loadAgents();
 
 // Service Worker
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 </script>
 </body>

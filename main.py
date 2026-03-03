@@ -57,7 +57,16 @@ async def pwa_app():
     return FileResponse(_STATIC_DIR / "index.html", media_type="text/html")
 
 
-# Static files (must be after explicit routes)
+# Service worker — served from /sw.js (root) so its default scope covers /
+@app.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    return FileResponse(
+        _STATIC_DIR / "sw.js",
+        media_type="application/javascript",
+    )
+
+
+# Static files
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 # MCP mount — SSE transport at /mcp (exposes /mcp/sse endpoint)

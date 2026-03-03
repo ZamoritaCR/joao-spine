@@ -103,13 +103,29 @@ async def dispatch_command(
     return {"session_name": session_name, "command": command, "status": status, "output": output}
 
 
+async def capture_pane(session_name: str) -> dict[str, str]:
+    """Capture the current tmux pane output for a session via SSH."""
+    cfg = _ssh_config()
+    try:
+        async with asyncssh.connect(**cfg) as conn:
+            result = await conn.run(
+                f"tmux capture-pane -t {session_name} -p 2>/dev/null",
+                check=False,
+            )
+            output = (result.stdout or "").strip()
+            return {"status": "ok", "output": output}
+    except Exception as e:
+        logger.exception("SSH capture-pane failed for %s", session_name)
+        return {"status": "error", "output": str(e)}
+
+
 async def health_check() -> tuple[SshCheck, TmuxCheck]:
     """Check SSH connectivity and list tmux sessions."""
     cfg = _ssh_config()
     target = f"{cfg['username']}@{cfg['host']}:{cfg['port']}"
     t0 = time.monotonic()
     try:
-        async with asyncssh.connect(**cfg, login_timeout=3) as conn:
+        async with asyncssh.connect(**cfg, login_timeout=3, connect_timeout=3) as conn:
             ssh_latency = round((time.monotonic() - t0) * 1000, 1)
             ssh_check = SshCheck(ok=True, latency_ms=ssh_latency, target=target)
 

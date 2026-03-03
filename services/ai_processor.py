@@ -88,15 +88,31 @@ async def process_vision(image_url: str, prompt: str = "") -> AIResult:
     return await _call_openai(system, user_content)
 
 
+_MIME_MAP = {
+    ".webm": "audio/webm",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+    ".mp4": "audio/mp4",
+    ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+    ".flac": "audio/flac",
+}
+
+
 async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """Transcribe audio using OpenAI Whisper API."""
     client = _get_client()
-    content_type = "audio/webm" if filename.endswith(".webm") else "audio/ogg"
-    resp = await client.audio.transcriptions.create(
-        model="whisper-1",
-        file=(filename, audio_bytes, content_type),
-    )
-    return {"text": resp.text, "language": "en"}
+    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ".webm"
+    content_type = _MIME_MAP.get(ext, "audio/webm")
+    try:
+        resp = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(filename, audio_bytes, content_type),
+        )
+        return {"text": resp.text, "language": "en"}
+    except Exception as e:
+        logger.error("Whisper transcription failed: %s", e)
+        raise
 
 
 _INTENT_SYSTEM_PROMPT = """You are JOAO's intent parser. Given a voice command from Johan, extract:
@@ -118,24 +134,31 @@ Examples:
 async def parse_intent(text: str) -> VoiceIntent:
     """Parse voice command text into a structured intent."""
     client = _get_client()
-    resp = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.1,
-    )
-    raw = resp.choices[0].message.content or "{}"
-    data = json.loads(raw)
-    return VoiceIntent(
-        intent=data.get("intent", "unknown"),
-        agent=data.get("agent"),
-        task=data.get("task"),
-        priority=data.get("priority", "normal"),
-        project=data.get("project"),
-    )
+    try:
+        resp = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+        raw = resp.choices[0].message.content or "{}"
+        data = json.loads(raw)
+        return VoiceIntent(
+            intent=data.get("intent", "unknown"),
+            agent=data.get("agent"),
+            task=data.get("task"),
+            priority=data.get("priority", "normal"),
+            project=data.get("project"),
+        )
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.warning("Intent parse failed: %s", e)
+        return VoiceIntent(intent="unknown")
+    except Exception:
+        logger.exception("OpenAI intent parse error")
+        return VoiceIntent(intent="unknown")
 
 
 async def process_text(text: str, context: str = "") -> AIResult:

@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter, Depends, UploadFile
 from pydantic import BaseModel
 
-from middleware.auth import require_api_key, validate_agent_name, ALLOWED_AGENTS
+from middleware.auth import require_api_key, validate_agent_name, validate_command_safety, ALLOWED_AGENTS
 from models.schemas import (
     AgentOutputRecord,
     IdeaVaultRecord,
@@ -108,6 +108,12 @@ async def _handle_dispatch(intent: VoiceIntent) -> dict:
         return {"status": "error", "response": f"Unknown agent '{intent.agent}'. Available: {sorted(ALLOWED_AGENTS)}"}
 
     task = intent.task or "No task specified"
+
+    try:
+        validate_command_safety(task)
+    except ValueError:
+        return {"status": "error", "response": "Task contains disallowed characters"}
+
     result = await dispatch.dispatch_command(
         session_name=intent.agent.upper(),
         command=task,
@@ -158,13 +164,9 @@ async def _handle_check(intent: VoiceIntent) -> dict:
     except ValueError:
         return {"status": "error", "response": f"Unknown agent '{intent.agent}'"}
 
-    result = await dispatch.dispatch_command(
-        session_name=intent.agent.upper(),
-        command=f"tmux capture-pane -t {intent.agent.upper()} -p",
-        wait=True,
-    )
+    result = await dispatch.capture_pane(session_name=intent.agent.upper())
     return {
-        "status": "ok",
+        "status": result.get("status", "ok"),
         "agent": intent.agent.upper(),
         "output": result.get("output", "No output captured"),
     }
