@@ -384,6 +384,29 @@ def _append_log_sync(role: str, content: str) -> None:
 
 COUNCIL_TOOLS = [
     {
+        "name": "escalate_to_opus",
+        "description": (
+            "Escalate a question or task to Claude Opus for deep analysis. "
+            "Use ONLY for: complex architecture decisions, QA/code review of critical systems, "
+            "debugging hard problems, strategic planning, or when Johan explicitly asks for 'deep thinking' or 'opus'. "
+            "Do NOT use for simple questions, status checks, or routine tasks."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "The full question or task for Opus to analyze deeply. Include all relevant context.",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional additional context (code snippets, error logs, etc.)",
+                },
+            },
+            "required": ["prompt"],
+        },
+    },
+    {
         "name": "council_status",
         "description": "Check which Council agents are online. Call when Johan asks 'who's online', 'check the council', 'are agents running', etc.",
         "input_schema": {
@@ -441,7 +464,33 @@ COUNCIL_TOOLS = [
 
 async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
     """Execute a council tool and return the result as a string."""
+    import anthropic as _anthropic
     import httpx
+
+    # Handle Opus escalation separately — no tunnel needed
+    if tool_name == "escalate_to_opus":
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            return "ERROR: ANTHROPIC_API_KEY not configured"
+        try:
+            client = _anthropic.AsyncAnthropic(api_key=api_key)
+            opus_prompt = tool_input.get("prompt", "")
+            extra_context = tool_input.get("context", "")
+            if extra_context:
+                opus_prompt += f"\n\nAdditional context:\n{extra_context}"
+            response = await client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": opus_prompt}],
+            )
+            opus_text = ""
+            for block in response.content:
+                if block.type == "text":
+                    opus_text += block.text
+            return f"[OPUS ANALYSIS]\n\n{opus_text}"
+        except Exception as e:
+            logger.error("Opus escalation failed: %s", e)
+            return f"ERROR: Opus escalation failed: {e}"
 
     dispatch_url, dispatch_secret = dispatch._tunnel_config()
     if not dispatch_url:
@@ -561,7 +610,11 @@ async def chat_proxy(req: ChatRequest):
         "- To check an agent's progress: call council_session_output\n"
         "- NEVER suggest SSH commands, manual checks, or say you lack access. "
         "You HAVE access through your tools. USE THEM.\n"
-        "- Always confirm results to Johan after tool execution."
+        "- Always confirm results to Johan after tool execution.\n"
+        "- You also have escalate_to_opus for deep analysis. Use it when Johan asks for "
+        "'deep thinking', 'opus mode', 'analyze this deeply', QA review, architecture review, "
+        "or any task that requires the highest reasoning capability. "
+        "Sonnet handles everything else."
     )
 
     if req.messages:
