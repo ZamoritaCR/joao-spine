@@ -200,3 +200,29 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(..., description="Conversation messages")
     session_id: str = Field("default", description="Session identifier")
     model: str = Field("haiku", description="Model: 'haiku' (default) or 'sonnet'")
+
+
+# ── QA Pipeline Models ───────────────────────────────────────────────────
+
+class QASubmission(BaseModel):
+    dispatch_id: str = Field(..., description="ID from dispatch_log")
+    agent: str = Field(..., description="Agent that completed the work (BYTE, ARIA, etc.)")
+    task_summary: str = Field(..., description="What was the task")
+    code_diff: str | None = Field(None, description="Git diff of changes")
+    files_changed: list[str] = Field(default_factory=list, description="List of files modified")
+    test_results: str | None = Field(None, description="Test output")
+
+
+class QAReview(BaseModel):
+    model: str = Field(..., description="Reviewer model (sonnet, gpt-4o, opus)")
+    score: int = Field(..., description="Score 1-10")
+    verdict: str = Field(..., description="pass, fail, or needs_revision")
+    feedback: str = Field("", description="Reviewer feedback")
+
+
+class QAConsensus(BaseModel):
+    dispatch_id: str
+    reviews: list[QAReview] = Field(default_factory=list)
+    consensus_verdict: str = Field(..., description="deploy, review, or reject")
+    avg_score: float = Field(0.0)
+    deploy_ready: bool = Field(False)

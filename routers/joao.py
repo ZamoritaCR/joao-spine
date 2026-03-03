@@ -459,6 +459,30 @@ COUNCIL_TOOLS = [
             "required": ["agent"],
         },
     },
+    {
+        "name": "qa_review",
+        "description": (
+            "Check QA review status for an agent's code, or override a QA decision. "
+            "Call when Johan asks 'how did BYTE's code score?', 'check QA status', "
+            "'deploy it anyway', 'reject that code', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "dispatch_id": {
+                    "type": "string",
+                    "description": "Dispatch ID to check or override. If unknown, use 'latest'.",
+                },
+                "action": {
+                    "type": "string",
+                    "description": "Action: 'status' to check, 'deploy' to force deploy, 'reject' to reject",
+                    "enum": ["status", "deploy", "reject"],
+                    "default": "status",
+                },
+            },
+            "required": ["dispatch_id"],
+        },
+    },
 ]
 
 
@@ -546,6 +570,55 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                     output = "...\n" + output[-2000:]
                 return f"{agent} session output:\n{output}"
 
+            elif tool_name == "qa_review":
+                dispatch_id = tool_input.get("dispatch_id", "")
+                action = tool_input.get("action", "status")
+
+                if action == "status":
+                    # Check QA status — try local cache in qa router first
+                    from routers.qa import _qa_cache
+
+                    if dispatch_id == "latest" and _qa_cache:
+                        # Get the most recent entry
+                        latest_key = list(_qa_cache.keys())[-1]
+                        entry = _qa_cache[latest_key]
+                        dispatch_id = latest_key
+                    elif dispatch_id in _qa_cache:
+                        entry = _qa_cache[dispatch_id]
+                    else:
+                        entry = None
+
+                    if entry:
+                        reviews = entry.get("reviews", {})
+                        lines = [f"QA Review for dispatch {dispatch_id}:"]
+                        lines.append(f"  Agent: {entry.get('agent', 'unknown')}")
+                        lines.append(f"  Task: {entry.get('task_summary', 'N/A')[:100]}")
+                        for name in ("sonnet", "gpt", "opus"):
+                            r = reviews.get(name, {})
+                            lines.append(
+                                f"  {name.upper()}: score={r.get('score', '?')}/10 "
+                                f"verdict={r.get('verdict', '?')} — {r.get('feedback', '')[:100]}"
+                            )
+                        lines.append(f"  CONSENSUS: {entry.get('consensus_verdict', '?')}")
+                        lines.append(f"  AVG SCORE: {entry.get('avg_score', '?')}")
+                        lines.append(f"  DEPLOY READY: {entry.get('deploy_ready', False)}")
+                        return "\n".join(lines)
+                    else:
+                        return f"No QA record found for dispatch_id={dispatch_id}"
+
+                elif action in ("deploy", "reject"):
+                    # Override via QA router
+                    resp = await http.post(
+                        f"http://localhost:8000/joao/council/qa/{dispatch_id}/override",
+                        params={"action": action, "override_by": "johan"},
+                    )
+                    if resp.status_code == 200:
+                        return f"QA override: {action} applied for dispatch {dispatch_id}"
+                    else:
+                        return f"QA override failed: {resp.text}"
+
+                return f"Unknown qa_review action: {action}"
+
             else:
                 return f"Unknown tool: {tool_name}"
 
@@ -599,7 +672,7 @@ async def chat_proxy(req: ChatRequest):
 
     system_prompt += (
         "\n\n---\n\n## Council Dispatch (MANDATORY)\n\n"
-        "You have 3 tools: council_status, council_dispatch, council_session_output.\n"
+        "You have 4 tools: council_status, council_dispatch, council_session_output, qa_review.\n"
         "RULES:\n"
         "- When Johan mentions ANY agent (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA), "
         "asks who is online, asks to dispatch, check status, or check progress: "
@@ -608,6 +681,7 @@ async def chat_proxy(req: ChatRequest):
         "- To check status: call council_status\n"
         "- To dispatch a task: call council_dispatch\n"
         "- To check an agent's progress: call council_session_output\n"
+        "- To check QA scores or override: call qa_review (action='status', 'deploy', or 'reject')\n"
         "- NEVER suggest SSH commands, manual checks, or say you lack access. "
         "You HAVE access through your tools. USE THEM.\n"
         "- Always confirm results to Johan after tool execution.\n"
@@ -628,12 +702,15 @@ async def chat_proxy(req: ChatRequest):
     model = "claude-sonnet-4-6"
 
     async def event_stream():
+        import asyncio
+
         full_response = ""
         messages = list(api_messages)
         max_tool_rounds = 5
 
         try:
             for _round in range(max_tool_rounds):
+                logger.info("Chat round %d starting (messages=%d)", _round, len(messages))
                 response = await client.messages.create(
                     model=model,
                     max_tokens=2048,
@@ -648,9 +725,9 @@ async def chat_proxy(req: ChatRequest):
                     messages=messages,
                 )
 
-                # Process response content blocks
+                # Separate text blocks and tool_use blocks
                 has_tool_use = False
-                tool_results = []
+                tool_calls = []
 
                 for block in response.content:
                     if block.type == "text":
@@ -658,16 +735,39 @@ async def chat_proxy(req: ChatRequest):
                         yield f"data: {block.text}\n\n"
                     elif block.type == "tool_use":
                         has_tool_use = True
-                        yield f"data: \n[Calling {block.name}...]\n\n"
-                        result = await _execute_council_tool(block.name, block.input)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": result,
-                        })
+                        tool_calls.append(block)
 
                 if not has_tool_use:
                     break
+
+                # Show what tools are being called
+                tool_names = [tc.name for tc in tool_calls]
+                yield f"data: \n[Executing: {', '.join(tool_names)}...]\n\n"
+
+                # Run ALL tool calls in parallel
+                async def _run_tool(block):
+                    try:
+                        result = await asyncio.wait_for(
+                            _execute_council_tool(block.name, block.input),
+                            timeout=25.0,
+                        )
+                    except asyncio.TimeoutError:
+                        result = f"ERROR: {block.name} timed out after 25s"
+                        logger.error("Tool %s timed out", block.name)
+                    except Exception as e:
+                        result = f"ERROR: {block.name} failed: {e}"
+                        logger.error("Tool %s failed: %s", block.name, e)
+                    return {
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result,
+                    }
+
+                tool_results = await asyncio.gather(*[_run_tool(tc) for tc in tool_calls])
+                tool_results = list(tool_results)
+
+                logger.info("Tools completed: %s", tool_names)
+                yield f"data: \n[Tools done, generating response...]\n\n"
 
                 # Add assistant response and tool results for next round
                 messages.append({"role": "assistant", "content": response.content})

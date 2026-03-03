@@ -317,7 +317,26 @@
     const sendBtn     = $("#send-btn");
     const errorBanner = $("#error-banner");
 
-    let conversationMessages = [];
+    // ── Chat History Persistence (localStorage) ──
+    const STORAGE_KEY = "joao_chat_history";
+    const MAX_STORED_MESSAGES = 200;
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const msgs = JSON.parse(raw);
+        return Array.isArray(msgs) ? msgs.slice(-MAX_STORED_MESSAGES) : [];
+      } catch { return []; }
+    }
+
+    function saveHistory(msgs) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-MAX_STORED_MESSAGES)));
+      } catch (e) { console.warn("Failed to save chat history:", e); }
+    }
+
+    let conversationMessages = loadHistory();
     let currentModel = "haiku";
 
     const modelToggle = document.getElementById("model-toggle");
@@ -388,6 +407,12 @@
       loadingEl.style.display = "none";
       chatEl.style.display = "flex";
       inputArea.style.display = "block";
+
+      // Restore previous messages to the UI
+      for (const msg of conversationMessages) {
+        addMessage(msg.role, msg.content);
+      }
+
       userInput.focus();
     }
 
@@ -402,6 +427,7 @@
 
       addMessage("user", text);
       conversationMessages.push({ role: "user", content: text });
+      saveHistory(conversationMessages);
       logToTunnel("user", text);
 
       showThinking();
@@ -456,6 +482,7 @@
         }
 
         conversationMessages.push({ role: "assistant", content: fullResponse });
+        saveHistory(conversationMessages);
         if (fullResponse) logToTunnel("assistant", fullResponse);
 
       } catch (err) {

@@ -150,11 +150,25 @@ def build_interactive_prompt(
     project_name = project or "JOAO System"
     ts = datetime.now(timezone.utc).isoformat()
 
-    prompt_text = (
-        f"{task}"
-    )
+    prompt_text = f"{task}"
     if context:
         prompt_text += f"\n\nAdditional context: {context}"
+
+    prompt_text += (
+        "\n\nWhen you finish the task:"
+        "\n1. Run any relevant tests"
+        "\n2. Generate a git diff of your changes (git diff)"
+        "\n3. Submit to QA by running:"
+        '\n   curl -s -X POST http://localhost:7778/joao/council/qa'
+        ' -H "Content-Type: application/json"'
+        ' -d \'{"dispatch_id":"' + agent.lower() + '-$(date +%s)",'
+        ' "agent":"' + agent + '",'
+        ' "task_summary":"' + task.replace('"', '\\"')[:200] + '",'
+        ' "code_diff":"<paste your git diff here>",'
+        ' "test_results":"<paste test output here>"}\''
+        "\n4. Wait for QA consensus before considering the task complete"
+    )
+
     # Escape single quotes for shell
     escaped = prompt_text.replace("'", "'\\''")
     return f"claude -p --dangerously-skip-permissions '{escaped}'"

@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mcp_server import mcp
 from routers.joao import router as joao_router
+from routers.qa import router as qa_router
 from routers.voice import router as voice_router
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # REST routes
 app.include_router(joao_router)
+app.include_router(qa_router)
 app.include_router(voice_router)
 
 
