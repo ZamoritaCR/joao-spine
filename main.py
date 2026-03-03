@@ -67,6 +67,12 @@ async def pwa_app():
     return FileResponse(_STATIC_DIR / "index.html", media_type="text/html")
 
 
+# JOAO chat UI
+@app.get("/joao/chat-ui", include_in_schema=False)
+async def chat_ui():
+    return FileResponse(_STATIC_DIR / "chat.html", media_type="text/html")
+
+
 # Service worker — served from /sw.js (root) so its default scope covers /
 @app.get("/sw.js", include_in_schema=False)
 async def service_worker():
