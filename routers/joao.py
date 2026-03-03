@@ -379,7 +379,10 @@ def _append_log_sync(role: str, content: str) -> None:
 @router.post("/chat")
 async def chat_proxy(req: ChatRequest):
     """Proxy chat to Claude API with persistent memory context. Streams SSE."""
-    import anthropic
+    try:
+        import anthropic
+    except ImportError as e:
+        raise HTTPException(status_code=500, detail=f"anthropic SDK not installed: {e}")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -406,7 +409,10 @@ async def chat_proxy(req: ChatRequest):
     # Build messages for the API
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    try:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to init client: {e}")
 
     async def event_stream():
         full_response = ""
