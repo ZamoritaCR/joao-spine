@@ -549,11 +549,19 @@ async def chat_proxy(req: ChatRequest):
         system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
 
     system_prompt += (
-        "\n\n---\n\n## Council Dispatch\n\n"
-        "You have tools to manage the Council of AI agents. "
-        "When Johan asks you to dispatch a task, check status, or check on an agent, "
-        "USE THE TOOLS. Never say dispatch is broken or unavailable — use the tools. "
-        "Always confirm the dispatch result to Johan after sending."
+        "\n\n---\n\n## Council Dispatch (MANDATORY)\n\n"
+        "You have 3 tools: council_status, council_dispatch, council_session_output.\n"
+        "RULES:\n"
+        "- When Johan mentions ANY agent (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA), "
+        "asks who is online, asks to dispatch, check status, or check progress: "
+        "ALWAYS call the appropriate tool. NEVER respond with text like "
+        "'I cannot see', 'I don't have visibility', 'check directly', etc.\n"
+        "- To check status: call council_status\n"
+        "- To dispatch a task: call council_dispatch\n"
+        "- To check an agent's progress: call council_session_output\n"
+        "- NEVER suggest SSH commands, manual checks, or say you lack access. "
+        "You HAVE access through your tools. USE THEM.\n"
+        "- Always confirm results to Johan after tool execution."
     )
 
     if req.messages:
@@ -563,7 +571,8 @@ async def chat_proxy(req: ChatRequest):
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
     client = anthropic.AsyncAnthropic(api_key=api_key)
-    model = "claude-sonnet-4-6" if req.model == "sonnet" else "claude-haiku-4-5-20251001"
+    # Always use Sonnet for tool reliability — Haiku skips tool calls
+    model = "claude-sonnet-4-6"
 
     async def event_stream():
         full_response = ""
