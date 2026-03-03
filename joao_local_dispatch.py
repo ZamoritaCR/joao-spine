@@ -140,28 +140,24 @@ def build_interactive_prompt(
     context: str = None,
     project: str = None,
 ) -> str:
-    """Build the Claude Code prompt for the interactive lane (human-supervised only)."""
-    context_line = f"\nCONTEXT: {context}" if context else ""
-    prompt = f"""claude --dangerously-skip-permissions << 'JOAO_DISPATCH'
-PROJECT: {project or 'JOAO System'}
-DISPATCHED BY: JOAO (via Railway Spine)
-PRIORITY: {priority.upper()}
-TIMESTAMP: {datetime.now(timezone.utc).isoformat()}
-AGENT: {agent}
+    """Build the Claude Code prompt for the interactive lane.
 
-TASK:
-{task}
-{context_line}
+    Uses claude -p (print mode) with --dangerously-skip-permissions for
+    fully autonomous execution. The prompt is passed via -p flag as a
+    single argument, avoiding heredoc issues with tmux send-keys.
+    """
+    context_part = f" CONTEXT: {context}" if context else ""
+    project_name = project or "JOAO System"
+    ts = datetime.now(timezone.utc).isoformat()
 
-RULES:
-- Git commit after each phase with descriptive message
-- If blocked, make reasonable decision and document it
-- Prioritize shipping over perfection
-- Test each feature before moving to next
-- NO refactoring of existing working code
-- Report completion to Supabase dispatch_log table when done
-JOAO_DISPATCH"""
-    return prompt
+    prompt_text = (
+        f"{task}"
+    )
+    if context:
+        prompt_text += f"\n\nAdditional context: {context}"
+    # Escape single quotes for shell
+    escaped = prompt_text.replace("'", "'\\''")
+    return f"claude -p --dangerously-skip-permissions '{escaped}'"
 
 
 @app.get("/health")

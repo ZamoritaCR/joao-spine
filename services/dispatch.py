@@ -220,6 +220,7 @@ async def dispatch_to_agent(
         "priority": priority,
         "context": context,
         "project": project,
+        "lane": "interactive",
     }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
