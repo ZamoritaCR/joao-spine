@@ -565,9 +565,10 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                 resp.raise_for_status()
                 data = resp.json()
                 output = data.get("output", "No output available")
-                # Truncate to last 2000 chars
-                if len(output) > 2000:
-                    output = "...\n" + output[-2000:]
+                # Truncate to last 1200 chars to keep tool results manageable
+                # (prevents Claude API timeout when multiple agents are queried)
+                if len(output) > 1200:
+                    output = "...\n" + output[-1200:]
                 return f"{agent} session output:\n{output}"
 
             elif tool_name == "qa_review":
@@ -697,7 +698,7 @@ async def chat_proxy(req: ChatRequest):
             _append_log_sync("user", last_msg.content)
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0)
     # Always use Sonnet for tool reliability — Haiku skips tool calls
     model = "claude-sonnet-4-6"
 
@@ -713,7 +714,7 @@ async def chat_proxy(req: ChatRequest):
                 logger.info("Chat round %d starting (messages=%d)", _round, len(messages))
                 response = await client.messages.create(
                     model=model,
-                    max_tokens=2048,
+                    max_tokens=4096,
                     system=[
                         {
                             "type": "text",
