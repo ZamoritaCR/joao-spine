@@ -30,12 +30,42 @@ AGENT_SESSIONS = {
 }
 
 
+# Commands that require interactive input — blocked in automated lane
+INTERACTIVE_PATTERNS = [
+    "claude ",
+    "claude\n",
+    "nano ",
+    "vim ",
+    "vi ",
+    "less ",
+    "more ",
+    "htop",
+    "top\n",
+    "ssh ",
+    "sudo -i",
+    "python3\n",
+    "python\n",
+    "node\n",
+    "irb\n",
+]
+
+
+def is_interactive(command: str) -> bool:
+    """Check if a command would launch an interactive process."""
+    cmd_lower = command.strip().lower()
+    for pattern in INTERACTIVE_PATTERNS:
+        if cmd_lower.startswith(pattern.strip()):
+            return True
+    return False
+
+
 class DispatchCommand(BaseModel):
     agent: str
     task: str
     priority: str = "normal"
     context: Optional[str] = None
     project: Optional[str] = None
+    lane: str = "automated"  # "automated" (bash-only) or "interactive" (claude CLI)
 
 
 class DispatchResponse(BaseModel):
@@ -81,14 +111,30 @@ def send_to_tmux(session_name: str, command: str):
     )
 
 
-def build_agent_prompt(
+def build_automated_command(
     agent: str,
     task: str,
     priority: str,
     context: str = None,
     project: str = None,
 ) -> str:
-    """Build the Claude Code prompt for the target agent."""
+    """Build a non-interactive bash command for the automated lane.
+
+    The task is executed directly as a bash command — no Claude CLI,
+    no interactive prompts, no heredocs that could hang.
+    """
+    # The task IS the command in automated mode
+    return task
+
+
+def build_interactive_prompt(
+    agent: str,
+    task: str,
+    priority: str,
+    context: str = None,
+    project: str = None,
+) -> str:
+    """Build the Claude Code prompt for the interactive lane (human-supervised only)."""
     context_line = f"\nCONTEXT: {context}" if context else ""
     prompt = f"""claude --dangerously-skip-permissions << 'JOAO_DISPATCH'
 PROJECT: {project or 'JOAO System'}
@@ -135,7 +181,13 @@ async def list_agents():
 
 @app.post("/dispatch", response_model=DispatchResponse)
 async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None)):
-    """Dispatch a task to a Council agent via tmux."""
+    """Dispatch a task to a Council agent via tmux.
+
+    Two lanes:
+    - automated (default): Bash-only commands. No interactive processes.
+      Guards against claude CLI, vim, ssh, etc.
+    - interactive: Claude CLI allowed. For human-supervised sessions only.
+    """
     verify_secret(authorization)
 
     agent = cmd.agent.upper()
@@ -145,22 +197,38 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
             detail=f"Unknown agent: {agent}. Available: {list(AGENT_SESSIONS.keys())}",
         )
 
+    lane = cmd.lane or "automated"
     session = AGENT_SESSIONS[agent]
     create_tmux_session(session)
 
-    prompt = build_agent_prompt(
-        agent, cmd.task, cmd.priority, cmd.context, cmd.project
-    )
-    send_to_tmux(session, prompt)
+    if lane == "interactive":
+        # Interactive lane: Claude CLI wrapper, human-supervised
+        command = build_interactive_prompt(
+            agent, cmd.task, cmd.priority, cmd.context, cmd.project
+        )
+        logger.info(f"[interactive] Dispatched to {agent}: {cmd.task[:100]}")
+    else:
+        # Automated lane: bash-only, no interactive processes
+        if is_interactive(cmd.task):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Automated lane rejects interactive commands. "
+                       f"Task starts with a blocked pattern. "
+                       f"Use lane='interactive' for Claude CLI tasks.",
+            )
+        command = build_automated_command(
+            agent, cmd.task, cmd.priority, cmd.context, cmd.project
+        )
+        logger.info(f"[automated] Dispatched to {agent}: {cmd.task[:100]}")
 
-    logger.info(f"Dispatched to {agent} in session '{session}': {cmd.task[:100]}")
+    send_to_tmux(session, command)
 
     return DispatchResponse(
         status="dispatched",
         agent=agent,
         session=session,
         timestamp=datetime.now(timezone.utc).isoformat(),
-        message=f"Task sent to {agent} via tmux session '{session}'",
+        message=f"Task sent to {agent} via tmux session '{session}' [lane={lane}]",
     )
 
 
