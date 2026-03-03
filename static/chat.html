@@ -462,7 +462,7 @@
 
       try {
         // 1. Get token from backend
-        const tokenRes = await fetch(`${CONFIG.RAILWAY_URL}/joao/voice/token`, {
+        const tokenRes = await fetch(`${CONFIG.TUNNEL_URL}/joao/voice/token`, {
           method: "POST",
         });
         if (!tokenRes.ok) throw new Error(`Token error: ${tokenRes.status}`);
