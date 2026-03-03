@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from middleware.auth import require_dispatch_auth, validate_agent_name, validate_command_safety
 
 from models.schemas import (
     AIResult,
     AudioRequest,
+    ChatRequest,
     ContentResponse,
     ContextResponse,
     CouncilDispatchRequest,
@@ -359,3 +362,88 @@ async def append_log(entry: LogEntry):
         f.write(line)
 
     return LogResponse(status="logged")
+
+
+# ── Chat Proxy (streams Claude API, keeps key server-side) ─────────────
+
+def _append_log_sync(role: str, content: str) -> None:
+    """Append to session log (sync helper for use inside generator)."""
+    from datetime import datetime, timezone
+
+    ts = datetime.now(timezone.utc).isoformat()
+    line = f"\n**[{ts}] {role}:** {content}\n"
+    with open(_SESSION_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(line)
+
+
+@router.post("/chat")
+async def chat_proxy(req: ChatRequest):
+    """Proxy chat to Claude API with persistent memory context. Streams SSE."""
+    import anthropic
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+
+    # Build system prompt from memory files
+    context_text = ""
+    session_log_text = ""
+    if _CONTEXT_FILE.exists():
+        context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
+    if _SESSION_LOG_FILE.exists():
+        session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+
+    system_prompt = context_text
+    if session_log_text:
+        system_prompt += f"\n\n---\n\n## Session Log\n\n{session_log_text}"
+
+    # Log the latest user message
+    if req.messages:
+        last_msg = req.messages[-1]
+        if last_msg.role == "user":
+            _append_log_sync("user", last_msg.content)
+
+    # Build messages for the API
+    api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    async def event_stream():
+        full_response = ""
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=8096,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=api_messages,
+            ) as stream:
+                for text in stream.text_stream:
+                    full_response += text
+                    yield f"data: {text}\n\n"
+        except anthropic.APIError as e:
+            logger.error("Claude API error: %s", e)
+            yield f"data: [ERROR] {e.message}\n\n"
+        except Exception as e:
+            logger.exception("Chat stream error")
+            yield f"data: [ERROR] {e}\n\n"
+
+        # Log the full assistant response
+        if full_response:
+            _append_log_sync("assistant", full_response)
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

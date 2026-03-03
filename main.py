@@ -17,6 +17,7 @@ configure_json_logging()
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -41,6 +42,15 @@ app = FastAPI(
     description="Personal automation server — SSH dispatch, AI processing, idea vault",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+# CORS — allow frontend origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # tighten in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Request logging middleware

@@ -187,3 +187,15 @@ class LogEntry(BaseModel):
 
 class LogResponse(BaseModel):
     status: str = "logged"
+
+
+# ── Chat Proxy Models ─────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="user or assistant")
+    content: str = Field(..., description="Message content")
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(..., description="Conversation messages")
+    session_id: str = Field("default", description="Session identifier")
