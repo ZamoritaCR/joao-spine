@@ -366,7 +366,7 @@
 
       try {
         // Send to backend proxy — it handles context, Claude API, and logging
-        const res = await fetch(`${CONFIG.RAILWAY_URL}/joao/chat`, {
+        const res = await fetch(`${CONFIG.TUNNEL_URL}/joao/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
