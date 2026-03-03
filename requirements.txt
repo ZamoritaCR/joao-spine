@@ -10,3 +10,4 @@ python-dotenv>=1.0.0
 python-json-logger>=2.0.7
 python-multipart>=0.0.9
 anthropic>=0.42.0
+livekit-api>=0.7.0

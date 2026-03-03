@@ -1,11 +1,13 @@
-"""Voice command endpoints — transcribe, parse intent, dispatch."""
+"""Voice command endpoints — transcribe, parse intent, dispatch + LiveKit token."""
 
 from __future__ import annotations
 
 import logging
+import os
 import time
+import uuid
 
-from fastapi import APIRouter, Depends, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from middleware.auth import require_api_key, validate_agent_name, validate_command_safety, ALLOWED_AGENTS
@@ -19,14 +21,14 @@ from models.schemas import (
 from services import ai_processor, dispatch, supabase_client
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/joao/voice", tags=["voice"], dependencies=[Depends(require_api_key)])
+router = APIRouter(prefix="/joao/voice", tags=["voice"])
 
 
 class ParseRequest(BaseModel):
     text: str
 
 
-@router.post("/transcribe")
+@router.post("/transcribe", dependencies=[Depends(require_api_key)])
 async def transcribe(audio: UploadFile):
     """Transcribe audio blob via OpenAI Whisper."""
     audio_bytes = await audio.read()
@@ -34,14 +36,14 @@ async def transcribe(audio: UploadFile):
     return result
 
 
-@router.post("/parse")
+@router.post("/parse", dependencies=[Depends(require_api_key)])
 async def parse(req: ParseRequest):
     """Parse transcribed text into a structured intent."""
     intent = await ai_processor.parse_intent(req.text)
     return intent
 
 
-@router.post("/command", response_model=VoiceCommandResponse)
+@router.post("/command", response_model=VoiceCommandResponse, dependencies=[Depends(require_api_key)])
 async def voice_command(audio: UploadFile):
     """Main voice command endpoint: transcribe → parse → execute."""
     t0 = time.time()
@@ -79,6 +81,40 @@ async def voice_command(audio: UploadFile):
         intent=intent,
         result=result,
     )
+
+
+@router.post("/token")
+async def voice_token():
+    """Generate a LiveKit access token for browser voice sessions. No auth required."""
+    from livekit import api as lkapi
+
+    api_key = os.environ.get("LIVEKIT_API_KEY", "")
+    api_secret = os.environ.get("LIVEKIT_API_SECRET", "")
+    livekit_url = os.environ.get("LIVEKIT_URL", "")
+
+    if not api_key or not api_secret:
+        logger.error("LIVEKIT_API_KEY or LIVEKIT_API_SECRET not set")
+        raise HTTPException(status_code=500, detail="LiveKit not configured")
+
+    room_name = f"joao-voice-{uuid.uuid4().hex[:8]}"
+    identity = f"web-user-{uuid.uuid4().hex[:6]}"
+
+    jwt_token = (
+        lkapi.AccessToken(api_key, api_secret)
+        .with_identity(identity)
+        .with_name("JOAO User")
+        .with_grants(lkapi.VideoGrants(
+            room_join=True,
+            room=room_name,
+        ))
+        .to_jwt()
+    )
+
+    return {
+        "token": jwt_token,
+        "room": room_name,
+        "livekit_url": livekit_url,
+    }
 
 
 async def _execute_intent(intent: VoiceIntent, transcript: str) -> dict:
