@@ -104,9 +104,15 @@ def create_tmux_session(session_name: str):
 
 
 def send_to_tmux(session_name: str, command: str):
-    """Send a command string to a tmux session."""
+    """Send a command string to a tmux session, then press Enter."""
+    # Send the command text first (literal, no key interpretation)
     subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, command, "Enter"],
+        ["tmux", "send-keys", "-t", session_name, "-l", command],
+        capture_output=True,
+    )
+    # Send Enter as a separate key press
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "Enter"],
         capture_output=True,
     )
 
