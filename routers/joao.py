@@ -380,23 +380,139 @@ def _append_log_sync(role: str, content: str) -> None:
         logger.warning("Failed to append to session log: %s", e)
 
 
-@router.post("/chat")
-async def chat_proxy(req: ChatRequest):
-    """Proxy chat to Claude with persistent memory context. Streams SSE."""
-    import anthropic
+# ── Council Tools for Chat ──────────────────────────────────────────────
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+COUNCIL_TOOLS = [
+    {
+        "name": "council_status",
+        "description": "Check which Council agents are online. Call when Johan asks 'who's online', 'check the council', 'are agents running', etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "council_dispatch",
+        "description": "Send a task to a specific Council agent. Call when Johan says 'tell BYTE to...', 'have SOFIA build...', 'dispatch ARIA to...', etc. Agents: BYTE (engineering), ARIA (architecture), CJ (product), SOFIA (UX/UI), DEX (support), GEMMA (research).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Agent name: BYTE, ARIA, CJ, SOFIA, DEX, or GEMMA",
+                    "enum": ["BYTE", "ARIA", "CJ", "SOFIA", "DEX", "GEMMA"],
+                },
+                "task": {
+                    "type": "string",
+                    "description": "Detailed task description for the agent",
+                },
+                "priority": {
+                    "type": "string",
+                    "description": "Priority level",
+                    "enum": ["normal", "urgent", "critical"],
+                    "default": "normal",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Optional project name",
+                },
+            },
+            "required": ["agent", "task"],
+        },
+    },
+    {
+        "name": "council_session_output",
+        "description": "Check what an agent is currently doing. Call when Johan asks 'how's BYTE doing', 'check on SOFIA', 'what's the progress', etc.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Agent name to check",
+                    "enum": ["BYTE", "ARIA", "CJ", "SOFIA", "DEX", "GEMMA"],
+                },
+            },
+            "required": ["agent"],
+        },
+    },
+]
 
-    # Load context: local files first, tunnel fallback for Railway
+
+async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
+    """Execute a council tool and return the result as a string."""
+    import httpx
+
+    dispatch_url, dispatch_secret = dispatch._tunnel_config()
+    if not dispatch_url:
+        return "ERROR: Council dispatch not configured (JOAO_LOCAL_DISPATCH_URL missing)"
+
+    headers = {"Authorization": f"Bearer {dispatch_secret}"} if dispatch_secret else {}
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            if tool_name == "council_status":
+                resp = await http.get(f"{dispatch_url}/agents", headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                agents = data.get("agents", {})
+                lines = []
+                for name, info in agents.items():
+                    status = "ONLINE" if info.get("active") else "OFFLINE"
+                    lines.append(f"  {name}: {status}")
+                return "Council Agent Status:\n" + "\n".join(lines)
+
+            elif tool_name == "council_dispatch":
+                agent = tool_input.get("agent", "")
+                task = tool_input.get("task", "")
+                priority = tool_input.get("priority", "normal")
+                project = tool_input.get("project")
+                payload = {
+                    "agent": agent,
+                    "task": task,
+                    "priority": priority,
+                    "project": project,
+                    "lane": "interactive",
+                }
+                resp = await http.post(
+                    f"{dispatch_url}/dispatch",
+                    json=payload,
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                result = resp.json()
+                return f"Dispatched to {agent}: {result.get('message', 'sent')}"
+
+            elif tool_name == "council_session_output":
+                agent = tool_input.get("agent", "")
+                resp = await http.get(
+                    f"{dispatch_url}/session/{agent}",
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                output = data.get("output", "No output available")
+                # Truncate to last 2000 chars
+                if len(output) > 2000:
+                    output = "...\n" + output[-2000:]
+                return f"{agent} session output:\n{output}"
+
+            else:
+                return f"Unknown tool: {tool_name}"
+
+    except Exception as e:
+        logger.error("Council tool %s failed: %s", tool_name, e)
+        return f"ERROR executing {tool_name}: {e}"
+
+
+async def _load_context() -> tuple[str, str]:
+    """Load context and session log from local files or tunnel."""
     context_text = ""
     session_log_text = ""
     if _CONTEXT_FILE.exists():
         context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
         if _SESSION_LOG_FILE.exists():
             full_log = _SESSION_LOG_FILE.read_text(encoding="utf-8")
-            # Truncate to last ~4000 chars to avoid rate limits
             session_log_text = full_log[-4000:] if len(full_log) > 4000 else full_log
     else:
         tunnel_url = os.environ.get(
@@ -404,7 +520,6 @@ async def chat_proxy(req: ChatRequest):
             "https://convicted-subjects-slow-impressive.trycloudflare.com",
         )
         import httpx
-
         try:
             async with httpx.AsyncClient(timeout=10) as http:
                 resp = await http.get(f"{tunnel_url}/joao/context")
@@ -414,12 +529,33 @@ async def chat_proxy(req: ChatRequest):
                 session_log_text = data.get("session_log", "")
         except Exception as e:
             logger.warning("Failed to fetch context from tunnel: %s", e)
+    return context_text, session_log_text
+
+
+@router.post("/chat")
+async def chat_proxy(req: ChatRequest):
+    """Proxy chat to Claude with persistent memory context and council tools. Streams SSE."""
+    import anthropic
+    import json as _json
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+
+    context_text, session_log_text = await _load_context()
 
     system_prompt = context_text or "You are JOÃO, a persistent AI companion."
     if session_log_text:
         system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
 
-    # Log the latest user message
+    system_prompt += (
+        "\n\n---\n\n## Council Dispatch\n\n"
+        "You have tools to manage the Council of AI agents. "
+        "When Johan asks you to dispatch a task, check status, or check on an agent, "
+        "USE THE TOOLS. Never say dispatch is broken or unavailable — use the tools. "
+        "Always confirm the dispatch result to Johan after sending."
+    )
+
     if req.messages:
         last_msg = req.messages[-1]
         if last_msg.role == "user":
@@ -427,25 +563,54 @@ async def chat_proxy(req: ChatRequest):
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
     client = anthropic.AsyncAnthropic(api_key=api_key)
+    model = "claude-sonnet-4-6" if req.model == "sonnet" else "claude-haiku-4-5-20251001"
 
     async def event_stream():
         full_response = ""
+        messages = list(api_messages)
+        max_tool_rounds = 5
+
         try:
-            async with client.messages.stream(
-                model="claude-sonnet-4-6" if req.model == "sonnet" else "claude-haiku-4-5-20251001",
-                max_tokens=2048,
-                system=[
-                    {
-                        "type": "text",
-                        "text": system_prompt,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                messages=api_messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    full_response += text
-                    yield f"data: {text}\n\n"
+            for _round in range(max_tool_rounds):
+                response = await client.messages.create(
+                    model=model,
+                    max_tokens=2048,
+                    system=[
+                        {
+                            "type": "text",
+                            "text": system_prompt,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    tools=COUNCIL_TOOLS,
+                    messages=messages,
+                )
+
+                # Process response content blocks
+                has_tool_use = False
+                tool_results = []
+
+                for block in response.content:
+                    if block.type == "text":
+                        full_response += block.text
+                        yield f"data: {block.text}\n\n"
+                    elif block.type == "tool_use":
+                        has_tool_use = True
+                        yield f"data: \n[Calling {block.name}...]\n\n"
+                        result = await _execute_council_tool(block.name, block.input)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        })
+
+                if not has_tool_use:
+                    break
+
+                # Add assistant response and tool results for next round
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "user", "content": tool_results})
+
         except anthropic.APIError as e:
             logger.error("Claude API error: %s", e)
             yield f"data: [ERROR] {e.message}\n\n"
