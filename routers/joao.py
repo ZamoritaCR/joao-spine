@@ -382,11 +382,8 @@ def _append_log_sync(role: str, content: str) -> None:
 
 @router.post("/chat")
 async def chat_proxy(req: ChatRequest):
-    """Proxy chat to Claude API with persistent memory context. Streams SSE."""
-    try:
-        import anthropic
-    except ImportError as e:
-        raise HTTPException(status_code=500, detail=f"anthropic SDK not installed: {e}")
+    """Proxy chat to Claude with persistent memory context. Streams SSE."""
+    import anthropic
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -398,9 +395,10 @@ async def chat_proxy(req: ChatRequest):
     if _CONTEXT_FILE.exists():
         context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
         if _SESSION_LOG_FILE.exists():
-            session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+            full_log = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+            # Truncate to last ~4000 chars to avoid rate limits
+            session_log_text = full_log[-4000:] if len(full_log) > 4000 else full_log
     else:
-        # Running on Railway — fetch from tunnel
         tunnel_url = os.environ.get(
             "JOAO_TUNNEL_URL",
             "https://route-reasonably-mario-portraits.trycloudflare.com",
@@ -419,7 +417,7 @@ async def chat_proxy(req: ChatRequest):
 
     system_prompt = context_text or "You are JOÃO, a persistent AI companion."
     if session_log_text:
-        system_prompt += f"\n\n---\n\n## Session Log\n\n{session_log_text}"
+        system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
 
     # Log the latest user message
     if req.messages:
@@ -427,20 +425,15 @@ async def chat_proxy(req: ChatRequest):
         if last_msg.role == "user":
             _append_log_sync("user", last_msg.content)
 
-    # Build messages for the API
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
-
-    try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to init client: {e}")
+    client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def event_stream():
         full_response = ""
         try:
             async with client.messages.stream(
                 model="claude-sonnet-4-6",
-                max_tokens=8096,
+                max_tokens=2048,
                 system=[
                     {
                         "type": "text",
@@ -460,7 +453,6 @@ async def chat_proxy(req: ChatRequest):
             logger.exception("Chat stream error")
             yield f"data: [ERROR] {e}\n\n"
 
-        # Log the full assistant response
         if full_response:
             _append_log_sync("assistant", full_response)
 
