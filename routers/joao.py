@@ -368,12 +368,16 @@ async def append_log(entry: LogEntry):
 
 def _append_log_sync(role: str, content: str) -> None:
     """Append to session log (sync helper for use inside generator)."""
-    from datetime import datetime, timezone
+    try:
+        from datetime import datetime, timezone
 
-    ts = datetime.now(timezone.utc).isoformat()
-    line = f"\n**[{ts}] {role}:** {content}\n"
-    with open(_SESSION_LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(line)
+        ts = datetime.now(timezone.utc).isoformat()
+        line = f"\n**[{ts}] {role}:** {content}\n"
+        _SESSION_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(_SESSION_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception as e:
+        logger.warning("Failed to append to session log: %s", e)
 
 
 @router.post("/chat")
