@@ -401,7 +401,7 @@ async def chat_proxy(req: ChatRequest):
     else:
         tunnel_url = os.environ.get(
             "JOAO_TUNNEL_URL",
-            "https://route-reasonably-mario-portraits.trycloudflare.com",
+            "https://convicted-subjects-slow-impressive.trycloudflare.com",
         )
         import httpx
 
