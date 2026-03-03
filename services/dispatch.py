@@ -120,7 +120,42 @@ async def capture_pane(session_name: str) -> dict[str, str]:
 
 
 async def health_check() -> tuple[SshCheck, TmuxCheck]:
-    """Check SSH connectivity and list tmux sessions."""
+    """Check connectivity to the home server and list tmux sessions.
+
+    Uses HTTP tunnel (works from Railway) with SSH as local fallback.
+    """
+    url, _secret = _tunnel_config()
+
+    # Try HTTP tunnel first (works from both Railway and local)
+    if url:
+        t0 = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                health_resp = await client.get(f"{url}/health")
+                ssh_latency = round((time.monotonic() - t0) * 1000, 1)
+
+                if health_resp.status_code == 200:
+                    data = health_resp.json()
+                    target = f"tunnel:{url}"
+                    ssh_check = SshCheck(ok=True, latency_ms=ssh_latency, target=target)
+
+                    t1 = time.monotonic()
+                    agents_resp = await client.get(f"{url}/agents")
+                    tmux_latency = round((time.monotonic() - t1) * 1000, 1)
+
+                    sessions: list[str] = []
+                    if agents_resp.status_code == 200:
+                        agents_data = agents_resp.json()
+                        for name, info in agents_data.get("agents", {}).items():
+                            if info.get("active"):
+                                sessions.append(info.get("session", name.lower()))
+
+                    tmux_check = TmuxCheck(ok=True, latency_ms=tmux_latency, sessions=sessions)
+                    return ssh_check, tmux_check
+        except Exception as e:
+            logger.warning("HTTP tunnel health check failed, trying SSH: %s", e)
+
+    # Fallback to SSH (works when running locally on same network)
     cfg = _ssh_config()
     target = f"{cfg['username']}@{cfg['host']}:{cfg['port']}"
     t0 = time.monotonic()
