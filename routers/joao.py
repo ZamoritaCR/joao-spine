@@ -385,7 +385,7 @@ async def chat_proxy(req: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
-    # Build system prompt from memory files
+    # Build system prompt from memory files (may be empty on Railway — that's OK)
     context_text = ""
     session_log_text = ""
     if _CONTEXT_FILE.exists():
@@ -393,7 +393,7 @@ async def chat_proxy(req: ChatRequest):
     if _SESSION_LOG_FILE.exists():
         session_log_text = _SESSION_LOG_FILE.read_text(encoding="utf-8")
 
-    system_prompt = context_text
+    system_prompt = context_text or "You are JOÃO, a persistent AI companion."
     if session_log_text:
         system_prompt += f"\n\n---\n\n## Session Log\n\n{session_log_text}"
 
@@ -406,12 +406,12 @@ async def chat_proxy(req: ChatRequest):
     # Build messages for the API
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def event_stream():
         full_response = ""
         try:
-            with client.messages.stream(
+            async with client.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=8096,
                 system=[
@@ -423,7 +423,7 @@ async def chat_proxy(req: ChatRequest):
                 ],
                 messages=api_messages,
             ) as stream:
-                for text in stream.text_stream:
+                async for text in stream.text_stream:
                     full_response += text
                     yield f"data: {text}\n\n"
         except anthropic.APIError as e:
