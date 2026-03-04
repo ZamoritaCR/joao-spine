@@ -521,7 +521,7 @@
             }
 
             // Tool status messages (don't add to response text)
-            if (payload.startsWith("\n[Executing:") || payload.startsWith("\n[Tools done")) {
+            if (payload.startsWith("[Executing:") || payload.startsWith("[Tools done")) {
               if (!statusDiv) {
                 statusDiv = document.createElement("div");
                 statusDiv.className = "thinking-indicator";

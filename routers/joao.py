@@ -752,7 +752,7 @@ async def chat_proxy(req: ChatRequest):
 
                 # Show what tools are being called
                 tool_names = [tc.name for tc in tool_calls]
-                yield f"data: \n[Executing: {', '.join(tool_names)}...]\n\n"
+                yield f"data: [Executing: {', '.join(tool_names)}...]\n\n"
 
                 # Run ALL tool calls in parallel
                 async def _run_tool(block):
@@ -777,7 +777,7 @@ async def chat_proxy(req: ChatRequest):
                 tool_results = list(tool_results)
 
                 logger.info("Tools completed: %s", tool_names)
-                yield f"data: \n[Tools done, generating response...]\n\n"
+                yield f"data: [Tools done, generating response...]\n\n"
 
                 # Add assistant response and tool results for next round
                 messages.append({"role": "assistant", "content": response.content})
