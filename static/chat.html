@@ -229,17 +229,36 @@
     }
 
     #voice-status {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 400;
       letter-spacing: 1.5px;
       color: #555;
       display: none;
+      text-align: center;
+      max-width: 100px;
     }
 
     #voice-status.visible {
       display: block;
-      color: #5c5;
     }
+
+    #voice-status.listening { color: #5c5; }
+    #voice-status.processing { color: #cc5; }
+    #voice-status.speaking { color: #5cc; }
+    #voice-status.error { color: #c55; }
+
+    #mic-btn.error {
+      background: #2a1a1a;
+      border-color: #6a3a3a;
+    }
+    #mic-btn.error svg { fill: #c55; }
+
+    #mic-btn.speaking {
+      background: #1a2a2e;
+      border-color: #3a6a8a;
+      box-shadow: 0 0 12px rgba(80, 180, 220, 0.25);
+    }
+    #mic-btn.speaking svg { fill: #5cc; }
 
     #model-toggle {
       position: fixed;
@@ -511,24 +530,39 @@
 
   <script>
     // ============================================================
-    // VOICE — LiveKit WebRTC voice chat
+    // VOICE — LiveKit WebRTC voice chat with full state feedback
     // ============================================================
     const micBtn = document.getElementById("mic-btn");
     const voiceStatus = document.getElementById("voice-status");
 
     let voiceRoom = null;
-    let voiceState = "idle"; // idle | connecting | active
+    let voiceState = "idle"; // idle | connecting | listening | speaking | error
 
-    function setVoiceState(state) {
+    function setVoiceState(state, label) {
       voiceState = state;
-      micBtn.classList.remove("connecting", "active");
-      voiceStatus.classList.remove("visible");
+      micBtn.classList.remove("connecting", "active", "speaking", "error");
+      voiceStatus.classList.remove("visible", "listening", "processing", "speaking", "error");
 
-      if (state === "connecting") {
+      if (state === "idle") {
+        voiceStatus.textContent = "";
+      } else if (state === "connecting") {
         micBtn.classList.add("connecting");
-      } else if (state === "active") {
+        voiceStatus.textContent = "CONNECTING...";
+        voiceStatus.classList.add("visible", "processing");
+      } else if (state === "listening") {
         micBtn.classList.add("active");
-        voiceStatus.classList.add("visible");
+        voiceStatus.textContent = label || "LISTENING";
+        voiceStatus.classList.add("visible", "listening");
+      } else if (state === "speaking") {
+        micBtn.classList.add("speaking");
+        voiceStatus.textContent = "JOAO SPEAKING";
+        voiceStatus.classList.add("visible", "speaking");
+      } else if (state === "error") {
+        micBtn.classList.add("error");
+        voiceStatus.textContent = label || "ERROR";
+        voiceStatus.classList.add("visible", "error");
+        // Auto-clear error after 4s
+        setTimeout(() => { if (voiceState === "error") setVoiceState("idle"); }, 4000);
       }
     }
 
@@ -540,8 +574,10 @@
         const tokenRes = await fetch(`${CONFIG.TUNNEL_URL}/joao/voice/token`, {
           method: "POST",
         });
-        if (!tokenRes.ok) throw new Error(`Token error: ${tokenRes.status}`);
+        if (!tokenRes.ok) throw new Error(`Token ${tokenRes.status}`);
         const { token, room: roomName, livekit_url } = await tokenRes.json();
+
+        if (!livekit_url) throw new Error("No LiveKit URL");
 
         // 2. Connect to LiveKit room
         const room = new LivekitClient.Room({
@@ -555,16 +591,40 @@
           setVoiceState("idle");
         });
 
+        // Track when JOAO agent joins
+        room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+          console.log("Agent joined:", participant.identity);
+          setVoiceState("listening", "JOAO CONNECTED");
+          setTimeout(() => { if (voiceState === "listening") setVoiceState("listening", "LISTENING"); }, 2000);
+        });
+
+        // Track when agent starts/stops speaking (audio track)
         room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (track.kind === "audio") {
             const el = track.attach();
             el.id = "agent-audio";
             document.body.appendChild(el);
+            setVoiceState("speaking");
           }
         });
 
         room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((el) => el.remove());
+          if (voiceRoom) setVoiceState("listening", "LISTENING");
+        });
+
+        // Track active speaker changes for visual feedback
+        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          if (!voiceRoom) return;
+          const agentSpeaking = speakers.some(s => s.identity !== room.localParticipant.identity);
+          const userSpeaking = speakers.some(s => s.identity === room.localParticipant.identity);
+          if (agentSpeaking) {
+            setVoiceState("speaking");
+          } else if (userSpeaking) {
+            setVoiceState("listening", "HEARING YOU...");
+          } else {
+            setVoiceState("listening", "LISTENING");
+          }
         });
 
         await room.connect(livekit_url, token);
@@ -573,13 +633,12 @@
         await room.localParticipant.setMicrophoneEnabled(true);
 
         voiceRoom = room;
-        setVoiceState("active");
+        setVoiceState("listening", "MIC ON — WAITING FOR JOAO");
         console.log("Voice connected to room:", roomName);
 
       } catch (err) {
         console.error("Voice connection failed:", err);
-        showError("Voice: " + err.message);
-        setVoiceState("idle");
+        setVoiceState("error", err.message.toUpperCase());
       }
     }
 
@@ -588,19 +647,17 @@
         await voiceRoom.disconnect();
         voiceRoom = null;
       }
-      // Remove any lingering audio elements
       const agentAudio = document.getElementById("agent-audio");
       if (agentAudio) agentAudio.remove();
       setVoiceState("idle");
     }
 
     micBtn.addEventListener("click", () => {
-      if (voiceState === "idle") {
+      if (voiceState === "idle" || voiceState === "error") {
         startVoice();
-      } else if (voiceState === "active") {
+      } else if (voiceState === "listening" || voiceState === "speaking") {
         stopVoice();
       }
-      // Ignore clicks while connecting
     });
   </script>
 </body>
