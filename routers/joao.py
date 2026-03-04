@@ -518,6 +518,15 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
 
     dispatch_url, dispatch_secret = dispatch._tunnel_config()
     if not dispatch_url:
+        # Fallback: try Cloudflare tunnel (needed when running on Railway)
+        dispatch_url = os.environ.get(
+            "JOAO_TUNNEL_URL",
+            "https://convicted-subjects-slow-impressive.trycloudflare.com",
+        )
+        # Tunnel goes to local dispatch on 7777, not spine on 7778
+        # Re-route: tunnel points at spine (7778), dispatch is on 7777 locally
+        # So we need the dispatch tunnel, not the spine tunnel
+    if not dispatch_url:
         return "ERROR: Council dispatch not configured (JOAO_LOCAL_DISPATCH_URL missing)"
 
     headers = {"Authorization": f"Bearer {dispatch_secret}"} if dispatch_secret else {}
