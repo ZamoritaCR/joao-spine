@@ -457,16 +457,24 @@
       showThinking();
 
       try {
-        // Send to backend proxy — it handles context, Claude API, and logging
+        // Only send last 20 messages to avoid huge payloads that timeout
+        const recentMessages = conversationMessages.slice(-20);
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
         const res = await fetch(`${CONFIG.TUNNEL_URL}/joao/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
-            messages: conversationMessages,
+            messages: recentMessages,
             session_id: "web-" + Date.now(),
             model: currentModel,
           }),
         });
+
+        clearTimeout(timeout);
 
         if (!res.ok) {
           const errText = await res.text();
@@ -477,14 +485,27 @@
 
         const msgDiv = addMessage("assistant", "");
         let fullResponse = "";
+        let statusDiv = null; // separate div for tool status
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let streamTimeout = null;
+
+        const resetStreamTimeout = () => {
+          if (streamTimeout) clearTimeout(streamTimeout);
+          streamTimeout = setTimeout(() => {
+            if (!fullResponse) {
+              showError("Response timed out — JOAO may still be processing. Try again.");
+            }
+          }, 60000);
+        };
+        resetStreamTimeout();
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          resetStreamTimeout();
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
@@ -493,10 +514,28 @@
           for (const line of lines) {
             if (!line.startsWith("data: ")) continue;
             const payload = line.slice(6);
-            if (payload === "[DONE]" || payload === "[ERROR]") continue;
+            if (payload === "[DONE]") continue;
             if (payload.startsWith("[ERROR]")) {
               showError(payload);
               continue;
+            }
+
+            // Tool status messages (don't add to response text)
+            if (payload.startsWith("\n[Executing:") || payload.startsWith("\n[Tools done")) {
+              if (!statusDiv) {
+                statusDiv = document.createElement("div");
+                statusDiv.className = "thinking-indicator";
+                chatEl.appendChild(statusDiv);
+              }
+              statusDiv.textContent = payload.trim().replace(/[\[\]]/g, '');
+              chatEl.scrollTop = chatEl.scrollHeight;
+              continue;
+            }
+
+            // Remove status div once real content arrives
+            if (statusDiv && payload.trim()) {
+              statusDiv.remove();
+              statusDiv = null;
             }
 
             fullResponse += payload;
@@ -504,6 +543,9 @@
             chatEl.scrollTop = chatEl.scrollHeight;
           }
         }
+
+        if (streamTimeout) clearTimeout(streamTimeout);
+        if (statusDiv) statusDiv.remove();
 
         conversationMessages.push({ role: "assistant", content: fullResponse });
         saveHistory(conversationMessages);
