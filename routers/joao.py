@@ -742,7 +742,10 @@ async def chat_proxy(req: ChatRequest):
                 for block in response.content:
                     if block.type == "text":
                         full_response += block.text
-                        yield f"data: {block.text}\n\n"
+                        # SSE requires each line to start with "data: "
+                        # Send as single JSON-encoded line to preserve newlines
+                        import json as _json
+                        yield f"data: {_json.dumps(block.text)}\n\n"
                     elif block.type == "tool_use":
                         has_tool_use = True
                         tool_calls.append(block)

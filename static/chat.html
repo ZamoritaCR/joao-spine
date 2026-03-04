@@ -538,8 +538,12 @@
               statusDiv = null;
             }
 
-            fullResponse += payload;
-            msgDiv.textContent = fullResponse;
+            // Decode JSON-encoded text (preserves newlines in SSE)
+            let text = payload;
+            try { text = JSON.parse(payload); } catch(_) {}
+
+            fullResponse += text;
+            msgDiv.innerText = fullResponse;
             chatEl.scrollTop = chatEl.scrollHeight;
           }
         }
