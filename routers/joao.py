@@ -718,7 +718,8 @@ async def chat_proxy(req: ChatRequest):
     if req.messages:
         last_msg = req.messages[-1]
         if last_msg.role == "user":
-            _append_log_sync("user", last_msg.content)
+            log_content = last_msg.content if isinstance(last_msg.content, str) else "[multimodal message]"
+            _append_log_sync("user", log_content)
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
     client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0)

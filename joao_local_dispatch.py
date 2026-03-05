@@ -315,13 +315,24 @@ async def health():
 
 @app.get("/agents")
 async def list_agents():
-    """List all agents and their tmux session status."""
+    """List all agents and their tmux/service status."""
     statuses = {}
     for agent, session in AGENT_SESSIONS.items():
         session_up = tmux_session_exists(session)
+        # SCOUT runs as a systemd service, not tmux
+        if agent == "SCOUT" and not session_up:
+            import subprocess
+            try:
+                result = subprocess.run(
+                    ["systemctl", "--user", "is-active", "council-scout.service"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                session_up = result.stdout.strip() == "active"
+            except Exception:
+                pass
         statuses[agent] = {
             "session": session,
-            "tmux_active": session_up,
+            "active": session_up,
             "claude_running": is_claude_running(session) if session_up else False,
         }
     return {"agents": statuses}

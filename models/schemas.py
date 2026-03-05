@@ -193,7 +193,7 @@ class LogResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str = Field(..., description="user or assistant")
-    content: str = Field(..., description="Message content")
+    content: str | list[dict] = Field(..., description="Message content (text or multimodal content blocks)")
 
 
 class ChatRequest(BaseModel):
