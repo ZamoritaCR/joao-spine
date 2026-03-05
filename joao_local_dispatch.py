@@ -4,6 +4,7 @@ Runs on Ubuntu server (192.168.0.55), receives commands from Railway spine
 via Cloudflare Tunnel. Executes tmux commands to dispatch work to Council agents.
 """
 import os
+import re
 import subprocess
 import logging
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from typing import Optional
 import uvicorn
 
-app = FastAPI(title="JOAO Local Dispatch", version="2.0.0")
+app = FastAPI(title="JOAO Local Dispatch", version="2.1.0")
 logger = logging.getLogger("joao-dispatch")
 
 # Security: shared secret between Railway and local listener
@@ -21,12 +22,22 @@ DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "CHANGE_ME_IN_PRODUCTION")
 
 # Agent -> tmux session mapping
 AGENT_SESSIONS = {
-    "BYTE": "byte",
-    "ARIA": "aria",
-    "CJ": "cj",
-    "SOFIA": "sofia",
-    "DEX": "dex",
-    "GEMMA": "gemma",
+    "ARIA": "ARIA",
+    "BYTE": "BYTE",
+    "CJ": "CJ",
+    "DEX": "DEX",
+    "SOFIA": "SOFIA",
+    "GEMMA": "GEMMA",
+    "MAX": "MAX",
+    "LEX": "LEX",
+    "NOVA": "NOVA",
+    "SCOUT": "SCOUT",
+    "SAGE": "SAGE",
+    "FLUX": "FLUX",
+    "CORE": "CORE",
+    "APEX": "APEX",
+    "IRIS": "IRIS",
+    "VOLT": "VOLT",
 }
 
 
@@ -59,13 +70,98 @@ def is_interactive(command: str) -> bool:
     return False
 
 
+CLAUDE_BIN_PATH = "/usr/bin/claude"
+VENV_ACT = f"source {os.path.expanduser('~/taop-agents-env/bin/activate')} 2>/dev/null"
+AGENT_WORKING_DIR = os.path.expanduser("~/joao-interface")
+
+
+def is_claude_running(session_name: str) -> bool:
+    """Check if Claude Code is actively running in a tmux session.
+
+    Captures the last 10 lines and looks for the Claude Code prompt indicator.
+    Also checks if 'claude' is among the running processes in the pane.
+    """
+    # Method 1: Check pane content for Claude Code prompt
+    result = subprocess.run(
+        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", "-10"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        content = result.stdout
+        # Claude Code shows these indicators when running
+        if any(indicator in content for indicator in ["Claude Code", "bypass permissions on"]):
+            return True
+
+    # Method 2: Check the pane's running command
+    result = subprocess.run(
+        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_current_command}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        cmd = result.stdout.strip().lower()
+        if "claude" in cmd or "node" in cmd:
+            return True
+
+    return False
+
+
+def launch_claude_in_session(session_name: str):
+    """Launch Claude Code with --dangerously-skip-permissions in a tmux session.
+
+    Activates the venv, cd's to the working dir, and starts Claude Code.
+    Waits briefly for Claude Code to initialize.
+    """
+    import time
+
+    logger.warning(f"Claude Code NOT running in '{session_name}' -- auto-launching")
+
+    # Activate venv
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "-l", VENV_ACT],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "Enter"],
+        capture_output=True,
+    )
+    time.sleep(0.3)
+
+    # cd to working directory
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "-l", f"cd {AGENT_WORKING_DIR}"],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "Enter"],
+        capture_output=True,
+    )
+    time.sleep(0.3)
+
+    # Launch Claude Code
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "-l",
+         f"{CLAUDE_BIN_PATH} --dangerously-skip-permissions"],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "Enter"],
+        capture_output=True,
+    )
+
+    # Wait for Claude Code to initialize
+    time.sleep(5)
+    logger.info(f"Claude Code auto-launched in '{session_name}'")
+
+
 class DispatchCommand(BaseModel):
     agent: str
     task: str
     priority: str = "normal"
     context: Optional[str] = None
     project: Optional[str] = None
-    lane: str = "automated"  # "automated" (bash-only) or "interactive" (claude CLI)
+    lane: str = "automated"  # "automated" (bash-only), "interactive" (running claude), "claude" (one-shot claude)
 
 
 class DispatchResponse(BaseModel):
@@ -103,11 +199,33 @@ def create_tmux_session(session_name: str):
         logger.info(f"Created tmux session: {session_name}")
 
 
+def sanitize_for_tmux(text: str) -> str:
+    """Strip ANSI/terminal escape sequences and control characters from text
+    before sending to tmux.
+
+    tmux send-keys -l passes bytes literally to the terminal emulator.
+    ESC sequences could be interpreted as cursor movement or other control
+    codes by the running process. Strip them defensively.
+    """
+    # 1. CSI sequences: ESC[ (with optional intermediate bytes) ... final byte
+    text = re.sub(r'\x1b\[[\x20-\x3f]*[\x30-\x3f]*[\x40-\x7e]', '', text)
+    # 2. OSC sequences: ESC] ... (terminated by BEL or ST)
+    text = re.sub(r'\x1b\].*?(?:\x07|\x1b\\)', '', text)
+    # 3. Other ESC sequences (SS2, SS3, DCS, PM, APC, etc.)
+    text = re.sub(r'\x1b[\x20-\x7e]', '', text)
+    # 4. C1 control codes (8-bit equivalents: 0x80-0x9F)
+    text = re.sub(r'[\x80-\x9f]', '', text)
+    # 5. Remaining control characters (BEL, BS, CR, etc.) but keep \n and \t
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    return text
+
+
 def send_to_tmux(session_name: str, command: str):
     """Send a command string to a tmux session, then press Enter."""
+    safe_command = sanitize_for_tmux(command)
     # Send the command text first (literal, no key interpretation)
     subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "-l", command],
+        ["tmux", "send-keys", "-t", session_name, "-l", safe_command],
         capture_output=True,
     )
     # Send Enter as a separate key press
@@ -142,36 +260,48 @@ def build_interactive_prompt(
 ) -> str:
     """Build the Claude Code prompt for the interactive lane.
 
-    Uses claude -p (print mode) with --dangerously-skip-permissions for
-    fully autonomous execution. The prompt is passed via -p flag as a
-    single argument, avoiding heredoc issues with tmux send-keys.
+    Returns the prompt text directly, to be typed into the agent's
+    tmux window where Claude Code is already running with
+    --dangerously-skip-permissions (launched by restart_agents.sh).
+    The running Claude Code instance receives this as a normal user prompt.
     """
-    context_part = f" CONTEXT: {context}" if context else ""
-    project_name = project or "JOAO System"
-    ts = datetime.now(timezone.utc).isoformat()
-
-    prompt_text = f"{task}"
+    prompt_text = task
     if context:
         prompt_text += f"\n\nAdditional context: {context}"
+    if project:
+        prompt_text += f"\n\nProject: {project}"
 
-    prompt_text += (
-        "\n\nWhen you finish the task:"
-        "\n1. Run any relevant tests"
-        "\n2. Generate a git diff of your changes (git diff)"
-        "\n3. Submit to QA by running:"
-        '\n   curl -s -X POST http://localhost:7778/joao/council/qa'
-        ' -H "Content-Type: application/json"'
-        ' -d \'{"dispatch_id":"' + agent.lower() + '-$(date +%s)",'
-        ' "agent":"' + agent + '",'
-        ' "task_summary":"' + task.replace('"', '\\"')[:200] + '",'
-        ' "code_diff":"<paste your git diff here>",'
-        ' "test_results":"<paste test output here>"}\''
-        "\n4. Wait for QA consensus before considering the task complete"
-    )
+    return prompt_text
 
-    # Escape single quotes for shell
-    escaped = prompt_text.replace("'", "'\\''")
-    return f"claude -p --dangerously-skip-permissions '{escaped}'"
+
+def build_claude_oneshot(
+    agent: str,
+    task: str,
+    priority: str,
+    context: str = None,
+    project: str = None,
+) -> str:
+    """Build a one-shot Claude Code command for the 'claude' lane.
+
+    Launches claude -p --dangerously-skip-permissions with the task piped
+    via a temp file. Used when no Claude Code session is already running
+    in the agent's tmux pane.
+    """
+    prompt_text = task
+    if context:
+        prompt_text += f"\n\nAdditional context: {context}"
+    if project:
+        prompt_text += f"\n\nProject: {project}"
+
+    # Write prompt to temp file, pipe to claude -p (non-interactive print mode)
+    safe_agent = re.sub(r'[^a-zA-Z0-9]', '_', agent.lower())
+    prompt_file = f"/tmp/council_prompt_{safe_agent}.txt"
+
+    # Write the prompt file
+    with open(prompt_file, "w") as f:
+        f.write(prompt_text)
+
+    return f"cd {AGENT_WORKING_DIR} && {CLAUDE_BIN_PATH} -p --dangerously-skip-permissions < {prompt_file}"
 
 
 @app.get("/health")
@@ -188,9 +318,11 @@ async def list_agents():
     """List all agents and their tmux session status."""
     statuses = {}
     for agent, session in AGENT_SESSIONS.items():
+        session_up = tmux_session_exists(session)
         statuses[agent] = {
             "session": session,
-            "active": tmux_session_exists(session),
+            "tmux_active": session_up,
+            "claude_running": is_claude_running(session) if session_up else False,
         }
     return {"agents": statuses}
 
@@ -199,10 +331,14 @@ async def list_agents():
 async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None)):
     """Dispatch a task to a Council agent via tmux.
 
-    Two lanes:
+    Three lanes:
     - automated (default): Bash-only commands. No interactive processes.
       Guards against claude CLI, vim, ssh, etc.
-    - interactive: Claude CLI allowed. For human-supervised sessions only.
+    - interactive: Sends text to a running Claude Code session (launched
+      with --dangerously-skip-permissions by restart_agents.sh). No
+      permission prompts.
+    - claude: One-shot Claude Code invocation via temp file pipe.
+      Uses -p --dangerously-skip-permissions. No permission prompts.
     """
     verify_secret(authorization)
 
@@ -218,11 +354,34 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
     create_tmux_session(session)
 
     if lane == "interactive":
-        # Interactive lane: Claude CLI wrapper, human-supervised
+        # Interactive lane: text sent to running Claude Code session
+        # (already launched with --dangerously-skip-permissions)
+        # SAFETY: verify Claude Code is actually running before sending prompts
+        if not is_claude_running(session):
+            logger.warning(
+                f"[interactive] Claude Code not running in {session} for {agent}. "
+                f"Auto-launching before dispatch."
+            )
+            launch_claude_in_session(session)
+            # Verify it came up
+            if not is_claude_running(session):
+                logger.error(f"[interactive] Failed to auto-launch Claude Code for {agent}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Claude Code is not running in {agent}'s session and "
+                           f"auto-launch failed. Use lane='claude' for one-shot, "
+                           f"or restart the agent manually.",
+                )
         command = build_interactive_prompt(
             agent, cmd.task, cmd.priority, cmd.context, cmd.project
         )
         logger.info(f"[interactive] Dispatched to {agent}: {cmd.task[:100]}")
+    elif lane == "claude":
+        # Claude lane: one-shot claude -p --dangerously-skip-permissions
+        command = build_claude_oneshot(
+            agent, cmd.task, cmd.priority, cmd.context, cmd.project
+        )
+        logger.info(f"[claude] Dispatched to {agent}: {cmd.task[:100]}")
     else:
         # Automated lane: bash-only, no interactive processes
         if is_interactive(cmd.task):
@@ -230,7 +389,7 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
                 status_code=422,
                 detail=f"Automated lane rejects interactive commands. "
                        f"Task starts with a blocked pattern. "
-                       f"Use lane='interactive' for Claude CLI tasks.",
+                       f"Use lane='interactive' or lane='claude' for Claude tasks.",
             )
         command = build_automated_command(
             agent, cmd.task, cmd.priority, cmd.context, cmd.project
@@ -311,4 +470,5 @@ async def get_session(agent: str):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    uvicorn.run(app, host="0.0.0.0", port=7777)
+    port = int(os.getenv("JOAO_DISPATCH_PORT", "8100"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

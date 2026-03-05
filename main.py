@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp_server import mcp
 from routers.joao import router as joao_router
 from routers.qa import router as qa_router
+from routers.scout import router as scout_router
 from routers.voice import router as voice_router
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,11 @@ _STATIC_DIR = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("joao-spine starting up")
+    from services import scout as scout_service
+    scout_service.start_scheduler()
+    logger.info("SCOUT scheduler started in lifespan")
     yield
+    scout_service.stop_scheduler()
     logger.info("joao-spine shutting down")
 
 
@@ -60,6 +65,7 @@ app.add_middleware(RequestLoggingMiddleware)
 # REST routes
 app.include_router(joao_router)
 app.include_router(qa_router)
+app.include_router(scout_router)
 app.include_router(voice_router)
 
 

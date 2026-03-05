@@ -7,10 +7,10 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 
-from middleware.auth import require_dispatch_auth, validate_agent_name, validate_command_safety
+from middleware.auth import require_api_key, require_dispatch_auth, validate_agent_name, validate_command_safety
 
 from models.schemas import (
     AIResult,
@@ -423,8 +423,17 @@ COUNCIL_TOOLS = [
             "properties": {
                 "agent": {
                     "type": "string",
-                    "description": "Agent name: BYTE, ARIA, CJ, SOFIA, DEX, or GEMMA",
-                    "enum": ["BYTE", "ARIA", "CJ", "SOFIA", "DEX", "GEMMA"],
+                    "description": (
+                        "Agent name. ARIA=architect, BYTE=full-stack, CJ=product, SOFIA=UX/UI, "
+                        "DEX=infrastructure, GEMMA=research, MAX=multi-LLM, LEX=legal, NOVA=marketing, "
+                        "SAGE=strategy, FLUX=rapid-prototyping, CORE=deep-research, APEX=data-processing, "
+                        "IRIS=integrations, VOLT=CI/CD-testing"
+                    ),
+                    "enum": [
+                        "ARIA", "BYTE", "CJ", "SOFIA", "DEX", "GEMMA",
+                        "MAX", "LEX", "NOVA", "SCOUT",
+                        "SAGE", "FLUX", "CORE", "APEX", "IRIS", "VOLT",
+                    ],
                 },
                 "task": {
                     "type": "string",
@@ -453,7 +462,11 @@ COUNCIL_TOOLS = [
                 "agent": {
                     "type": "string",
                     "description": "Agent name to check",
-                    "enum": ["BYTE", "ARIA", "CJ", "SOFIA", "DEX", "GEMMA"],
+                    "enum": [
+                        "ARIA", "BYTE", "CJ", "SOFIA", "DEX", "GEMMA",
+                        "MAX", "LEX", "NOVA", "SCOUT",
+                        "SAGE", "FLUX", "CORE", "APEX", "IRIS", "VOLT",
+                    ],
                 },
             },
             "required": ["agent"],
@@ -684,7 +697,8 @@ async def chat_proxy(req: ChatRequest):
         "\n\n---\n\n## Council Dispatch (MANDATORY)\n\n"
         "You have 4 tools: council_status, council_dispatch, council_session_output, qa_review.\n"
         "RULES:\n"
-        "- When Johan mentions ANY agent (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA), "
+        "- When Johan mentions ANY agent (ARIA, BYTE, CJ, DEX, SOFIA, GEMMA, MAX, LEX, NOVA, "
+        "SAGE, FLUX, CORE, APEX, IRIS, VOLT), "
         "asks who is online, asks to dispatch, check status, or check progress: "
         "ALWAYS call the appropriate tool. NEVER respond with text like "
         "'I cannot see', 'I don't have visibility', 'check directly', etc.\n"
@@ -805,4 +819,30 @@ async def chat_proxy(req: ChatRequest):
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+# ── Transcribe (hold-to-record mic from chat UI) ──────────────────────────
+
+@router.post("/transcribe")
+async def transcribe(audio: UploadFile, _: None = Depends(require_api_key)):
+    """Transcribe audio upload via Whisper. Returns {text, language}."""
+    audio_bytes = await audio.read()
+    return await ai_processor.transcribe_audio(audio_bytes, audio.filename or "audio.webm")
+
+
+# ── Download: fintech roadmap PPT ─────────────────────────────────────────
+
+_FINTECH_PPT_PATH = Path(__file__).parent.parent / "static" / "fintech-roadmap.pptx"
+
+
+@router.get("/download/fintech-roadmap")
+async def download_fintech_roadmap():
+    """Serve the Fintech AI Deployment Roadmap PowerPoint file."""
+    if not _FINTECH_PPT_PATH.exists():
+        raise HTTPException(status_code=404, detail="File not found.")
+    return FileResponse(
+        path=str(_FINTECH_PPT_PATH),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        filename="fintech-ai-deployment-roadmap.pptx",
     )

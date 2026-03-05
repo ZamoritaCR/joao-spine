@@ -15,7 +15,10 @@ from fastapi import Header, HTTPException, Request
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_AGENTS = frozenset({"BYTE", "ARIA", "CJ", "SOFIA", "DEX", "GEMMA", "MAX"})
+ALLOWED_AGENTS = frozenset({
+    "ARIA", "BYTE", "CJ", "DEX", "SOFIA", "GEMMA", "MAX", "LEX", "NOVA", "SCOUT",
+    "SAGE", "FLUX", "CORE", "APEX", "IRIS", "VOLT",
+})
 
 _SHELL_DANGEROUS = re.compile(r"[;&|`$<>]")
 
