@@ -8,9 +8,9 @@ import uuid
 from datetime import datetime, timezone
 
 from pythonjsonlogger.json import JsonFormatter
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +45,30 @@ def configure_json_logging() -> None:
     root.addHandler(handler)
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Logs request start/end with latency. Propagates X-Request-ID."""
+class RequestLoggingMiddleware:
+    """Pure ASGI middleware. Logs request start/end with latency.
 
-    async def dispatch(self, request: Request, call_next) -> Response:
-        # Skip MCP SSE endpoints — BaseHTTPMiddleware cannot handle streaming responses
-        if request.url.path.startswith("/mcp/"):
-            return await call_next(request)
+    Uses raw ASGI instead of BaseHTTPMiddleware so that SSE / streaming
+    responses (like the MCP transport) are passed through untouched.
+    """
 
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+
+        # Pass MCP routes straight through — no wrapping at all
+        if path.startswith("/mcp/"):
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
         request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
-        request.state.request_id = request_id
         t0 = time.monotonic()
 
         logger.info(
@@ -62,11 +76,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             extra={
                 "request_id": request_id,
                 "method": request.method,
-                "path": request.url.path,
+                "path": path,
             },
         )
 
-        response: Response = await call_next(request)
+        status_code = 500
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                headers = dict(message.get("headers", []))
+                headers[b"x-request-id"] = request_id.encode()
+                message = {**message, "headers": list(headers.items())}
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
         latency_ms = round((time.monotonic() - t0) * 1000, 1)
         logger.info(
@@ -74,11 +99,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             extra={
                 "request_id": request_id,
                 "method": request.method,
-                "path": request.url.path,
-                "status_code": response.status_code,
+                "path": path,
+                "status_code": status_code,
                 "latency_ms": latency_ms,
             },
         )
-
-        response.headers["X-Request-ID"] = request_id
-        return response
