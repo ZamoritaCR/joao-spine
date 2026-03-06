@@ -1,4 +1,16 @@
-"""FastMCP tools — delegates to the same services as REST endpoints."""
+"""FastMCP tools — JOAO MCP server.
+
+12 joao_* tools (JOAO First Law: every capability here before anywhere else):
+  joao_chat, joao_memory_read, joao_memory_write,
+  joao_learn_youtube, joao_learn_pdf, joao_learn_excel,
+  joao_learn_url, joao_learn_docx,
+  joao_council_dispatch, joao_council_status,
+  joao_agent_output, joao_qa_review
+
+Legacy tools retained for backward compatibility:
+  dispatch_agent, capture_idea, get_status, query_memory,
+  ftp_access, council_dispatch, council_status, council_session_output
+"""
 
 from __future__ import annotations
 
@@ -17,7 +29,7 @@ from models.schemas import (
     IdeaVaultRecord,
     SessionLogRecord,
 )
-from services import ai_processor, dispatch, supabase_client, telegram
+from services import ai_processor, dispatch, ftp_client, supabase_client, telegram
 
 _RAILWAY_HOST = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 
@@ -164,6 +176,69 @@ async def query_memory(query: str, limit: int = 10) -> str:
 
 
 @mcp.tool()
+async def ftp_access(
+    action: str,
+    host: str,
+    remote_path: str,
+    user: str,
+    password: str,
+    port: int = 21,
+    local_path: str = "",
+) -> str:
+    """Access files on a remote FTP server — list, download, upload, or delete.
+
+    Args:
+        action: Operation to perform — list, get, put, or delete
+        host: FTP server hostname or IP
+        remote_path: Path on the remote server
+        user: FTP username
+        password: FTP password
+        port: FTP port (default: 21)
+        local_path: Local file path (required for get/put)
+    """
+    t0 = time.time()
+    logger.info("ftp_access: action=%s host=%s path=%s", action, host, remote_path)
+
+    try:
+        if action == "list":
+            entries = await ftp_client.ftp_list(host, port, user, password, remote_path)
+            lines = [f"FTP listing for {remote_path} on {host}:"]
+            for e in entries:
+                prefix = "[DIR]" if e.get("type") == "dir" else "[FILE]"
+                size = f" ({e['size']}B)" if e.get("size") else ""
+                lines.append(f"  {prefix} {e['name']}{size}")
+            result_text = "\n".join(lines) if entries else f"Empty directory: {remote_path}"
+        elif action == "get":
+            if not local_path:
+                return "Error: local_path is required for get action"
+            result_text = await ftp_client.ftp_get(host, port, user, password, remote_path, local_path)
+        elif action == "put":
+            if not local_path:
+                return "Error: local_path is required for put action"
+            result_text = await ftp_client.ftp_put(host, port, user, password, local_path, remote_path)
+        elif action == "delete":
+            result_text = await ftp_client.ftp_delete(host, port, user, password, remote_path)
+        else:
+            return f"Error: Unknown action '{action}'. Use list, get, put, or delete."
+    except Exception as e:
+        logger.exception("ftp_access failed")
+        return f"FTP {action} failed: {e}"
+
+    duration_ms = int((time.time() - t0) * 1000)
+    await supabase_client.insert_session_log(
+        SessionLogRecord(
+            endpoint="mcp/ftp_access",
+            action=f"ftp_{action}",
+            input_summary=f"{host}:{port} {remote_path}",
+            output_summary=result_text[:200],
+            status="ok",
+            duration_ms=duration_ms,
+        )
+    )
+    return result_text
+
+
+@mcp.tool()
 async def council_dispatch(
     agent: str,
     task: str,
@@ -263,3 +338,202 @@ async def council_session_output(agent: str) -> str:
     except Exception as e:
         logger.exception("council_session_output failed")
         return f"Failed to get session for {agent}: {e}"
+
+
+# ── JOAO MCP Tools (JOAO First Law) ──────────────────────────────────────────
+# All 12 joao_* tools — every capability available to JOAO before anywhere else.
+
+from tools.chat import joao_chat as _joao_chat
+from tools.memory import joao_memory_read as _joao_memory_read, joao_memory_write as _joao_memory_write
+from tools.learning import (
+    joao_learn_youtube as _joao_learn_youtube,
+    joao_learn_pdf as _joao_learn_pdf,
+    joao_learn_excel as _joao_learn_excel,
+    joao_learn_url as _joao_learn_url,
+    joao_learn_docx as _joao_learn_docx,
+)
+from tools.council import (
+    joao_council_dispatch as _joao_council_dispatch,
+    joao_council_status as _joao_council_status,
+    joao_agent_output as _joao_agent_output,
+    joao_qa_review as _joao_qa_review,
+)
+
+
+@mcp.tool()
+async def joao_chat(message: str, context: str = "") -> str:
+    """Send a message to JOAO and get a response via Claude Sonnet.
+
+    JOAO_MASTER_CONTEXT.md is loaded as the system prompt — full identity, stack,
+    and project awareness. Response is logged to JOAO_SESSION_LOG.md.
+
+    Args:
+        message: The message or question for JOAO
+        context: Optional additional context to include
+    """
+    return await _joao_chat(message, context)
+
+
+@mcp.tool()
+async def joao_memory_read(
+    file: str = "master",
+    tail_lines: int = 0,
+) -> str:
+    """Read JOAO memory files — master context or session log.
+
+    Args:
+        file: 'master' (JOAO_MASTER_CONTEXT.md) or 'session' (JOAO_SESSION_LOG.md)
+        tail_lines: If > 0, return only the last N lines. 0 returns full file.
+    """
+    return await _joao_memory_read(file, tail_lines)  # type: ignore[arg-type]
+
+
+@mcp.tool()
+async def joao_memory_write(
+    content: str,
+    file: str = "session",
+    header: str = "",
+) -> str:
+    """Append content to JOAO memory files. Append-only — never overwrites.
+
+    Session log entries get a timestamped header automatically.
+
+    Args:
+        content: Text to append
+        file: 'session' (default) or 'master'
+        header: Optional section label (auto-timestamped)
+    """
+    return await _joao_memory_write(content, file, header)  # type: ignore[arg-type]
+
+
+@mcp.tool()
+async def joao_learn_youtube(url: str) -> str:
+    """Extract a YouTube transcript, analyze with Claude, feed insights to JOAO's brain.
+
+    Auto-transcript first, Whisper fallback. Claude maps every insight to active
+    TAOP/JOAO projects. Appended to JOAO_SESSION_LOG.md.
+
+    Args:
+        url: Full YouTube URL (youtube.com or youtu.be)
+    """
+    return await _joao_learn_youtube(url)
+
+
+@mcp.tool()
+async def joao_learn_pdf(file_path: str) -> str:
+    """Extract a PDF, generate an HTML intelligence report, feed insights to JOAO's brain.
+
+    Reads the file from the server filesystem. Claude generates a full HTML report
+    saved to /joao/outputs/. Learning summary appended to JOAO_SESSION_LOG.md.
+
+    Args:
+        file_path: Absolute path to the .pdf file on the server
+    """
+    return await _joao_learn_pdf(file_path)
+
+
+@mcp.tool()
+async def joao_learn_excel(file_path: str) -> str:
+    """Parse Excel/CSV, run Dr. Data full BI analysis, generate HTML dashboard.
+
+    Dr. Data analyzes patterns, anomalies, and business insights. Produces a
+    Fortune 500-quality HTML dashboard saved to /joao/outputs/.
+
+    Args:
+        file_path: Absolute path to the .xlsx, .xls, or .csv file on the server
+    """
+    return await _joao_learn_excel(file_path)
+
+
+@mcp.tool()
+async def joao_learn_url(url: str) -> str:
+    """Fetch any URL, extract clean content, analyze with Claude, feed to JOAO's brain.
+
+    BeautifulSoup first, trafilatura fallback. Claude maps insights to TAOP/JOAO.
+    Appended to JOAO_SESSION_LOG.md.
+
+    Args:
+        url: Full URL to fetch and analyze (http or https)
+    """
+    return await _joao_learn_url(url)
+
+
+@mcp.tool()
+async def joao_learn_docx(file_path: str) -> str:
+    """Extract a Word doc, generate a stunning HTML version, feed insights to JOAO's brain.
+
+    Preserves headings and tables. Claude produces a visually rich HTML version
+    saved to /joao/outputs/. Insights appended to JOAO_SESSION_LOG.md.
+
+    Args:
+        file_path: Absolute path to the .docx file on the server
+    """
+    return await _joao_learn_docx(file_path)
+
+
+@mcp.tool()
+async def joao_council_dispatch(
+    agent: str,
+    task: str,
+    priority: str = "normal",
+    context: str = "",
+    project: str = "",
+) -> str:
+    """Dispatch a task to any Council agent.
+
+    Sends the task to the agent's dedicated tmux session on ROG Strix (192.168.0.55).
+    The agent executes autonomously. Dispatch logged to Supabase.
+
+    Args:
+        agent: BYTE | ARIA | CJ | SOFIA | DEX | GEMMA | MAX | LEX | NOVA |
+               SAGE | FLUX | CORE | APEX | IRIS | VOLT
+        task: Detailed task description — be specific, agents operate autonomously
+        priority: normal | urgent | critical
+        context: Additional context for the agent
+        project: Project scope if applicable
+    """
+    return await _joao_council_dispatch(agent, task, priority, context, project)
+
+
+@mcp.tool()
+async def joao_council_status() -> str:
+    """Get status of all Council agents — active/inactive in their tmux sessions on ROG Strix."""
+    return await _joao_council_status()
+
+
+@mcp.tool()
+async def joao_agent_output(agent: str) -> str:
+    """Get recent terminal output from a specific Council agent's tmux session.
+
+    Captures the agent's terminal buffer from ROG Strix. Use to check what
+    an agent is currently doing or what it produced.
+
+    Args:
+        agent: Agent name (BYTE, ARIA, CJ, SOFIA, DEX, GEMMA, MAX, LEX, NOVA,
+               SAGE, FLUX, CORE, APEX, IRIS, VOLT, SCOUT)
+    """
+    return await _joao_agent_output(agent)
+
+
+@mcp.tool()
+async def joao_qa_review(
+    agent: str,
+    task_summary: str,
+    code_diff: str,
+    files_changed: str = "",
+    test_results: str = "",
+) -> str:
+    """Trigger 3-model QA consensus review — Claude Sonnet + GPT-4o + Claude Opus.
+
+    Runs all three reviewers in parallel. Scores correctness, security, quality,
+    and completeness. Consensus verdict: deploy (all >= 8), review (2/3 >= 8),
+    or reject (any < 5).
+
+    Args:
+        agent: Agent that produced the work (e.g. BYTE)
+        task_summary: What the agent was asked to do
+        code_diff: The code diff or output to review
+        files_changed: Comma-separated list of changed files (optional)
+        test_results: Test output if available (optional)
+    """
+    return await _joao_qa_review(agent, task_summary, code_diff, files_changed, test_results)

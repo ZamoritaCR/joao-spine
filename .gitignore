@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 .env
+JOAO_MASTER_CONTEXT.md
+JOAO_SESSION_LOG.md
+SCOUT_INTEL.md
+scout_intel.db
+links/
+outputs/
+audio/

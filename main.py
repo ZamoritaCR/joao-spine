@@ -18,7 +18,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from mcp_server import mcp
@@ -26,6 +26,7 @@ from routers.joao import router as joao_router
 from routers.qa import router as qa_router
 from routers.scout import router as scout_router
 from routers.voice import router as voice_router
+from routers.ftp import router as ftp_router
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    return RedirectResponse(url="/joao/app")
+
+
+@app.get("/joao", include_in_schema=False)
+async def joao_redirect():
+    return RedirectResponse(url="/joao/app")
+
+
 # CORS — allow frontend origins
 app.add_middleware(
     CORSMiddleware,
@@ -67,6 +78,7 @@ app.include_router(joao_router)
 app.include_router(qa_router)
 app.include_router(scout_router)
 app.include_router(voice_router)
+app.include_router(ftp_router)
 
 
 # PWA entry point

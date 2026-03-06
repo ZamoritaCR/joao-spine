@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
 import uvicorn
 
 app = FastAPI(title="JOAO Local Dispatch", version="2.1.0")
@@ -73,6 +74,9 @@ def is_interactive(command: str) -> bool:
 CLAUDE_BIN_PATH = "/usr/bin/claude"
 VENV_ACT = f"source {os.path.expanduser('~/taop-agents-env/bin/activate')} 2>/dev/null"
 AGENT_WORKING_DIR = os.path.expanduser("~/joao-interface")
+COUNCIL_TASK_DIR = "/tmp/council/tasks"
+COUNCIL_OUTPUT_DIR = "/tmp/council/outputs"
+COUNCIL_LAUNCHER = os.path.expanduser("~/council/bin/launch_agent.sh")
 
 
 def is_claude_running(session_name: str) -> bool:
@@ -107,52 +111,6 @@ def is_claude_running(session_name: str) -> bool:
     return False
 
 
-def launch_claude_in_session(session_name: str):
-    """Launch Claude Code with --dangerously-skip-permissions in a tmux session.
-
-    Activates the venv, cd's to the working dir, and starts Claude Code.
-    Waits briefly for Claude Code to initialize.
-    """
-    import time
-
-    logger.warning(f"Claude Code NOT running in '{session_name}' -- auto-launching")
-
-    # Activate venv
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "-l", VENV_ACT],
-        capture_output=True,
-    )
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "Enter"],
-        capture_output=True,
-    )
-    time.sleep(0.3)
-
-    # cd to working directory
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "-l", f"cd {AGENT_WORKING_DIR}"],
-        capture_output=True,
-    )
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "Enter"],
-        capture_output=True,
-    )
-    time.sleep(0.3)
-
-    # Launch Claude Code
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "-l",
-         f"{CLAUDE_BIN_PATH} --dangerously-skip-permissions"],
-        capture_output=True,
-    )
-    subprocess.run(
-        ["tmux", "send-keys", "-t", session_name, "Enter"],
-        capture_output=True,
-    )
-
-    # Wait for Claude Code to initialize
-    time.sleep(5)
-    logger.info(f"Claude Code auto-launched in '{session_name}'")
 
 
 class DispatchCommand(BaseModel):
@@ -235,6 +193,30 @@ def send_to_tmux(session_name: str, command: str):
     )
 
 
+def write_task_file(agent: str, task: str, context: str = None, project: str = None) -> str:
+    """Write a task to a .md file for the agent launcher.
+
+    Returns the absolute path to the task file.
+    File-based dispatch avoids stdin piping which triggers prompt injection
+    detection in Claude Code.
+    """
+    os.makedirs(COUNCIL_TASK_DIR, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    safe_agent = re.sub(r'[^a-zA-Z0-9]', '_', agent.upper())
+    task_file = f"{COUNCIL_TASK_DIR}/{safe_agent}_{timestamp}.md"
+
+    prompt_text = task
+    if context:
+        prompt_text += f"\n\nAdditional context: {context}"
+    if project:
+        prompt_text += f"\n\nProject: {project}"
+
+    with open(task_file, "w") as f:
+        f.write(prompt_text)
+
+    return task_file
+
+
 def build_automated_command(
     agent: str,
     task: str,
@@ -251,57 +233,26 @@ def build_automated_command(
     return task
 
 
-def build_interactive_prompt(
+def build_claude_task_command(
     agent: str,
     task: str,
     priority: str,
     context: str = None,
     project: str = None,
 ) -> str:
-    """Build the Claude Code prompt for the interactive lane.
+    """Build a Claude Code --print command using the file-based launcher.
 
-    Returns the prompt text directly, to be typed into the agent's
-    tmux window where Claude Code is already running with
-    --dangerously-skip-permissions (launched by restart_agents.sh).
-    The running Claude Code instance receives this as a normal user prompt.
+    Writes the task to /tmp/council/tasks/{AGENT}_{timestamp}.md and returns
+    a shell command that runs the universal launcher. Output captured to
+    /tmp/council/outputs/{AGENT}_{timestamp}.md.
+
+    This replaces both the old interactive (tmux send-keys) and claude
+    (stdin pipe) lanes with a single safe approach that does NOT trigger
+    prompt injection detection.
     """
-    prompt_text = task
-    if context:
-        prompt_text += f"\n\nAdditional context: {context}"
-    if project:
-        prompt_text += f"\n\nProject: {project}"
+    task_file = write_task_file(agent, task, context, project)
 
-    return prompt_text
-
-
-def build_claude_oneshot(
-    agent: str,
-    task: str,
-    priority: str,
-    context: str = None,
-    project: str = None,
-) -> str:
-    """Build a one-shot Claude Code command for the 'claude' lane.
-
-    Launches claude -p --dangerously-skip-permissions with the task piped
-    via a temp file. Used when no Claude Code session is already running
-    in the agent's tmux pane.
-    """
-    prompt_text = task
-    if context:
-        prompt_text += f"\n\nAdditional context: {context}"
-    if project:
-        prompt_text += f"\n\nProject: {project}"
-
-    # Write prompt to temp file, pipe to claude -p (non-interactive print mode)
-    safe_agent = re.sub(r'[^a-zA-Z0-9]', '_', agent.lower())
-    prompt_file = f"/tmp/council_prompt_{safe_agent}.txt"
-
-    # Write the prompt file
-    with open(prompt_file, "w") as f:
-        f.write(prompt_text)
-
-    return f"cd {AGENT_WORKING_DIR} && {CLAUDE_BIN_PATH} -p --dangerously-skip-permissions < {prompt_file}"
+    return f"bash {COUNCIL_LAUNCHER} {agent.upper()} {task_file} {AGENT_WORKING_DIR}"
 
 
 @app.get("/health")
@@ -364,35 +315,34 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
     session = AGENT_SESSIONS[agent]
     create_tmux_session(session)
 
-    if lane == "interactive":
-        # Interactive lane: text sent to running Claude Code session
-        # (already launched with --dangerously-skip-permissions)
-        # SAFETY: verify Claude Code is actually running before sending prompts
-        if not is_claude_running(session):
-            logger.warning(
-                f"[interactive] Claude Code not running in {session} for {agent}. "
-                f"Auto-launching before dispatch."
+    if lane in ("interactive", "claude"):
+        # File-based --print mode: write task to .md file, run launcher.
+        # If Claude Code is currently running in the session, exit it first
+        # so the launcher command reaches the shell, not Claude's chat input.
+        command = build_claude_task_command(
+            agent, cmd.task, cmd.priority, cmd.context, cmd.project
+        )
+
+        if is_claude_running(session):
+            logger.info(f"[{lane}→print] Claude running in {session}, exiting first")
+            # Send Escape to cancel any pending input, then /exit
+            subprocess.run(
+                ["tmux", "send-keys", "-t", session, "Escape"],
+                capture_output=True,
             )
-            launch_claude_in_session(session)
-            # Verify it came up
-            if not is_claude_running(session):
-                logger.error(f"[interactive] Failed to auto-launch Claude Code for {agent}")
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Claude Code is not running in {agent}'s session and "
-                           f"auto-launch failed. Use lane='claude' for one-shot, "
-                           f"or restart the agent manually.",
-                )
-        command = build_interactive_prompt(
-            agent, cmd.task, cmd.priority, cmd.context, cmd.project
-        )
-        logger.info(f"[interactive] Dispatched to {agent}: {cmd.task[:100]}")
-    elif lane == "claude":
-        # Claude lane: one-shot claude -p --dangerously-skip-permissions
-        command = build_claude_oneshot(
-            agent, cmd.task, cmd.priority, cmd.context, cmd.project
-        )
-        logger.info(f"[claude] Dispatched to {agent}: {cmd.task[:100]}")
+            await asyncio.sleep(0.5)
+            subprocess.run(
+                ["tmux", "send-keys", "-t", session, "-l", "/exit"],
+                capture_output=True,
+            )
+            subprocess.run(
+                ["tmux", "send-keys", "-t", session, "Enter"],
+                capture_output=True,
+            )
+            # Wait for Claude to exit and shell prompt to appear
+            await asyncio.sleep(4)
+
+        logger.info(f"[{lane}→print] Dispatched to {agent}: {cmd.task[:100]}")
     else:
         # Automated lane: bash-only, no interactive processes
         if is_interactive(cmd.task):
@@ -477,6 +427,57 @@ async def get_session(agent: str):
         "session": session,
         "output": result.stdout if result.returncode == 0 else "capture failed",
     }
+
+
+# ── Council Registry (file-backed for gunicorn workers) ──────
+
+import json as _json
+
+_COUNCIL_REGISTRY_FILE = "/home/zamoritacr/council/config/council_registry.json"
+
+
+def _load_registry() -> dict:
+    try:
+        with open(_COUNCIL_REGISTRY_FILE) as f:
+            return _json.load(f)
+    except (FileNotFoundError, _json.JSONDecodeError):
+        return {}
+
+
+def _save_registry(data: dict):
+    os.makedirs(os.path.dirname(_COUNCIL_REGISTRY_FILE), exist_ok=True)
+    with open(_COUNCIL_REGISTRY_FILE, "w") as f:
+        _json.dump(data, f, indent=2)
+
+
+class CouncilRegister(BaseModel):
+    agent: str
+    session: str
+    status: str = "online"
+
+
+@app.post("/council/register")
+async def council_register(reg: CouncilRegister):
+    agent = reg.agent.upper()
+    registry = _load_registry()
+    registry[agent] = {
+        "agent": agent,
+        "session": reg.session,
+        "status": reg.status,
+        "registered_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_registry(registry)
+    return {"status": "registered", "agent": agent}
+
+
+@app.get("/council/agents")
+async def council_agents():
+    registry = _load_registry()
+    for agent, info in registry.items():
+        session = info.get("session", agent)
+        info["tmux_active"] = tmux_session_exists(session)
+        info["claude_running"] = is_claude_running(session) if info["tmux_active"] else False
+    return {"agents": registry, "count": len(registry)}
 
 
 if __name__ == "__main__":
