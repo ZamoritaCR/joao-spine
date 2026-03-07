@@ -63,7 +63,7 @@ class RequestLoggingMiddleware:
         path = scope.get("path", "")
 
         # Pass MCP routes straight through — no wrapping at all
-        if path.startswith("/mcp/"):
+        if path.startswith("/mcp/") or path.startswith("/taop/mcp/"):
             await self.app(scope, receive, send)
             return
 
