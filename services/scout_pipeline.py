@@ -393,7 +393,6 @@ async def _handle_critical_tier(items: list[dict[str, Any]]) -> None:
         # 3. Supabase: write to scout_intel
         dispatches: list[dict[str, str]] = []
         record = {
-            "source": item.get("source", ""),
             "category": item.get("category", ""),
             "title": item["title"],
             "summary": item.get("summary", ""),
@@ -401,7 +400,6 @@ async def _handle_critical_tier(items: list[dict[str, Any]]) -> None:
             "score": item.get("score", 0),
             "action_plan": plan,
             "tier": 3,
-            "hash": item.get("hash", ""),
             "dispatches": json.dumps(dispatches),
         }
 
@@ -430,7 +428,6 @@ async def _handle_moderate_tier(items: list[dict[str, Any]]) -> None:
     # 3. Supabase: write each item
     for item in items:
         record = {
-            "source": item.get("source", ""),
             "category": item.get("category", ""),
             "title": item["title"],
             "summary": item.get("summary", ""),
@@ -438,7 +435,6 @@ async def _handle_moderate_tier(items: list[dict[str, Any]]) -> None:
             "score": item.get("score", 0),
             "action_plan": "",
             "tier": 2,
-            "hash": item.get("hash", ""),
             "dispatches": "[]",
         }
         await _write_supabase("scout_intel", record)
@@ -453,7 +449,6 @@ async def _handle_archive_tier(items: list[dict[str, Any]]) -> None:
     for item in items:
         # 1. Supabase archive
         record = {
-            "source": item.get("source", ""),
             "category": item.get("category", ""),
             "title": item["title"],
             "summary": item.get("summary", ""),
