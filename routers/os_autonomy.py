@@ -20,6 +20,8 @@ _DISPATCH_TUNNEL = "https://dispatch.theartofthepossible.io"
 _DISPATCH_URL = os.getenv("JOAO_LOCAL_DISPATCH_URL", "").rstrip("/")
 if not _DISPATCH_URL or "localhost" in _DISPATCH_URL or "127.0.0.1" in _DISPATCH_URL:
     _DISPATCH_URL = _DISPATCH_TUNNEL
+if _DISPATCH_URL.endswith("/os-proxy"):
+    _DISPATCH_URL = _DISPATCH_URL.removesuffix("/os-proxy")
 OS_AGENT_URL = os.getenv(
     "OS_AGENT_URL",
     f"{_DISPATCH_URL}/os-proxy" if _DISPATCH_URL else "http://192.168.0.55:7801",
