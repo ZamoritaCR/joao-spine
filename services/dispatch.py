@@ -79,9 +79,13 @@ async def dispatch_command(
                 )
                 logger.info("Created tmux session: %s", session_name)
 
-            # Send the command
+            # Send the command text, then Enter as a separate call
             await conn.run(
-                f"tmux send-keys -t {session_name} {_shell_escape(command)} Enter",
+                f"tmux send-keys -t {session_name} {_shell_escape(command)}",
+                check=True,
+            )
+            await conn.run(
+                f"tmux send-keys -t {session_name} Enter",
                 check=True,
             )
 

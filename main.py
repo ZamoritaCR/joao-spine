@@ -21,7 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+# Fix Railway 30s idle timeout: ensure SSE keepalive fires every 25s
+from sse_starlette import EventSourceResponse as _EventSourceResponse
+_EventSourceResponse.DEFAULT_PING_INTERVAL = 25
+
 from mcp_server import mcp
+from routers.taop_mcp import taop_mcp
 from routers.joao import router as joao_router
 from routers.qa import router as qa_router
 from routers.scout import router as scout_router
@@ -116,6 +121,10 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 # MCP mount — SSE transport at /mcp (exposes /mcp/sse endpoint)
 mcp_app = mcp.sse_app()
 app.mount("/mcp", mcp_app)
+
+# TAOP MCP mount — Council dispatch, memory, SCOUT intel at /taop/mcp
+taop_mcp_app = taop_mcp.sse_app()
+app.mount("/taop/mcp", taop_mcp_app)
 
 
 if __name__ == "__main__":
