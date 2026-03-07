@@ -37,8 +37,27 @@ class OsProxyApp:
 
         # Mount passes full path; strip the /os prefix
         raw_path = scope.get("path", "/")
+        root_path = scope.get("root_path", "")
         path = raw_path.split("/os/", 1)[-1] if "/os/" in raw_path else raw_path.lstrip("/")
+        logger.info("os-proxy ASGI: raw_path=%s root_path=%s resolved=%s", raw_path, root_path, path)
         method = scope.get("method", "GET")
+
+        # Debug endpoint
+        if path == "_debug":
+            debug_body = json.dumps({
+                "raw_path": raw_path,
+                "root_path": root_path,
+                "resolved_path": path,
+                "os_agent_url": OS_AGENT_URL,
+                "dispatch_secret_set": bool(_DISPATCH_SECRET),
+            }).encode()
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": [[b"content-type", b"application/json"], [b"content-length", str(len(debug_body)).encode()]],
+            })
+            await send({"type": "http.response.body", "body": debug_body})
+            return
 
         # Read request body
         body = b""
