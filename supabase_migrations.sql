@@ -66,3 +66,54 @@ CREATE TABLE IF NOT EXISTS dispatch_log (
 CREATE INDEX IF NOT EXISTS idx_dispatch_log_agent ON dispatch_log(agent);
 CREATE INDEX IF NOT EXISTS idx_dispatch_log_status ON dispatch_log(status);
 CREATE INDEX IF NOT EXISTS idx_dispatch_log_dispatched_at ON dispatch_log(dispatched_at DESC);
+
+-- SCOUT intel table: high-scoring items (5-10) with Claude analysis
+-- Run in Supabase SQL Editor: https://supabase.com/dashboard/project/wkfewpynskakgbetscsa/sql
+CREATE TABLE IF NOT EXISTS scout_intel (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    source TEXT,
+    category TEXT,
+    title TEXT NOT NULL,
+    summary TEXT DEFAULT '',
+    url TEXT DEFAULT '',
+    score INTEGER DEFAULT 0,
+    action_plan TEXT DEFAULT '',
+    tier TEXT DEFAULT '',
+    hash TEXT DEFAULT '',
+    dispatches JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scout_intel_score ON scout_intel(score DESC);
+CREATE INDEX IF NOT EXISTS idx_scout_intel_created_at ON scout_intel(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scout_intel_hash ON scout_intel(hash);
+
+-- SCOUT archive table: all scored items (1-10), including low-tier
+CREATE TABLE IF NOT EXISTS scout_archive (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    source TEXT,
+    category TEXT,
+    title TEXT NOT NULL,
+    summary TEXT DEFAULT '',
+    url TEXT DEFAULT '',
+    score INTEGER DEFAULT 0,
+    tier TEXT DEFAULT '',
+    hash TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scout_archive_score ON scout_archive(score DESC);
+CREATE INDEX IF NOT EXISTS idx_scout_archive_created_at ON scout_archive(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scout_archive_hash ON scout_archive(hash);
+
+-- Sprint 3 migration: add missing columns to existing tables
+-- Safe to run even if columns already exist (IF NOT EXISTS)
+ALTER TABLE public.scout_archive ADD COLUMN IF NOT EXISTS hash text;
+ALTER TABLE public.scout_archive ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE public.scout_archive ADD COLUMN IF NOT EXISTS tier text;
+ALTER TABLE public.scout_archive ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE public.scout_intel ADD COLUMN IF NOT EXISTS dispatches jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE public.scout_intel ADD COLUMN IF NOT EXISTS action_plan text;
+ALTER TABLE public.scout_intel ADD COLUMN IF NOT EXISTS tier text;
+ALTER TABLE public.scout_intel ADD COLUMN IF NOT EXISTS source text;
+ALTER TABLE public.scout_intel ADD COLUMN IF NOT EXISTS hash text;

@@ -211,6 +211,32 @@ async def _write_supabase(table: str, record: dict[str, Any]) -> bool:
             if resp.status_code in (200, 201):
                 logger.debug("Supabase %s write OK", table)
                 return True
+            # PGRST204: column not found in schema cache — strip unknown column and retry
+            if resp.status_code == 400:
+                try:
+                    err = resp.json()
+                    if err.get("code") == "PGRST204":
+                        # Extract column name from error message
+                        msg = err.get("message", "")
+                        import re as _re
+                        m = _re.search(r"'(\w+)' column", msg)
+                        if m:
+                            bad_col = m.group(1)
+                            logger.error(
+                                "Supabase %s missing column '%s' — schema migration needed. "
+                                "Run: SUPABASE_DB_PASSWORD=<pwd> python3 ~/scripts/fix_schema.py",
+                                table, bad_col,
+                            )
+                            filtered = {k: v for k, v in record.items() if k != bad_col}
+                            resp2 = await client.post(f"{url}/rest/v1/{table}", json=filtered, headers=headers)
+                            if resp2.status_code in (200, 201):
+                                logger.warning(
+                                    "Supabase %s write succeeded without '%s' — data loss until schema is fixed",
+                                    table, bad_col,
+                                )
+                                return True
+                except Exception:
+                    pass
             logger.warning("Supabase %s write returned %s: %s", table, resp.status_code, resp.text[:200])
             return False
     except Exception:
@@ -281,11 +307,30 @@ def _format_moderate_telegram(items: list[dict[str, Any]], summary: str) -> str:
 # ---------------------------------------------------------------------------
 # Telegram sender (reuse from scout module)
 # ---------------------------------------------------------------------------
+_TELEGRAM_CHAT_ID_FALLBACK = "7670125439"  # Johan's numeric chat ID
+
+
+def _resolve_telegram_chat_id() -> str:
+    """Return numeric chat ID. Falls back to known good ID if env has @username."""
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not chat_id:
+        logger.warning("TELEGRAM_CHAT_ID not set — using fallback %s", _TELEGRAM_CHAT_ID_FALLBACK)
+        return _TELEGRAM_CHAT_ID_FALLBACK
+    if not chat_id.lstrip("-").isdigit():
+        logger.warning(
+            "TELEGRAM_CHAT_ID=%r is not numeric — using fallback %s. "
+            "Fix: set TELEGRAM_CHAT_ID=%s in Railway environment variables.",
+            chat_id, _TELEGRAM_CHAT_ID_FALLBACK, _TELEGRAM_CHAT_ID_FALLBACK,
+        )
+        return _TELEGRAM_CHAT_ID_FALLBACK
+    return chat_id
+
+
 async def _send_telegram(message: str) -> bool:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
-    if not token or not chat_id:
-        logger.warning("Telegram not configured")
+    chat_id = _resolve_telegram_chat_id()
+    if not token:
+        logger.warning("TELEGRAM_BOT_TOKEN not configured")
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"

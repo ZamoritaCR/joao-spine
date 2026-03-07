@@ -39,6 +39,8 @@ _STATIC_DIR = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("joao-spine starting up")
+    from services.supabase_migrate import run_startup_migrations
+    run_startup_migrations()
     from services import scout as scout_service
     scout_service.start_scheduler()
     logger.info("SCOUT scheduler started in lifespan")
