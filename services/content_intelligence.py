@@ -14,9 +14,10 @@ import anthropic
 
 logger = logging.getLogger(__name__)
 
-_LINKS_DIR = Path("/home/zamoritacr/joao-spine/links")
-_OUTPUTS_DIR = Path("/home/zamoritacr/joao-spine/outputs")
-_SESSION_LOG = Path("/home/zamoritacr/joao-spine/JOAO_SESSION_LOG.md")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_LINKS_DIR = _PROJECT_ROOT / "links"
+_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
+_SESSION_LOG = _PROJECT_ROOT / "JOAO_SESSION_LOG.md"
 
 _LINKS_DIR.mkdir(parents=True, exist_ok=True)
 _OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)

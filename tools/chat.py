@@ -7,8 +7,9 @@ from pathlib import Path
 
 import anthropic
 
-_MASTER_CONTEXT = Path("/home/zamoritacr/joao-spine/JOAO_MASTER_CONTEXT.md")
-_SESSION_LOG = Path("/home/zamoritacr/joao-spine/JOAO_SESSION_LOG.md")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_MASTER_CONTEXT = _PROJECT_ROOT / "JOAO_MASTER_CONTEXT.md"
+_SESSION_LOG = _PROJECT_ROOT / "JOAO_SESSION_LOG.md"
 
 _MODEL = "claude-sonnet-4-6"
 

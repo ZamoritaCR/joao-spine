@@ -182,7 +182,8 @@ async def dispatch_endpoint(
     return DispatchResponse(request_id=request_id, **result)
 
 
-_AUDIO_DIR = Path("/home/zamoritacr/joao-spine/audio")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_AUDIO_DIR = _PROJECT_ROOT / "audio"
 
 
 @router.post("/audio", response_model=ContentResponse)
@@ -400,7 +401,7 @@ async def reset_build_status():
 
 # ── Context & Log Endpoints (joao-interface memory) ───────────────────────
 
-_MEMORY_DIR = Path("/home/zamoritacr/joao-interface/memory")
+_MEMORY_DIR = Path(os.environ.get("JOAO_MEMORY_DIR", str(_PROJECT_ROOT.parent / "joao-interface" / "memory")))
 _CONTEXT_FILE = _MEMORY_DIR / "JOAO_MASTER_CONTEXT.md"
 _SESSION_LOG_FILE = _MEMORY_DIR / "JOAO_SESSION_LOG.md"
 
@@ -449,7 +450,7 @@ async def append_log(entry: LogEntry):
 
 # ── Chat Proxy (streams Claude API, keeps key server-side) ─────────────
 
-_SPINE_SESSION_LOG = Path("/home/zamoritacr/joao-spine/JOAO_SESSION_LOG.md")
+_SPINE_SESSION_LOG = _PROJECT_ROOT / "JOAO_SESSION_LOG.md"
 
 
 def _append_log_sync(role: str, content: str) -> None:
@@ -959,7 +960,7 @@ async def transcribe(audio: UploadFile, _: None = Depends(require_api_key)):
 
 # ── Links Feed ──────────────────────────────────────────────────────────────
 
-_LINKS_DIR = Path("/home/zamoritacr/joao-spine/links")
+_LINKS_DIR = _PROJECT_ROOT / "links"
 
 
 class LinkRequest(BaseModel):
@@ -1157,7 +1158,7 @@ async def save_link(req: LinkRequest):
 
     # Step 4: Append to spine session log for context watcher
     try:
-        spine_log = Path("/home/zamoritacr/joao-spine/JOAO_SESSION_LOG.md")
+        spine_log = _SPINE_SESSION_LOG
         session_entry = (
             f"\n## LINK INGESTED [{ts}]\n"
             f"URL: {req.url}\n"
@@ -1231,7 +1232,7 @@ async def links(req: LinkRequest):
 
 _ALLOWED_EXTENSIONS = {".pdf", ".xlsx", ".xls", ".csv", ".docx"}
 
-_OUTPUTS_DIR = Path("/home/zamoritacr/joao-spine/outputs")
+_OUTPUTS_DIR = _PROJECT_ROOT / "outputs"
 
 
 @router.post("/upload")
