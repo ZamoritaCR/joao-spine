@@ -21,9 +21,34 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-# Fix Railway 30s idle timeout: ensure SSE keepalive fires every 25s
-from sse_starlette import EventSourceResponse as _EventSourceResponse
-_EventSourceResponse.DEFAULT_PING_INTERVAL = 15
+# Fix Railway 30s idle timeout + zero-downtime redeploys
+import anyio
+from sse_starlette import EventSourceResponse as _OriginalEventSourceResponse
+
+_OriginalEventSourceResponse.DEFAULT_PING_INTERVAL = 15
+
+# Global shutdown event — fired during lifespan shutdown so SSE connections
+# get a grace period to close cleanly instead of being killed on redeploy.
+_shutdown_event = anyio.Event()
+
+
+class _PatchedEventSourceResponse(_OriginalEventSourceResponse):
+    """Injects shutdown grace period into every SSE response.
+
+    On redeploy, uvicorn sends SIGTERM. The lifespan sets _shutdown_event,
+    which gives SSE streams 25s to send a final message and close cleanly
+    instead of being killed mid-stream.
+    """
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("shutdown_event", _shutdown_event)
+        kwargs.setdefault("shutdown_grace_period", 25)
+        super().__init__(*args, **kwargs)
+
+
+# Patch mcp.server.sse so the MCP transport uses our graceful version
+import mcp.server.sse
+mcp.server.sse.EventSourceResponse = _PatchedEventSourceResponse
 
 from mcp_server import mcp
 from routers.taop_mcp import taop_mcp
@@ -51,7 +76,8 @@ async def lifespan(app: FastAPI):
     logger.info("SCOUT scheduler started in lifespan")
     yield
     scout_service.stop_scheduler()
-    logger.info("joao-spine shutting down")
+    logger.info("joao-spine shutting down — signaling SSE connections to close")
+    _shutdown_event.set()
 
 
 app = FastAPI(
