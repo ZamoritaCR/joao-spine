@@ -400,7 +400,7 @@ async def _handle_critical_tier(items: list[dict[str, Any]]) -> None:
             "url": item.get("url", ""),
             "score": item.get("score", 0),
             "action_plan": plan,
-            "tier": "critical",
+            "tier": 3,
             "hash": item.get("hash", ""),
             "dispatches": json.dumps(dispatches),
         }
@@ -437,7 +437,7 @@ async def _handle_moderate_tier(items: list[dict[str, Any]]) -> None:
             "url": item.get("url", ""),
             "score": item.get("score", 0),
             "action_plan": "",
-            "tier": "moderate",
+            "tier": 2,
             "hash": item.get("hash", ""),
             "dispatches": "[]",
         }
