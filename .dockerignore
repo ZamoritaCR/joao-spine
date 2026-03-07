@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+.git
+.pytest_cache
+.env
+*.db
+tests/
+outputs/
+audio/
+links/
+*.md
+.claude/
