@@ -7,6 +7,8 @@ import os
 import time
 import uuid
 
+import httpx
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
@@ -227,3 +229,66 @@ async def _handle_idea(intent: VoiceIntent, transcript: str) -> dict:
         }
     except Exception as e:
         return {"status": "error", "response": f"Failed to save idea: {e}"}
+
+
+@router.post("/audio")
+async def voice_audio_pipeline(file: UploadFile):
+    """STT → Claude brain → TTS pipeline. Returns transcript, reply, and base64 audio."""
+    import base64
+
+    audio_bytes = await file.read()
+
+    # 1. Deepgram Nova-3 STT
+    dg_key = os.getenv("DEEPGRAM_API_KEY")
+    if not dg_key:
+        raise HTTPException(status_code=503, detail="DEEPGRAM_API_KEY not configured")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        dg_resp = await client.post(
+            "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true",
+            headers={"Authorization": f"Token {dg_key}", "Content-Type": "audio/wav"},
+            content=audio_bytes,
+        )
+    if dg_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Deepgram error: {dg_resp.text}")
+    try:
+        transcript = dg_resp.json()["results"]["channels"][0]["alternatives"][0]["transcript"]
+    except (KeyError, IndexError) as e:
+        raise HTTPException(status_code=502, detail=f"Deepgram parse error: {e}")
+
+    if not transcript.strip():
+        return {"transcript": "", "reply": "I didn't catch that.", "audio_b64": None, "format": "mp3"}
+
+    # 2. Claude brain
+    import anthropic as _anthropic
+
+    claude = _anthropic.Anthropic()
+    msg = claude.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=500,
+        system="You are JOÃO, Johan's AI sidekick. Be concise — this is a voice response.",
+        messages=[{"role": "user", "content": transcript}],
+    )
+    reply = msg.content[0].text
+
+    # 3. ElevenLabs TTS
+    el_key = os.getenv("ELEVENLABS_API_KEY")
+    if not el_key:
+        raise HTTPException(status_code=503, detail="ELEVENLABS_API_KEY not configured")
+
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        tts_resp = await client.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={"xi-api-key": el_key, "Content-Type": "application/json"},
+            json={
+                "text": reply,
+                "model_id": "eleven_turbo_v2_5",
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+            },
+        )
+    if tts_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"ElevenLabs error: {tts_resp.text}")
+
+    audio_b64 = base64.b64encode(tts_resp.content).decode()
+    return {"transcript": transcript, "reply": reply, "audio_b64": audio_b64, "format": "mp3"}
