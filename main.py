@@ -94,17 +94,6 @@ async def health():
     return {"status": "ok", "service": "joao-spine", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
-@app.get("/debug/routes")
-async def debug_routes():
-    """Temporary debug endpoint — shows all registered routes and build version."""
-    routes = []
-    for r in app.routes:
-        rtype = type(r).__name__
-        path = getattr(r, "path", "?")
-        routes.append(f"{rtype}:{path}")
-    return {"build": "2026-03-07T16:54", "route_count": len(routes), "os_mount": "/os" in str(routes), "routes_with_os": [r for r in routes if "os" in r.lower()]}
-
-
 @app.get("/", include_in_schema=False)
 async def root_redirect():
     return RedirectResponse(url="/joao/app")

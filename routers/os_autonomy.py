@@ -41,7 +41,7 @@ class OsProxyApp:
         raw_path = scope.get("path", "/")
         root_path = scope.get("root_path", "")
         path = raw_path.split("/os/", 1)[-1] if "/os/" in raw_path else raw_path.lstrip("/")
-        logger.info("os-proxy ASGI: raw_path=%s root_path=%s resolved=%s", raw_path, root_path, path)
+        logger.debug("os-proxy ASGI: raw_path=%s root_path=%s resolved=%s", raw_path, root_path, path)
         method = scope.get("method", "GET")
 
         # Debug endpoint
