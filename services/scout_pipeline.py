@@ -191,6 +191,17 @@ async def _dispatch_followups(plan: str, item: dict[str, Any]) -> list[dict[str,
 # ---------------------------------------------------------------------------
 # Supabase (graceful)
 # ---------------------------------------------------------------------------
+import re as _re
+
+# Known columns per table from current Supabase schema (updated by startup migration)
+# These are the columns confirmed present; pipeline will skip unknown ones
+_SUPABASE_KNOWN_COLUMNS: dict[str, set[str]] = {
+    "scout_intel": {"source", "category", "title", "summary", "url", "score",
+                    "action_plan", "tier", "hash", "dispatches"},
+    "scout_archive": {"source", "category", "title", "summary", "url", "score", "tier", "hash"},
+}
+
+
 async def _write_supabase(table: str, record: dict[str, Any]) -> bool:
     url = os.environ.get("SUPABASE_URL", "")
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
@@ -205,35 +216,44 @@ async def _write_supabase(table: str, record: dict[str, Any]) -> bool:
         "Prefer": "return=minimal",
     }
 
+    # Strip any columns not yet in the schema to prevent PGRST204 errors
+    known = _SUPABASE_KNOWN_COLUMNS.get(table)
+    if known:
+        dropped = [k for k in record if k not in known]
+        if dropped:
+            logger.error(
+                "Supabase %s: dropping unknown columns %s — schema migration needed. "
+                "Set SUPABASE_DB_PASSWORD in Railway and redeploy to fix. "
+                "Manual fix: run ~/scripts/fix_schema.py",
+                table, dropped,
+            )
+            record = {k: v for k, v in record.items() if k in known}
+
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(f"{url}/rest/v1/{table}", json=record, headers=headers)
             if resp.status_code in (200, 201):
                 logger.debug("Supabase %s write OK", table)
                 return True
-            # PGRST204: column not found in schema cache — strip unknown column and retry
+            # PGRST204: column still missing from schema cache — extract and strip
             if resp.status_code == 400:
                 try:
                     err = resp.json()
                     if err.get("code") == "PGRST204":
-                        # Extract column name from error message
                         msg = err.get("message", "")
-                        import re as _re
                         m = _re.search(r"'(\w+)' column", msg)
                         if m:
                             bad_col = m.group(1)
                             logger.error(
-                                "Supabase %s missing column '%s' — schema migration needed. "
-                                "Run: SUPABASE_DB_PASSWORD=<pwd> python3 ~/scripts/fix_schema.py",
+                                "Supabase %s column '%s' not in schema cache — stripping and retrying",
                                 table, bad_col,
                             )
+                            # Update known columns cache so future writes skip this column too
+                            if table in _SUPABASE_KNOWN_COLUMNS:
+                                _SUPABASE_KNOWN_COLUMNS[table].discard(bad_col)
                             filtered = {k: v for k, v in record.items() if k != bad_col}
                             resp2 = await client.post(f"{url}/rest/v1/{table}", json=filtered, headers=headers)
                             if resp2.status_code in (200, 201):
-                                logger.warning(
-                                    "Supabase %s write succeeded without '%s' — data loss until schema is fixed",
-                                    table, bad_col,
-                                )
                                 return True
                 except Exception:
                     pass
