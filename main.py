@@ -16,6 +16,8 @@ configure_json_logging()
 
 import logging
 
+from datetime import datetime, timezone
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -86,6 +88,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "joao-spine", "timestamp": datetime.now(timezone.utc).isoformat()}
+
 
 @app.get("/", include_in_schema=False)
 async def root_redirect():
