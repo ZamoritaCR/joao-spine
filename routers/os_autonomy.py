@@ -1,4 +1,8 @@
-"""OS Autonomy proxy router — forwards /os/* to the os-agent via dispatch tunnel."""
+"""OS Autonomy proxy — forwards /os/* to the os-agent via dispatch tunnel.
+
+Uses a Starlette sub-app mounted at /os to avoid {path:path} routing issues
+with FastAPI's APIRouter on Railway.
+"""
 
 from __future__ import annotations
 
@@ -6,11 +10,12 @@ import logging
 import os
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["os-autonomy"])
 
 # Route through the Cloudflare tunnel to the local dispatch's /os-proxy endpoint.
 # dispatch.theartofthepossible.io/os-proxy/* -> localhost:7801/* on the ROG.
@@ -23,12 +28,11 @@ OS_AGENT_URL = os.getenv(
     f"{_DISPATCH_URL}/os-proxy" if _DISPATCH_URL else "http://192.168.0.55:7801",
 ).rstrip("/")
 OS_AGENT_KEY = os.getenv("OS_AGENT_KEY", "joao-os-2026")
-
-
 _DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "")
 
 
-async def _proxy(path: str, request: Request) -> JSONResponse:
+async def _proxy_handler(request: Request) -> JSONResponse:
+    path = request.path_params.get("path", "")
     body = await request.body()
     headers = {"Content-Type": "application/json"}
     if "os-proxy" in OS_AGENT_URL:
@@ -47,31 +51,20 @@ async def _proxy(path: str, request: Request) -> JSONResponse:
         return JSONResponse(content=r.json(), status_code=r.status_code)
     except httpx.ConnectError:
         logger.error("os-agent not reachable at %s", OS_AGENT_URL)
-        raise HTTPException(
+        return JSONResponse(
+            {"detail": f"os-agent not reachable at {OS_AGENT_URL}"},
             status_code=503,
-            detail=f"os-agent not reachable at {OS_AGENT_URL}",
         )
     except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="os-agent request timed out")
+        return JSONResponse(
+            {"detail": "os-agent request timed out"},
+            status_code=504,
+        )
 
 
-# Explicit route registrations — api_route with {path:path} breaks on some
-# Starlette versions when used with APIRouter prefixes.
-@router.get("/os/{path:path}")
-async def proxy_os_get(path: str, request: Request):
-    return await _proxy(path, request)
-
-
-@router.post("/os/{path:path}")
-async def proxy_os_post(path: str, request: Request):
-    return await _proxy(path, request)
-
-
-@router.put("/os/{path:path}")
-async def proxy_os_put(path: str, request: Request):
-    return await _proxy(path, request)
-
-
-@router.delete("/os/{path:path}")
-async def proxy_os_delete(path: str, request: Request):
-    return await _proxy(path, request)
+# Starlette sub-app — mounted at /os in main.py via app.mount("/os", os_app)
+os_app = Starlette(
+    routes=[
+        Route("/{path:path}", _proxy_handler, methods=["GET", "POST", "PUT", "DELETE"]),
+    ],
+)

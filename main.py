@@ -61,7 +61,7 @@ from routers.voice import router as voice_router
 from routers.ftp import router as ftp_router
 from routers.greengeeks import router as greengeeks_router
 from routers.telegram_webhook import router as telegram_webhook_router
-from routers.os_autonomy import router as os_autonomy_router
+from routers.os_autonomy import os_app as os_autonomy_app
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ app.include_router(voice_router)
 app.include_router(ftp_router)
 app.include_router(greengeeks_router)
 app.include_router(telegram_webhook_router)
-app.include_router(os_autonomy_router)
+app.mount("/os", os_autonomy_app)
 
 
 # PWA entry point
