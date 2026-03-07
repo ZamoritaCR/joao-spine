@@ -1,4 +1,4 @@
-"""OS Autonomy proxy router — forwards /os/* to the os-agent on the Dell."""
+"""OS Autonomy proxy router — forwards /os/* to the os-agent via dispatch tunnel."""
 
 from __future__ import annotations
 
@@ -12,19 +12,32 @@ from fastapi.responses import JSONResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/os", tags=["os-autonomy"])
 
-OS_AGENT_URL = os.getenv("OS_AGENT_URL", "http://192.168.0.55:7801")
+# Route through the Cloudflare tunnel to the local dispatch's /os-proxy endpoint.
+# dispatch.theartofthepossible.io/os-proxy/* -> localhost:7801/* on the ROG.
+_DISPATCH_URL = os.getenv("JOAO_LOCAL_DISPATCH_URL", "")
+OS_AGENT_URL = os.getenv("OS_AGENT_URL", f"{_DISPATCH_URL}/os-proxy" if _DISPATCH_URL else "http://192.168.0.55:7801")
 OS_AGENT_KEY = os.getenv("OS_AGENT_KEY", "joao-os-2026")
+
+
+_DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "")
 
 
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_os(path: str, request: Request):
     body = await request.body()
+    headers = {"Content-Type": "application/json"}
+    # When routing through the dispatch tunnel, pass the Bearer token.
+    # When hitting os-agent directly, pass the X-API-Key.
+    if "os-proxy" in OS_AGENT_URL:
+        headers["Authorization"] = f"Bearer {_DISPATCH_SECRET}"
+    else:
+        headers["X-API-Key"] = OS_AGENT_KEY
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.request(
                 method=request.method,
                 url=f"{OS_AGENT_URL}/{path}",
-                headers={"X-API-Key": OS_AGENT_KEY, "Content-Type": "application/json"},
+                headers=headers,
                 content=body,
             )
         return JSONResponse(content=r.json(), status_code=r.status_code)
@@ -32,7 +45,7 @@ async def proxy_os(path: str, request: Request):
         logger.error("os-agent not reachable at %s", OS_AGENT_URL)
         raise HTTPException(
             status_code=503,
-            detail=f"os-agent not reachable at {OS_AGENT_URL}. Is the service running on the Dell?",
+            detail=f"os-agent not reachable at {OS_AGENT_URL}",
         )
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="os-agent request timed out")

@@ -9,10 +9,12 @@ import subprocess
 import logging
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 import asyncio
+import httpx
 import uvicorn
 
 app = FastAPI(title="JOAO Local Dispatch", version="2.1.0")
@@ -468,6 +470,38 @@ async def council_agents():
         info["tmux_active"] = tmux_session_exists(session)
         info["claude_running"] = is_claude_running(session) if info["tmux_active"] else False
     return {"agents": registry, "count": len(registry)}
+
+
+# ── OS-Agent Proxy (Railway reaches os-agent through this tunnel) ─────
+
+OS_AGENT_URL = os.getenv("OS_AGENT_LOCAL_URL", "http://localhost:7801")
+OS_AGENT_KEY = os.getenv("OS_AGENT_KEY", "joao-os-2026")
+
+
+@app.api_route("/os-proxy/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def os_proxy(path: str, request: Request, authorization: str | None = Header(None)):
+    """Proxy requests to the local os-agent on port 7801.
+
+    Railway spine hits dispatch.theartofthepossible.io/os-proxy/status
+    which forwards to localhost:7801/status on the ROG.
+    """
+    verify_secret(authorization)
+    body = await request.body()
+    try:
+        async with httpx.AsyncClient(timeout=55.0) as client:
+            r = await client.request(
+                method=request.method,
+                url=f"{OS_AGENT_URL}/{path}",
+                headers={"X-API-Key": OS_AGENT_KEY, "Content-Type": "application/json"},
+                content=body,
+            )
+        return JSONResponse(content=r.json(), status_code=r.status_code)
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="os-agent request timed out")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=502, detail="os-agent unreachable on localhost:7801")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"os-agent proxy error: {e}")
 
 
 if __name__ == "__main__":
