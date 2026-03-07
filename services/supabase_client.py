@@ -55,10 +55,14 @@ async def health_check() -> SubCheck:
 async def insert_idea_vault(record: IdeaVaultRecord) -> dict[str, Any]:
     client = get_client()
     data = record.model_dump()
-    result = client.table("idea_vault").insert(data).execute()
-    row = result.data[0] if result.data else {}
-    logger.info("idea_vault insert id=%s", row.get("id"))
-    return row
+    try:
+        result = client.table("idea_vault").insert(data).execute()
+        row = result.data[0] if result.data else {}
+        logger.info("idea_vault insert id=%s", row.get("id"))
+        return row
+    except Exception:
+        logger.warning("insert_idea_vault failed (table may not exist)", exc_info=True)
+        return {}
 
 
 async def insert_session_log(record: SessionLogRecord) -> dict[str, Any]:
@@ -113,12 +117,16 @@ async def query_memory(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """Search idea_vault by text match on title, summary, or content."""
     client = get_client()
     pattern = f"%{query}%"
-    result = (
-        client.table("idea_vault")
-        .select("*")
-        .or_(f"title.ilike.{pattern},summary.ilike.{pattern},content.ilike.{pattern}")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return result.data or []
+    try:
+        result = (
+            client.table("idea_vault")
+            .select("*")
+            .or_(f"title.ilike.{pattern},summary.ilike.{pattern},content.ilike.{pattern}")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        logger.warning("query_memory failed (idea_vault table may not exist)", exc_info=True)
+        return []
