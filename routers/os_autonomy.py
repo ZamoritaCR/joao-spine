@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/os", tags=["os-autonomy"])
+router = APIRouter(tags=["os-autonomy"])
 
 # Route through the Cloudflare tunnel to the local dispatch's /os-proxy endpoint.
 # dispatch.theartofthepossible.io/os-proxy/* -> localhost:7801/* on the ROG.
@@ -57,21 +57,21 @@ async def _proxy(path: str, request: Request) -> JSONResponse:
 
 # Explicit route registrations — api_route with {path:path} breaks on some
 # Starlette versions when used with APIRouter prefixes.
-@router.get("/{path:path}")
+@router.get("/os/{path:path}")
 async def proxy_os_get(path: str, request: Request):
     return await _proxy(path, request)
 
 
-@router.post("/{path:path}")
+@router.post("/os/{path:path}")
 async def proxy_os_post(path: str, request: Request):
     return await _proxy(path, request)
 
 
-@router.put("/{path:path}")
+@router.put("/os/{path:path}")
 async def proxy_os_put(path: str, request: Request):
     return await _proxy(path, request)
 
 
-@router.delete("/{path:path}")
+@router.delete("/os/{path:path}")
 async def proxy_os_delete(path: str, request: Request):
     return await _proxy(path, request)
