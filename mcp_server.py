@@ -48,15 +48,40 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def dispatch_agent(session_name: str, command: str, wait: bool = False) -> str:
-    """Dispatch a shell command to a tmux session on the home server via SSH.
+    """Dispatch a shell command to a tmux session on the home server.
+
+    Uses HTTP tunnel (Railway -> Cloudflare -> ROG Strix). Falls back to SSH
+    only when running locally.
 
     Args:
-        session_name: tmux session name (created if missing)
-        command: Shell command to execute
-        wait: If True, wait briefly and return captured output
+        session_name: tmux session name / agent name (e.g. IRIS, BYTE)
+        command: Shell command or task to execute
+        wait: If True, capture and return terminal output after dispatch
     """
     t0 = time.time()
-    result = await dispatch.dispatch_command(session_name, command, wait)
+
+    # Try HTTP tunnel first (works from Railway and local)
+    try:
+        result = await dispatch.dispatch_raw_to_agent(session_name, command)
+        status = result.get("status", "sent")
+        output = result.get("output", "")
+
+        if wait:
+            import asyncio
+            await asyncio.sleep(3)
+            try:
+                session_data = await dispatch.get_session(session_name)
+                output = session_data.get("output", "")
+                status = "completed"
+            except Exception:
+                pass
+    except Exception as tunnel_err:
+        logger.warning("dispatch_agent tunnel failed, trying SSH: %s", tunnel_err)
+        # Fallback to SSH (local network only)
+        ssh_result = await dispatch.dispatch_command(session_name, command, wait)
+        status = ssh_result["status"]
+        output = ssh_result.get("output", "")
+
     duration_ms = int((time.time() - t0) * 1000)
 
     await supabase_client.insert_session_log(
@@ -64,8 +89,8 @@ async def dispatch_agent(session_name: str, command: str, wait: bool = False) ->
             endpoint="mcp/dispatch_agent",
             action="dispatch",
             input_summary=f"{session_name}: {command[:100]}",
-            output_summary=(result.get("output") or "")[:200],
-            status=result["status"],
+            output_summary=output[:200],
+            status=status,
             duration_ms=duration_ms,
         )
     )
@@ -73,15 +98,15 @@ async def dispatch_agent(session_name: str, command: str, wait: bool = False) ->
         AgentOutputRecord(
             session_name=session_name,
             command=command,
-            output=result.get("output") or "",
-            status=result["status"],
+            output=output,
+            status=status,
         )
     )
 
-    if result["status"] == "error":
-        return f"Error: {result['output']}"
-    if wait and result["output"]:
-        return f"[{result['status']}] Output:\n{result['output']}"
+    if status == "error":
+        return f"Error: {output}"
+    if wait and output:
+        return f"[{status}] Output:\n{output}"
     return f"Command sent to session '{session_name}': {command}"
 
 

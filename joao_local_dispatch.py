@@ -316,33 +316,23 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
     create_tmux_session(session)
 
     if lane in ("interactive", "claude"):
-        # File-based --print mode: write task to .md file, run launcher.
-        # If Claude Code is currently running in the session, exit it first
-        # so the launcher command reaches the shell, not Claude's chat input.
-        command = build_claude_task_command(
-            agent, cmd.task, cmd.priority, cmd.context, cmd.project
-        )
-
         if is_claude_running(session):
-            logger.info(f"[{lane}→print] Claude running in {session}, exiting first")
-            # Send Escape to cancel any pending input, then /exit
-            subprocess.run(
-                ["tmux", "send-keys", "-t", session, "Escape"],
-                capture_output=True,
+            # Claude is running -- send the task directly into the session.
+            # This keeps the persistent Claude session alive instead of
+            # killing and restarting it on every dispatch.
+            task_text = cmd.task
+            if cmd.context:
+                task_text += f"\n\nContext: {cmd.context}"
+            if cmd.project:
+                task_text += f"\n\nProject: {cmd.project}"
+            command = task_text
+            logger.info(f"[{lane}→direct] Sending task into running Claude in {session}: {cmd.task[:100]}")
+        else:
+            # No Claude running -- use file-based launcher to start one
+            command = build_claude_task_command(
+                agent, cmd.task, cmd.priority, cmd.context, cmd.project
             )
-            await asyncio.sleep(0.5)
-            subprocess.run(
-                ["tmux", "send-keys", "-t", session, "-l", "/exit"],
-                capture_output=True,
-            )
-            subprocess.run(
-                ["tmux", "send-keys", "-t", session, "Enter"],
-                capture_output=True,
-            )
-            # Wait for Claude to exit and shell prompt to appear
-            await asyncio.sleep(4)
-
-        logger.info(f"[{lane}→print] Dispatched to {agent}: {cmd.task[:100]}")
+            logger.info(f"[{lane}→print] No Claude in {session}, launching: {cmd.task[:100]}")
     else:
         # Automated lane: bash-only, no interactive processes
         if is_interactive(cmd.task):
