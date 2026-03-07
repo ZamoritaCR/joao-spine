@@ -358,7 +358,136 @@ class TestMCPToolPaths:
 
 
 # ---------------------------------------------------------------------------
-# 6. Regression: URL construction never produces double slashes
+# 6. Live MCP protocol (JSON-RPC over SSE on Railway)
+# ---------------------------------------------------------------------------
+
+class TestMCPProtocolLive:
+    """Call the actual MCP SSE endpoint on Railway using the real JSON-RPC
+    protocol. This is the exact path that Claude.ai takes when invoking
+    dispatch_agent, joao_council_status, and joao_council_dispatch."""
+
+    @pytest.fixture(autouse=True)
+    def _mcp_session(self):
+        """Open an SSE connection, do the MCP handshake, yield an rpc() caller."""
+        import threading
+        import queue as _queue
+
+        msgs = _queue.Queue()
+        holder = []
+
+        def sse_reader():
+            with httpx.stream(
+                "GET", f"{RAILWAY_URL}/mcp/sse",
+                headers={"Accept": "text/event-stream"},
+                timeout=90.0,
+            ) as r:
+                etype = None
+                for line in r.iter_lines():
+                    if line.startswith("event: "):
+                        etype = line[7:]
+                    elif line.startswith("data: "):
+                        data = line[6:]
+                        if etype == "endpoint":
+                            holder.append(data)
+                        elif etype == "message":
+                            try:
+                                msgs.put(json.loads(data))
+                            except json.JSONDecodeError:
+                                pass
+                        etype = None
+
+        t = threading.Thread(target=sse_reader, daemon=True)
+        t.start()
+        for _ in range(50):
+            if holder:
+                break
+            time.sleep(0.1)
+        assert holder, "Failed to get MCP session endpoint from Railway"
+
+        session_url = f"{RAILWAY_URL}{holder[0]}"
+        client = httpx.Client(timeout=30.0)
+
+        # Initialize
+        client.post(session_url, json={
+            "jsonrpc": "2.0", "id": 0,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "e2e-test", "version": "1.0"},
+            },
+        })
+        # Drain init response
+        try:
+            msgs.get(timeout=5)
+        except _queue.Empty:
+            pass
+        client.post(session_url, json={
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+        })
+
+        self._rid = 100
+
+        def rpc(method, params):
+            self._rid += 1
+            rid = self._rid
+            client.post(session_url, json={
+                "jsonrpc": "2.0", "id": rid,
+                "method": method, "params": params,
+            })
+            deadline = time.time() + 25
+            while time.time() < deadline:
+                try:
+                    m = msgs.get(timeout=1)
+                    if isinstance(m, dict) and m.get("id") == rid:
+                        return m
+                except _queue.Empty:
+                    continue
+            pytest.fail(f"MCP response timeout for {method}")
+
+        self.rpc = rpc
+        yield
+        client.close()
+
+    @staticmethod
+    def _tool_text(response: dict) -> str:
+        content = response.get("result", {}).get("content", [])
+        return content[0]["text"] if content else ""
+
+    def test_dispatch_agent_via_mcp(self):
+        tag = f"MCP_PROTO_{int(time.time())}"
+        r = self.rpc("tools/call", {
+            "name": "dispatch_agent",
+            "arguments": {"session_name": "FLUX", "command": f"echo {tag}", "wait": False},
+        })
+        text = self._tool_text(r)
+        assert not r.get("result", {}).get("isError", False), f"Tool error: {text}"
+        assert "Command sent" in text or "FLUX" in text
+
+    def test_joao_council_status_via_mcp(self):
+        r = self.rpc("tools/call", {
+            "name": "joao_council_status",
+            "arguments": {},
+        })
+        text = self._tool_text(r)
+        assert not r.get("result", {}).get("isError", False), f"Tool error: {text}"
+        assert "ARIA" in text
+        assert "ACTIVE" in text or "INACTIVE" in text
+
+    def test_joao_council_dispatch_via_mcp(self):
+        tag = f"MCP_PROTO_CD_{int(time.time())}"
+        r = self.rpc("tools/call", {
+            "name": "joao_council_dispatch",
+            "arguments": {"agent": "FLUX", "task": f"echo {tag}", "priority": "normal"},
+        })
+        text = self._tool_text(r)
+        assert not r.get("result", {}).get("isError", False), f"Tool error: {text}"
+        assert "Dispatched" in text
+
+
+# ---------------------------------------------------------------------------
+# 7. Regression: URL construction never produces double slashes
 # ---------------------------------------------------------------------------
 
 class TestURLRegression:
