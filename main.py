@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 # Fix Railway 30s idle timeout: ensure SSE keepalive fires every 25s
 from sse_starlette import EventSourceResponse as _EventSourceResponse
-_EventSourceResponse.DEFAULT_PING_INTERVAL = 25
+_EventSourceResponse.DEFAULT_PING_INTERVAL = 15
 
 from mcp_server import mcp
 from routers.taop_mcp import taop_mcp

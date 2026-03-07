@@ -227,22 +227,32 @@ async def dispatch_to_agent(
         "lane": "interactive",
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            f"{url}/dispatch",
-            json=payload,
-            headers={"Authorization": f"Bearer {secret}"},
-        )
-        if response.status_code == 401:
-            raise RuntimeError(
-                "Local dispatch rejected auth — JOAO_DISPATCH_SECRET mismatch "
-                "between Railway and Ubuntu server"
-            )
-        if response.status_code == 422:
-            detail = response.json().get("detail", response.text)
-            raise RuntimeError(f"Local dispatch schema error: {detail}")
-        response.raise_for_status()
-        return response.json()
+    last_error = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=45.0) as client:
+                response = await client.post(
+                    f"{url}/dispatch",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {secret}"},
+                )
+                if response.status_code == 401:
+                    raise RuntimeError(
+                        "Local dispatch rejected auth — JOAO_DISPATCH_SECRET mismatch "
+                        "between Railway and Ubuntu server"
+                    )
+                if response.status_code == 422:
+                    detail = response.json().get("detail", response.text)
+                    raise RuntimeError(f"Local dispatch schema error: {detail}")
+                response.raise_for_status()
+                return response.json()
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            last_error = e
+            if attempt < 2:
+                import asyncio
+                logger.warning("Dispatch attempt %d failed (%s), retrying...", attempt + 1, e)
+                await asyncio.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"Dispatch failed after 3 attempts: {last_error}")
 
 
 async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
@@ -263,34 +273,38 @@ async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
         return response.json()
 
 
+async def _get_with_retry(path: str, timeout: float = 15.0) -> dict:
+    """GET request to local dispatch with retry logic."""
+    url, _secret = _require_tunnel()
+    last_error = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(f"{url}{path}")
+                response.raise_for_status()
+                return response.json()
+        except (httpx.ConnectError, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            last_error = e
+            if attempt < 2:
+                import asyncio
+                logger.warning("GET %s attempt %d failed (%s), retrying...", path, attempt + 1, e)
+                await asyncio.sleep(1 * (attempt + 1))
+    raise RuntimeError(f"GET {path} failed after 3 attempts: {last_error}")
+
+
 async def get_agents() -> dict:
     """Get agent status from local server via tunnel."""
-    url, _secret = _require_tunnel()
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{url}/agents")
-        response.raise_for_status()
-        return response.json()
+    return await _get_with_retry("/agents")
 
 
 async def get_sessions() -> dict:
     """Get all tmux session outputs from local server."""
-    url, _secret = _require_tunnel()
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{url}/sessions")
-        response.raise_for_status()
-        return response.json()
+    return await _get_with_retry("/sessions", timeout=20.0)
 
 
 async def get_session(agent: str) -> dict:
     """Get a specific agent's tmux session output."""
-    url, _secret = _require_tunnel()
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(f"{url}/session/{agent}")
-        response.raise_for_status()
-        return response.json()
+    return await _get_with_retry(f"/session/{agent}")
 
 
 async def tunnel_health_check() -> dict:

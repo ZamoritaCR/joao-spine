@@ -877,10 +877,10 @@ async def chat_proxy(req: ChatRequest):
                     try:
                         result = await asyncio.wait_for(
                             _execute_council_tool(block.name, block.input),
-                            timeout=25.0,
+                            timeout=60.0,
                         )
                     except asyncio.TimeoutError:
-                        result = f"ERROR: {block.name} timed out after 25s"
+                        result = f"ERROR: {block.name} timed out after 60s"
                         logger.error("Tool %s timed out", block.name)
                     except Exception as e:
                         result = f"ERROR: {block.name} failed: {e}"
