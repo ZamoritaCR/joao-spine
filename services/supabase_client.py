@@ -64,9 +64,9 @@ async def insert_idea_vault(record: IdeaVaultRecord) -> dict[str, Any]:
 async def insert_session_log(record: SessionLogRecord) -> dict[str, Any]:
     client = get_client()
     data = record.model_dump()
-    result = client.table("dispatch_log").insert(data).execute()
+    result = client.table("session_log").insert(data).execute()
     row = result.data[0] if result.data else {}
-    logger.debug("dispatch_log insert id=%s", row.get("id"))
+    logger.debug("session_log insert id=%s", row.get("id"))
     return row
 
 

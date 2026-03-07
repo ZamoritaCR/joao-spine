@@ -14,10 +14,23 @@ from models.schemas import SshCheck, TmuxCheck
 
 logger = logging.getLogger(__name__)
 
+_DISPATCH_TUNNEL_DEFAULT = "https://dispatch.theartofthepossible.io"
+
+
 def _tunnel_config() -> tuple[str, str]:
-    """Read tunnel config fresh from env vars (not cached at import time)."""
-    url = os.environ.get("JOAO_LOCAL_DISPATCH_URL", "")
+    """Read tunnel config fresh from env vars (not cached at import time).
+
+    Falls back to the named Cloudflare tunnel when JOAO_LOCAL_DISPATCH_URL
+    is empty or points to localhost (which won't work from Railway).
+    """
+    url = os.environ.get("JOAO_LOCAL_DISPATCH_URL", "").rstrip("/")
     secret = os.environ.get("JOAO_DISPATCH_SECRET", "")
+    # On Railway, localhost URLs are unreachable — use the Cloudflare tunnel.
+    if not url or "localhost" in url or "127.0.0.1" in url:
+        url = _DISPATCH_TUNNEL_DEFAULT
+    # Strip /os-proxy suffix if someone mistakenly included it.
+    if url.endswith("/os-proxy"):
+        url = url.removesuffix("/os-proxy")
     return url, secret
 
 
