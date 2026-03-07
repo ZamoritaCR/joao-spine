@@ -1,19 +1,16 @@
 """OS Autonomy proxy — forwards /os/* to the os-agent via dispatch tunnel.
 
-Uses a Starlette sub-app mounted at /os to avoid {path:path} routing issues
-with FastAPI's APIRouter on Railway.
+Uses a raw ASGI app mounted at /os to avoid Starlette/FastAPI {path:path}
+routing issues on Railway.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
 import httpx
-from starlette.applications import Starlette
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-from starlette.routing import Route
 
 logger = logging.getLogger(__name__)
 
@@ -31,40 +28,62 @@ OS_AGENT_KEY = os.getenv("OS_AGENT_KEY", "joao-os-2026")
 _DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "")
 
 
-async def _proxy_handler(request: Request) -> JSONResponse:
-    path = request.path_params.get("path", "")
-    body = await request.body()
-    headers = {"Content-Type": "application/json"}
-    if "os-proxy" in OS_AGENT_URL:
-        headers["Authorization"] = f"Bearer {_DISPATCH_SECRET}"
-    else:
-        headers["X-API-Key"] = OS_AGENT_KEY
-    target = f"{OS_AGENT_URL}/{path}" if path else OS_AGENT_URL
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.request(
-                method=request.method,
-                url=target,
-                headers=headers,
-                content=body,
-            )
-        return JSONResponse(content=r.json(), status_code=r.status_code)
-    except httpx.ConnectError:
-        logger.error("os-agent not reachable at %s", OS_AGENT_URL)
-        return JSONResponse(
-            {"detail": f"os-agent not reachable at {OS_AGENT_URL}"},
-            status_code=503,
-        )
-    except httpx.TimeoutException:
-        return JSONResponse(
-            {"detail": "os-agent request timed out"},
-            status_code=504,
-        )
+class OsProxyApp:
+    """Raw ASGI proxy -- mounted at /os, forwards everything to os-agent."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return
+
+        # Mount passes full path; strip the /os prefix
+        raw_path = scope.get("path", "/")
+        path = raw_path.split("/os/", 1)[-1] if "/os/" in raw_path else raw_path.lstrip("/")
+        method = scope.get("method", "GET")
+
+        # Read request body
+        body = b""
+        while True:
+            msg = await receive()
+            body += msg.get("body", b"")
+            if not msg.get("more_body", False):
+                break
+
+        headers = {"Content-Type": "application/json"}
+        if "os-proxy" in OS_AGENT_URL:
+            headers["Authorization"] = f"Bearer {_DISPATCH_SECRET}"
+        else:
+            headers["X-API-Key"] = OS_AGENT_KEY
+
+        target = f"{OS_AGENT_URL}/{path}" if path else OS_AGENT_URL
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                r = await client.request(method=method, url=target, headers=headers, content=body)
+            resp_body = r.content
+            status = r.status_code
+            content_type = r.headers.get("content-type", "application/json")
+        except httpx.ConnectError:
+            logger.error("os-agent not reachable at %s", OS_AGENT_URL)
+            resp_body = json.dumps({"detail": f"os-agent not reachable at {OS_AGENT_URL}"}).encode()
+            status = 503
+            content_type = "application/json"
+        except httpx.TimeoutException:
+            resp_body = json.dumps({"detail": "os-agent request timed out"}).encode()
+            status = 504
+            content_type = "application/json"
+
+        await send({
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                [b"content-type", content_type.encode()],
+                [b"content-length", str(len(resp_body)).encode()],
+            ],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": resp_body,
+        })
 
 
-# Starlette sub-app — mounted at /os in main.py via app.mount("/os", os_app)
-os_app = Starlette(
-    routes=[
-        Route("/{path:path}", _proxy_handler, methods=["GET", "POST", "PUT", "DELETE"]),
-    ],
-)
+os_app = OsProxyApp()
