@@ -26,9 +26,7 @@ Run:
 from __future__ import annotations
 
 import asyncio
-import json
 import os
-import re
 import subprocess
 import sys
 import time
@@ -73,35 +71,6 @@ def tmux_session_exists(session: str) -> bool:
         capture_output=True,
     )
     return result.returncode == 0
-
-
-def parse_sse_stream(raw: str) -> tuple[str, list[str]]:
-    """Parse SSE stream into (full_text, tool_names_executed).
-
-    Returns the concatenated text blocks and a list of tool names
-    that JOAO executed (extracted from [Executing: ...] markers).
-    """
-    text_parts = []
-    tools_used = []
-    for line in raw.splitlines():
-        if not line.startswith("data: "):
-            continue
-        payload = line[6:]
-        if payload == "[DONE]":
-            break
-        # Tool execution markers
-        m = re.match(r"\[Executing: (.+?)\.{3}\]", payload)
-        if m:
-            tools_used.extend(t.strip() for t in m.group(1).split(","))
-            continue
-        if payload.startswith("["):
-            continue
-        # Text block -- JSON-encoded string
-        try:
-            text_parts.append(json.loads(payload))
-        except (json.JSONDecodeError, TypeError):
-            text_parts.append(payload)
-    return "".join(text_parts), tools_used
 
 
 # ---------------------------------------------------------------------------
@@ -296,117 +265,64 @@ class TestDispatchLandsInTmux:
 # 3. JOAO /chat on Railway triggers council tools (full LLM round-trip)
 # ---------------------------------------------------------------------------
 
-def _joao_chat_available() -> bool:
-    """Check if JOAO /chat can reach the Claude API (not rate-limited)."""
-    try:
-        r = httpx.post(
-            f"{RAILWAY_URL}/joao/chat",
-            json={
-                "messages": [{"role": "user", "content": "ping"}],
-                "session_id": "e2e-probe",
-                "model": "sonnet",
-            },
-            headers={"Content-Type": "application/json"},
-            timeout=20.0,
-        )
-        return r.status_code == 200 and "[ERROR]" not in r.text
-    except Exception:
-        return False
+class TestJOAODeploysAgentsViaRailway:
+    """Exercise the exact code path JOAO's /chat uses to deploy agents,
+    but call _execute_council_tool() directly -- no LLM, no API tokens.
 
-
-_skip_chat = pytest.mark.skipif(
-    not _joao_chat_available(),
-    reason="JOAO /chat unavailable (API rate limit or Railway down)",
-)
-
-
-class TestJOAOChatDeploysAgents:
-    """Call JOAO's /chat endpoint on Railway with messages that should
-    trigger council tool use. Verifies JOAO actually calls the tools
-    and the results propagate to the local server.
-
-    These tests hit the live Railway deployment and cost API tokens.
-    They are the ultimate proof that the pipeline works end-to-end.
-    Skipped automatically when the Anthropic API is rate-limited.
+    Pipeline tested: _execute_council_tool() -> services/dispatch
+      -> Cloudflare tunnel -> local dispatch (:8100) -> tmux
     """
 
     @pytest.fixture(autouse=True)
-    def _client(self):
-        self.client = httpx.Client(timeout=httpx.Timeout(90.0, connect=15.0))
-        yield
-        self.client.close()
+    def _setup(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        os.environ["JOAO_LOCAL_DISPATCH_URL"] = TUNNEL_URL
+        os.environ["JOAO_DISPATCH_SECRET"] = DISPATCH_SECRET
 
-    def _chat(self, message: str) -> tuple[str, list[str]]:
-        """Send a message to JOAO /chat and return (text, tools_used)."""
-        r = self.client.post(
-            f"{RAILWAY_URL}/joao/chat",
-            json={
-                "messages": [{"role": "user", "content": message}],
-                "session_id": "e2e-test",
-                "model": "sonnet",
-            },
-            headers={"Content-Type": "application/json"},
-        )
-        assert r.status_code == 200, f"JOAO /chat returned {r.status_code}: {r.text[:300]}"
-        raw = r.text
-        # Fail fast on API errors
-        if "data: [ERROR]" in raw:
-            error_line = [l for l in raw.splitlines() if "[ERROR]" in l]
-            pytest.fail(f"JOAO returned API error: {error_line[0] if error_line else raw[:300]}")
-        return parse_sse_stream(raw)
+    @pytest.mark.asyncio
+    async def test_joao_checks_council_status(self):
+        """council_status tool returns all 16 agents with ONLINE/OFFLINE."""
+        from routers.joao import _execute_council_tool
+        result = await _execute_council_tool("council_status", {})
+        assert "Council Agent Status:" in result
+        assert "ONLINE" in result
+        # All 16 must appear
+        for name in ["ARIA", "BYTE", "CJ", "SOFIA", "DEX", "GEMMA",
+                      "MAX", "LEX", "NOVA", "SCOUT", "SAGE", "FLUX",
+                      "CORE", "APEX", "IRIS", "VOLT"]:
+            assert name in result, f"{name} missing from council_status"
 
-    @_skip_chat
-    def test_joao_checks_council_status(self):
-        """Ask JOAO who is online -- must trigger council_status tool."""
-        text, tools = self._chat(
-            "Check which council agents are online right now. "
-            "Use the council_status tool."
-        )
-        assert "council_status" in tools, (
-            f"JOAO did not call council_status. Tools used: {tools}. Response: {text[:300]}"
-        )
-        # Response should mention agent names
-        assert any(name in text for name in ["ARIA", "BYTE", "FLUX", "ONLINE"]), (
-            f"Response doesn't mention agents: {text[:500]}"
-        )
+    @pytest.mark.asyncio
+    async def test_joao_dispatches_to_agent_and_lands_in_tmux(self, marker):
+        """council_dispatch tool sends command through tunnel and it
+        appears in the agent's tmux session."""
+        from routers.joao import _execute_council_tool
+        tag = f"{marker}_JOAO_DEPLOY"
+        result = await _execute_council_tool("council_dispatch", {
+            "agent": TEST_AGENT,
+            "task": f"echo {tag}",
+            "priority": "normal",
+        })
+        assert "Dispatched to" in result
+        assert TEST_AGENT in result
 
-    @_skip_chat
-    def test_joao_dispatches_to_agent(self, marker):
-        """Ask JOAO to dispatch a task -- must trigger council_dispatch and
-        the command must land in the agent's tmux session."""
-        tag = f"{marker}_JOAO_CHAT"
-        text, tools = self._chat(
-            f"Dispatch this exact task to {TEST_AGENT}: echo {tag}\n"
-            f"Use the council_dispatch tool. Priority normal."
-        )
-        assert "council_dispatch" in tools, (
-            f"JOAO did not call council_dispatch. Tools used: {tools}. Response: {text[:300]}"
-        )
-        assert "dispatched" in text.lower() or TEST_AGENT in text, (
-            f"Response doesn't confirm dispatch: {text[:500]}"
-        )
-
-        # Verify tmux
-        time.sleep(3)
-        pane = tmux_capture(TEST_AGENT, lines=30)
+        # Verify command landed in tmux
+        await asyncio.sleep(2)
+        pane = tmux_capture(TEST_AGENT)
         assert tag in pane, (
-            f"JOAO dispatched to {TEST_AGENT} but marker {tag} not in tmux.\n"
+            f"Marker {tag} not in {TEST_AGENT} tmux.\n"
             f"Last 500 chars:\n{pane[-500:]}"
         )
 
-    @_skip_chat
-    def test_joao_reads_agent_output(self):
-        """Ask JOAO to check an agent's output -- must trigger
-        council_session_output tool."""
-        text, tools = self._chat(
-            f"What is {TEST_AGENT} doing right now? "
-            f"Check {TEST_AGENT}'s session output using council_session_output."
-        )
-        assert "council_session_output" in tools, (
-            f"JOAO did not call council_session_output. Tools used: {tools}. Response: {text[:300]}"
-        )
-        # Should contain some terminal output
-        assert len(text) > 50, f"Response too short: {text}"
+    @pytest.mark.asyncio
+    async def test_joao_reads_agent_output(self):
+        """council_session_output tool retrieves the agent's terminal buffer."""
+        from routers.joao import _execute_council_tool
+        result = await _execute_council_tool("council_session_output", {
+            "agent": TEST_AGENT,
+        })
+        assert f"{TEST_AGENT} session output:" in result
+        assert len(result) > 50
 
 
 # ---------------------------------------------------------------------------
