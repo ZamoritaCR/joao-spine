@@ -28,21 +28,19 @@ OS_AGENT_KEY = os.getenv("OS_AGENT_KEY", "joao-os-2026")
 _DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "")
 
 
-@router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy_os(path: str, request: Request):
+async def _proxy(path: str, request: Request) -> JSONResponse:
     body = await request.body()
     headers = {"Content-Type": "application/json"}
-    # When routing through the dispatch tunnel, pass the Bearer token.
-    # When hitting os-agent directly, pass the X-API-Key.
     if "os-proxy" in OS_AGENT_URL:
         headers["Authorization"] = f"Bearer {_DISPATCH_SECRET}"
     else:
         headers["X-API-Key"] = OS_AGENT_KEY
+    target = f"{OS_AGENT_URL}/{path}" if path else OS_AGENT_URL
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.request(
                 method=request.method,
-                url=f"{OS_AGENT_URL}/{path}",
+                url=target,
                 headers=headers,
                 content=body,
             )
@@ -55,3 +53,25 @@ async def proxy_os(path: str, request: Request):
         )
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="os-agent request timed out")
+
+
+# Explicit route registrations — api_route with {path:path} breaks on some
+# Starlette versions when used with APIRouter prefixes.
+@router.get("/{path:path}")
+async def proxy_os_get(path: str, request: Request):
+    return await _proxy(path, request)
+
+
+@router.post("/{path:path}")
+async def proxy_os_post(path: str, request: Request):
+    return await _proxy(path, request)
+
+
+@router.put("/{path:path}")
+async def proxy_os_put(path: str, request: Request):
+    return await _proxy(path, request)
+
+
+@router.delete("/{path:path}")
+async def proxy_os_delete(path: str, request: Request):
+    return await _proxy(path, request)
