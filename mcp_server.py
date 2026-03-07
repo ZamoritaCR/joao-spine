@@ -18,6 +18,7 @@ import logging
 import os
 import time
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
@@ -51,23 +52,25 @@ async def dispatch_agent(session_name: str, command: str, wait: bool = False) ->
     """Dispatch a shell command to a tmux session on the home server.
 
     Uses HTTP tunnel (Railway -> Cloudflare -> ROG Strix). Falls back to SSH
-    only when running locally.
+    only for tunnel connectivity failures (not for application errors).
 
     Args:
         session_name: tmux session name / agent name (e.g. IRIS, BYTE)
         command: Shell command or task to execute
         wait: If True, capture and return terminal output after dispatch
     """
-    t0 = time.time()
+    import asyncio
 
-    # Try HTTP tunnel first (works from Railway and local)
+    t0 = time.time()
+    status = "sent"
+    output = ""
+
     try:
         result = await dispatch.dispatch_raw_to_agent(session_name, command)
         status = result.get("status", "sent")
         output = result.get("output", "")
 
         if wait:
-            import asyncio
             await asyncio.sleep(3)
             try:
                 session_data = await dispatch.get_session(session_name)
@@ -75,12 +78,26 @@ async def dispatch_agent(session_name: str, command: str, wait: bool = False) ->
                 status = "completed"
             except Exception:
                 pass
-    except Exception as tunnel_err:
-        logger.warning("dispatch_agent tunnel failed, trying SSH: %s", tunnel_err)
-        # Fallback to SSH (local network only)
-        ssh_result = await dispatch.dispatch_command(session_name, command, wait)
-        status = ssh_result["status"]
-        output = ssh_result.get("output", "")
+    except (httpx.ConnectError, httpx.ConnectTimeout) as tunnel_err:
+        # Tunnel unreachable -- try SSH as local-network fallback (with timeout)
+        logger.warning("dispatch_agent tunnel unreachable, trying SSH: %s", tunnel_err)
+        try:
+            ssh_result = await asyncio.wait_for(
+                dispatch.dispatch_command(session_name, command, wait),
+                timeout=15.0,
+            )
+            status = ssh_result["status"]
+            output = ssh_result.get("output", "")
+        except asyncio.TimeoutError:
+            status = "error"
+            output = "SSH fallback timed out (home server unreachable from Railway)"
+        except Exception as ssh_err:
+            status = "error"
+            output = f"SSH fallback failed: {ssh_err}"
+    except Exception as e:
+        # Application error (400, 422, etc.) -- don't fall back to SSH
+        status = "error"
+        output = str(e)
 
     duration_ms = int((time.time() - t0) * 1000)
 

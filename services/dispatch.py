@@ -280,9 +280,13 @@ async def dispatch_raw_to_agent(agent: str, command: str) -> dict:
             json=payload,
             headers={"Authorization": f"Bearer {secret}"},
         )
-        if response.status_code in (401, 422):
-            raise RuntimeError(f"Local dispatch error {response.status_code}: {response.text}")
-        response.raise_for_status()
+        if response.status_code >= 400:
+            detail = response.text[:200]
+            try:
+                detail = response.json().get("detail", detail)
+            except Exception:
+                pass
+            raise RuntimeError(f"Dispatch error {response.status_code}: {detail}")
         return response.json()
 
 
