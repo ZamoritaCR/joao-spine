@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import logging
+import time
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Header, Request
@@ -17,7 +18,7 @@ import asyncio
 import httpx
 import uvicorn
 
-app = FastAPI(title="JOAO Local Dispatch", version="2.1.0")
+app = FastAPI(title="JOAO Local Dispatch", version="3.0.0")
 logger = logging.getLogger("joao-dispatch")
 
 # Security: shared secret between Railway and local listener
@@ -42,6 +43,10 @@ AGENT_SESSIONS = {
     "IRIS": "IRIS",
     "VOLT": "VOLT",
 }
+
+# Hot pool: these agents keep persistent Claude sessions (always running).
+# On-demand agents use one-shot claude --print via file-based launcher.
+HOT_AGENTS = {"MAX", "CORE", "BYTE"}
 
 
 # Commands that require interactive input — blocked in automated lane
@@ -84,22 +89,26 @@ COUNCIL_LAUNCHER = os.path.expanduser("~/council/bin/launch_agent.sh")
 def is_claude_running(session_name: str) -> bool:
     """Check if Claude Code is actively running in a tmux session.
 
-    Captures the last 10 lines and looks for the Claude Code prompt indicator.
-    Also checks if 'claude' is among the running processes in the pane.
+    Uses process tree inspection (reliable) instead of terminal buffer text
+    (unreliable -- text persists after process death).
     """
-    # Method 1: Check pane content for Claude Code prompt
+    # Method 1: Get pane PID and check child processes
     result = subprocess.run(
-        ["tmux", "capture-pane", "-t", session_name, "-p", "-S", "-10"],
+        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_pid}"],
         capture_output=True,
         text=True,
     )
     if result.returncode == 0:
-        content = result.stdout
-        # Claude Code shows these indicators when running
-        if any(indicator in content for indicator in ["Claude Code", "bypass permissions on"]):
-            return True
+        pane_pid = result.stdout.strip()
+        if pane_pid:
+            check = subprocess.run(
+                ["pgrep", "-P", pane_pid, "-f", "claude|node"],
+                capture_output=True,
+            )
+            if check.returncode == 0:
+                return True
 
-    # Method 2: Check the pane's running command
+    # Method 2: Check pane's foreground command via tmux
     result = subprocess.run(
         ["tmux", "display-message", "-t", session_name, "-p", "#{pane_current_command}"],
         capture_output=True,
@@ -181,18 +190,34 @@ def sanitize_for_tmux(text: str) -> str:
 
 
 def send_to_tmux(session_name: str, command: str):
-    """Send a command string to a tmux session, then press Enter."""
+    """Send a command string to a tmux session, then press Enter.
+
+    Uses two-step approach: literal text first (-l flag), then Enter as a
+    separate key press after a brief pause.  The pause is critical for
+    interactive Claude Code sessions: without it, Enter arrives while the
+    terminal is still buffering the paste and gets swallowed into the paste
+    buffer instead of triggering submission.
+    """
     safe_command = sanitize_for_tmux(command)
     # Send the command text first (literal, no key interpretation)
     subprocess.run(
         ["tmux", "send-keys", "-t", session_name, "-l", safe_command],
         capture_output=True,
     )
-    # Send Enter as a separate key press
-    subprocess.run(
+    # Wait for the terminal to finish processing the paste before sending Enter.
+    # Without this delay Claude Code shows "[Pasted text #1 +N lines]" and
+    # never executes because Enter arrives inside the paste buffer window.
+    time.sleep(0.5)
+    # Send Enter as a separate key press to submit the buffered input
+    result = subprocess.run(
         ["tmux", "send-keys", "-t", session_name, "Enter"],
         capture_output=True,
     )
+    if result.returncode != 0:
+        logger.warning(
+            "send_to_tmux: Enter key press failed for %s (rc=%d): %s",
+            session_name, result.returncode, result.stderr.decode(errors="replace"),
+        )
 
 
 def write_task_file(agent: str, task: str, context: str = None, project: str = None) -> str:
@@ -287,6 +312,7 @@ async def list_agents():
             "session": session,
             "active": session_up,
             "claude_running": is_claude_running(session) if session_up else False,
+            "pool": "hot" if agent in HOT_AGENTS else ("service" if agent == "SCOUT" else "on-demand"),
         }
     return {"agents": statuses}
 
@@ -318,23 +344,23 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
     create_tmux_session(session)
 
     if lane in ("interactive", "claude"):
-        if is_claude_running(session):
+        claude_alive = is_claude_running(session)
+        if claude_alive:
             # Claude is running -- send the task directly into the session.
-            # This keeps the persistent Claude session alive instead of
-            # killing and restarting it on every dispatch.
             task_text = cmd.task
             if cmd.context:
                 task_text += f"\n\nContext: {cmd.context}"
             if cmd.project:
                 task_text += f"\n\nProject: {cmd.project}"
             command = task_text
-            logger.info(f"[{lane}→direct] Sending task into running Claude in {session}: {cmd.task[:100]}")
+            logger.info(f"[{lane}->direct] Sending task into running Claude in {session}: {cmd.task[:100]}")
         else:
-            # No Claude running -- use file-based launcher to start one
+            # No Claude running -- use file-based launcher (starts one-shot,
+            # then restarts persistent session for hot agents).
             command = build_claude_task_command(
                 agent, cmd.task, cmd.priority, cmd.context, cmd.project
             )
-            logger.info(f"[{lane}→print] No Claude in {session}, launching: {cmd.task[:100]}")
+            logger.info(f"[{lane}->print] No Claude in {session}, launching: {cmd.task[:100]}")
     else:
         # Automated lane: bash-only, no interactive processes
         if is_interactive(cmd.task):
