@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>AI Arena -- JOAO</title>
+<title>AI Arena -- 7 Brains -- JOAO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#06080f;--surface:#0c0f1a;--surface2:#111628;--border:#141c2e;
-  --cyan:#00e5ff;--green:#00ff88;--blue:#4488ff;--red:#ff4466;--gold:#fbbf24;--purple:#a78bfa;
-  --text:#e0e6f0;--dim:#4a5280;--orange:#ff8c00;
+  --bg:#06080f;--surface:#0a0e18;--surface2:#111628;--border:#141c2e;
+  --cyan:#00e5ff;--green:#00ff88;--blue:#4488ff;--red:#ff4466;--gold:#fbbf24;--purple:#b388ff;
+  --text:#e0e6f0;--dim:#4a5280;--orange:#ff9800;--teal:#00bcd4;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden}
 h1,h2,h3{font-family:'Syne',sans-serif;font-weight:700}
@@ -32,14 +32,35 @@ body::before{
 #topbar .logo{font-family:'Syne';font-size:18px;font-weight:800;letter-spacing:2px}
 #topbar .logo .j{color:var(--cyan)}
 #topbar .arena-tag{font-size:11px;color:var(--red);border:1px solid var(--red);padding:2px 8px;border-radius:4px;margin-left:12px;text-transform:uppercase;letter-spacing:1px}
+#topbar .brain-count{font-size:10px;color:var(--purple);margin-left:8px;letter-spacing:1px}
 #topbar .right-controls{display:flex;align-items:center;gap:12px}
 #topbar .back{color:var(--dim);text-decoration:none;font-size:12px;transition:color .15s}
 #topbar .back:hover{color:var(--cyan)}
 #exec-log-toggle{background:none;border:1px solid var(--border);color:var(--dim);border-radius:4px;padding:4px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;transition:all .15s}
 #exec-log-toggle:hover{border-color:var(--orange);color:var(--orange)}
-#exec-log-toggle.active{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,.1)}
+#exec-log-toggle.active{border-color:var(--orange);color:var(--orange);background:rgba(255,152,0,.1)}
+#config-toggle{background:none;border:1px solid var(--border);color:var(--dim);border-radius:4px;padding:4px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;transition:all .15s}
+#config-toggle:hover{border-color:var(--cyan);color:var(--cyan)}
+#config-toggle.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.1)}
 
-#config{display:flex;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;flex-wrap:wrap}
+/* Brain toggle bar */
+#brain-bar{display:flex;gap:8px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;flex-wrap:wrap}
+#brain-bar .label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-right:4px}
+.brain-pill{
+  display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;
+  border:1px solid var(--border);background:transparent;color:var(--dim);
+  font-size:11px;font-weight:500;letter-spacing:.5px;transition:all .2s;
+  text-transform:uppercase;
+}
+.brain-pill .dot{width:8px;height:8px;border-radius:50%;opacity:.4;transition:opacity .2s}
+.brain-pill.active{color:var(--text)}
+.brain-pill.active .dot{opacity:1}
+.brain-pill.locked{opacity:.7}
+.brain-pill .trainable-badge{font-size:7px;color:var(--green);letter-spacing:.5px;opacity:.7}
+
+/* Config panel */
+#config{display:none;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;flex-wrap:wrap}
+#config.open{display:flex}
 #config label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
 #config select,#config input[type="text"]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:11px;outline:none}
 #config select:focus,#config input[type="text"]:focus{border-color:var(--cyan)}
@@ -67,33 +88,29 @@ body::before{
 .exec-entry.success{border-color:var(--green);background:rgba(0,255,136,.03)}
 .exec-entry.fail{border-color:var(--red);background:rgba(255,68,102,.03)}
 .exec-entry .exec-model{text-transform:uppercase;letter-spacing:1px;font-weight:500;margin-bottom:2px}
-.exec-entry .exec-model.claude{color:var(--cyan)}
-.exec-entry .exec-model.gpt{color:var(--green)}
-.exec-entry .exec-model.gemini{color:var(--blue)}
 .exec-entry .exec-tool{color:var(--orange);font-weight:500}
 .exec-entry .exec-detail{color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .exec-entry .exec-git{color:var(--gold);font-size:9px;margin-top:2px}
 
 .msg-pair{display:flex;flex-direction:column;gap:12px}
 .msg-pair .user-msg{align-self:flex-end;max-width:70%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;border-bottom-right-radius:4px;padding:12px 16px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
-.msg-pair .file-badge{display:inline-block;font-size:10px;color:var(--orange);background:rgba(255,140,0,.1);border:1px solid rgba(255,140,0,.2);border-radius:4px;padding:1px 6px;margin-top:4px}
+.msg-pair .file-badge{display:inline-block;font-size:10px;color:var(--orange);background:rgba(255,152,0,.1);border:1px solid rgba(255,152,0,.2);border-radius:4px;padding:1px 6px;margin-top:4px}
 
-.response-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+/* Dynamic response grid */
+.response-row{display:grid;gap:16px}
+.response-row.cols-1{grid-template-columns:1fr}
+.response-row.cols-2{grid-template-columns:1fr 1fr}
+.response-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+.response-row.cols-many{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
 
 .response-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s}
 .response-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
-.response-card.claude::before{background:var(--cyan)}
-.response-card.gpt::before{background:var(--green)}
-.response-card.gemini::before{background:var(--blue)}
-.response-card.claude{background:radial-gradient(ellipse at 0% 50%,rgba(0,229,255,.04) 0%,var(--surface) 70%)}
-.response-card.gpt{background:radial-gradient(ellipse at 0% 50%,rgba(0,255,136,.04) 0%,var(--surface) 70%)}
-.response-card.gemini{background:radial-gradient(ellipse at 0% 50%,rgba(68,136,255,.04) 0%,var(--surface) 70%)}
 
 .response-card .model-label{font-family:'Syne';font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
-.response-card.claude .model-label{color:var(--cyan)}
-.response-card.gpt .model-label{color:var(--green)}
-.response-card.gemini .model-label{color:var(--blue)}
+.response-card .model-tag{font-size:8px;font-weight:400;letter-spacing:1px;opacity:.6}
 .response-card .model-name{font-size:9px;color:var(--dim);font-weight:400;letter-spacing:0}
+.response-card .trainable-indicator{font-size:8px;color:var(--green);background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);border-radius:3px;padding:1px 5px;letter-spacing:.5px}
+.response-card .fallback-indicator{font-size:8px;color:var(--gold);background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.2);border-radius:3px;padding:1px 5px;letter-spacing:.5px}
 
 .response-card .body{font-size:13px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:var(--text);max-height:500px;overflow-y:auto}
 .response-card .body::-webkit-scrollbar{width:3px}
@@ -101,18 +118,13 @@ body::before{
 
 /* Debate selection */
 .response-card.selectable{cursor:pointer}
-.response-card.selectable:hover{border-color:var(--red);box-shadow:0 0 15px rgba(255,68,102,.1)}
-.response-card.debate-selected{border-color:var(--red);box-shadow:0 0 20px rgba(255,68,102,.2)}
 .response-card.debate-selected::after{content:'SELECTED';position:absolute;top:8px;right:8px;font-size:8px;color:var(--red);background:rgba(255,68,102,.1);border:1px solid rgba(255,68,102,.3);border-radius:3px;padding:1px 6px;letter-spacing:1px;font-weight:600}
 
 /* Tool pills */
 .tool-pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
-.tool-pill{font-size:9px;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:500}
-.tool-pill.claude{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.2)}
-.tool-pill.gpt{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
-.tool-pill.gemini{background:rgba(68,136,255,.1);color:var(--blue);border:1px solid rgba(68,136,255,.2)}
+.tool-pill{font-size:9px;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:500;border:1px solid}
 .tool-pill.fail{opacity:.5;text-decoration:line-through}
-.tool-pill.git{background:rgba(251,191,36,.1);color:var(--gold);border:1px solid rgba(251,191,36,.2)}
+.tool-pill.git{background:rgba(251,191,36,.1);color:var(--gold);border-color:rgba(251,191,36,.2)}
 
 /* Tool calls expandable section */
 .tool-section{margin-top:12px;border-top:1px solid var(--border);padding-top:8px}
@@ -122,7 +134,7 @@ body::before{
 .tool-toggle .arrow.open{transform:rotate(90deg)}
 .tool-list{display:none;margin-top:8px;font-size:11px}
 .tool-list.open{display:block}
-.tool-item{background:rgba(255,140,0,.05);border:1px solid rgba(255,140,0,.15);border-radius:6px;padding:8px 10px;margin-bottom:6px}
+.tool-item{background:rgba(255,152,0,.05);border:1px solid rgba(255,152,0,.15);border-radius:6px;padding:8px 10px;margin-bottom:6px}
 .tool-item .tool-name{color:var(--orange);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
 .tool-item .tool-input{color:var(--dim);font-size:10px;margin-top:3px;white-space:pre-wrap;word-break:break-all;max-height:60px;overflow:hidden}
 .tool-item .tool-result{color:var(--text);font-size:10px;margin-top:3px;opacity:.7;white-space:pre-wrap;word-break:break-all;max-height:80px;overflow:hidden}
@@ -131,12 +143,9 @@ body::before{
 .rate-warning{font-size:10px;color:var(--red);background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.2);border-radius:6px;padding:6px 10px;margin-top:8px}
 
 .thinking-dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pulse 1.2s ease-in-out infinite}
-.response-card.claude .thinking-dot{background:var(--cyan)}
-.response-card.gpt .thinking-dot{background:var(--green)}
-.response-card.gemini .thinking-dot{background:var(--blue)}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
 
-.action-row{display:flex;justify-content:center;gap:16px;padding:8px 0;align-items:center;flex-wrap:wrap}
+.action-row{display:flex;justify-content:center;gap:12px;padding:8px 0;align-items:center;flex-wrap:wrap}
 
 .debate-btn{
   background:transparent;border:1px solid var(--red);color:var(--red);
@@ -154,10 +163,6 @@ body::before{
 .pref-btn:hover{border-color:var(--gold);color:var(--gold)}
 .pref-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(251,191,36,.1)}
 .pref-btn svg{width:14px;height:14px;fill:currentColor}
-
-.response-card.preferred.claude{border-color:var(--cyan);box-shadow:0 0 30px rgba(0,229,255,.15)}
-.response-card.preferred.gpt{border-color:var(--green);box-shadow:0 0 30px rgba(0,255,136,.15)}
-.response-card.preferred.gemini{border-color:var(--blue);box-shadow:0 0 30px rgba(68,136,255,.15)}
 
 .debate-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .debate-card{background:var(--surface);border:1px solid var(--red);border-radius:10px;padding:16px;position:relative}
@@ -177,7 +182,7 @@ body::before{
   padding:12px 14px;font-size:14px;transition:all .15s;flex-shrink:0;
 }
 #file-btn:hover{border-color:var(--orange);color:var(--orange)}
-#file-btn.has-file{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,.1)}
+#file-btn.has-file{border-color:var(--orange);color:var(--orange);background:rgba(255,152,0,.1)}
 #file-input{display:none}
 #file-name{font-size:10px;color:var(--orange);align-self:center;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #send-btn{
@@ -190,13 +195,15 @@ body::before{
 
 #empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:16px;color:var(--dim);text-align:center;padding:40px}
 #empty-state h2{font-size:28px;color:var(--text);letter-spacing:2px}
-#empty-state p{font-size:12px;max-width:400px;line-height:1.6}
-#empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#empty-state p{font-size:12px;max-width:500px;line-height:1.6}
+#empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue),var(--green),var(--purple),var(--orange));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 #empty-state .intel{font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-top:8px}
 
 @media(max-width:768px){
-  .response-row{grid-template-columns:1fr}
+  .response-row{grid-template-columns:1fr !important}
   .debate-row{grid-template-columns:1fr}
+  #brain-bar{gap:4px;padding:8px 12px}
+  .brain-pill{padding:4px 8px;font-size:10px}
   #config{flex-direction:column;gap:8px}
   .msg-pair .user-msg{max-width:90%}
   #topbar{padding:8px 12px}
@@ -214,35 +221,23 @@ body::before{
     <div style="display:flex;align-items:center">
       <span class="logo"><span class="j">JOAO</span></span>
       <span class="arena-tag">AI Arena</span>
+      <span class="brain-count" id="brain-count">7 BRAINS</span>
     </div>
     <div class="right-controls">
-      <button id="exec-log-toggle">Execution Log</button>
-      <a href="/hub" class="back">&larr; Back to Hub</a>
+      <button id="config-toggle">Config</button>
+      <button id="exec-log-toggle">Exec Log</button>
+      <a href="/hub" class="back">&larr; Hub</a>
     </div>
   </div>
 
+  <div id="brain-bar">
+    <span class="label">Brains:</span>
+    <!-- populated by JS -->
+  </div>
+
   <div id="config">
-    <div class="model-group">
-      <label>Claude Model</label>
-      <select id="claude-model">
-        <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-        <option value="claude-opus-4-20250514">Claude Opus 4</option>
-      </select>
-    </div>
-    <div class="model-group">
-      <label>GPT Model</label>
-      <select id="gpt-model">
-        <option value="gpt-4o">GPT-4o</option>
-        <option value="gpt-4.1">GPT-4.1</option>
-      </select>
-    </div>
-    <div class="model-group">
-      <label>Gemini Model</label>
-      <select id="gemini-model">
-        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-        <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro</option>
-        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-      </select>
+    <div id="model-selectors">
+      <!-- populated by JS -->
     </div>
     <div class="system-group">
       <label>System Prompt</label>
@@ -253,9 +248,9 @@ body::before{
   <div id="main-area">
     <div id="chat-area">
       <div id="empty-state">
-        <div class="vs">VS</div>
-        <h2>AI Arena</h2>
-        <p>Send a message and watch Claude, GPT, and Gemini respond side by side. Claude and GPT have full ROG server access. Gemini runs pure reasoning. Attach files for all 3 to analyze.</p>
+        <div class="vs">7v7</div>
+        <h2>AI Arena -- 7 Brains</h2>
+        <p>Send a message and watch Claude, GPT, Gemini, DeepSeek, Llama, Mistral, and Qwen respond side by side. Claude and GPT have full ROG server access. Toggle brains on/off with the pills above.</p>
         <div class="intel">FULL INTELLIGENCE MODE</div>
       </div>
     </div>
@@ -275,7 +270,7 @@ body::before{
     <button id="file-btn" title="Attach a file">+</button>
     <input type="file" id="file-input">
     <span id="file-name"></span>
-    <textarea id="user-input" rows="1" placeholder="Send a message to all 3 models..."></textarea>
+    <textarea id="user-input" rows="1" placeholder="Send a message to all active brains..."></textarea>
     <button id="send-btn">SEND</button>
   </div>
 </div>
@@ -289,14 +284,16 @@ var chatArea = document.getElementById('chat-area');
 var emptyState = document.getElementById('empty-state');
 var userInput = document.getElementById('user-input');
 var sendBtn = document.getElementById('send-btn');
-var claudeModelSel = document.getElementById('claude-model');
-var gptModelSel = document.getElementById('gpt-model');
-var geminiModelSel = document.getElementById('gemini-model');
 var systemPromptInput = document.getElementById('system-prompt');
 var execPanel = document.getElementById('exec-panel');
 var execEntries = document.getElementById('exec-entries');
 var execToggle = document.getElementById('exec-log-toggle');
 var execClose = document.getElementById('exec-close');
+var configToggle = document.getElementById('config-toggle');
+var configPanel = document.getElementById('config');
+var brainBar = document.getElementById('brain-bar');
+var brainCountEl = document.getElementById('brain-count');
+var modelSelectorsDiv = document.getElementById('model-selectors');
 var fileBtn = document.getElementById('file-btn');
 var fileInput = document.getElementById('file-input');
 var fileNameSpan = document.getElementById('file-name');
@@ -304,6 +301,11 @@ var busy = false;
 var latestPair = null;
 var attachedFileContent = null;
 var attachedFileName = null;
+
+// Brain registry -- loaded from server
+var brainRegistry = {};
+var activeBrains = ['claude', 'gpt', 'gemini'];
+var modelOverrides = {};
 
 function esc(s) {
   var d = document.createElement('div');
@@ -316,10 +318,99 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
+// Load brain registry from server
+function loadBrains() {
+  fetch('/arena/brains')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      brainRegistry = data;
+      buildBrainBar();
+      buildModelSelectors();
+    })
+    .catch(function() {
+      // Fallback hardcoded registry
+      brainRegistry = {
+        claude: {name:'CLAUDE',color:'#00e5ff',tag:'THE BRAIN',has_tools:true,models:['claude-sonnet-4-20250514','claude-opus-4-20250514'],default_model:'claude-sonnet-4-20250514',trainable:false},
+        gpt: {name:'GPT',color:'#00ff88',tag:'THE GENERALIST',has_tools:true,models:['gpt-4o','gpt-4.1'],default_model:'gpt-4o',trainable:false},
+        gemini: {name:'GEMINI',color:'#4488ff',tag:'GOOGLE ORACLE',has_tools:false,models:['gemini-2.5-flash','gemini-3.1-pro-preview','gemini-3-flash-preview'],default_model:'gemini-2.5-flash',trainable:false},
+        deepseek: {name:'DEEPSEEK',color:'#b388ff',tag:'REASONING BEAST',has_tools:false,models:['deepseek/deepseek-r1:free'],default_model:'deepseek/deepseek-r1:free',trainable:true},
+        llama: {name:'LLAMA',color:'#ff9800',tag:'OPEN WARRIOR',has_tools:false,models:['llama-3.3-70b-versatile'],default_model:'llama-3.3-70b-versatile',trainable:true},
+        mistral: {name:'MISTRAL',color:'#ff4466',tag:'EU FRONTIER',has_tools:false,models:['mistral-large-latest','mistral-small-latest'],default_model:'mistral-large-latest',trainable:true},
+        qwen: {name:'QWEN',color:'#00bcd4',tag:'MATH KING',has_tools:false,models:['qwen/qwen3-32b'],default_model:'qwen/qwen3-32b',trainable:true},
+      };
+      buildBrainBar();
+      buildModelSelectors();
+    });
+}
+
+function buildBrainBar() {
+  // Keep the label
+  var pills = brainBar.querySelectorAll('.brain-pill');
+  pills.forEach(function(p) { p.remove(); });
+
+  var keys = Object.keys(brainRegistry);
+  keys.forEach(function(key) {
+    var brain = brainRegistry[key];
+    var pill = document.createElement('button');
+    pill.className = 'brain-pill' + (activeBrains.indexOf(key) !== -1 ? ' active' : '') + (key === 'claude' ? ' locked' : '');
+    pill.setAttribute('data-brain', key);
+    pill.style.borderColor = activeBrains.indexOf(key) !== -1 ? brain.color : '';
+    pill.innerHTML = '<span class="dot" style="background:' + brain.color + '"></span>' + brain.name +
+      (brain.trainable ? ' <span class="trainable-badge">OPEN</span>' : '');
+
+    pill.addEventListener('click', function() {
+      if (key === 'claude') return; // Claude always on
+      var idx = activeBrains.indexOf(key);
+      if (idx !== -1) {
+        activeBrains.splice(idx, 1);
+        pill.classList.remove('active');
+        pill.style.borderColor = '';
+      } else {
+        activeBrains.push(key);
+        pill.classList.add('active');
+        pill.style.borderColor = brain.color;
+      }
+      updateBrainCount();
+      buildModelSelectors();
+    });
+
+    brainBar.appendChild(pill);
+  });
+  updateBrainCount();
+}
+
+function updateBrainCount() {
+  brainCountEl.textContent = activeBrains.length + ' BRAIN' + (activeBrains.length !== 1 ? 'S' : '');
+}
+
+function buildModelSelectors() {
+  modelSelectorsDiv.innerHTML = '';
+  activeBrains.forEach(function(key) {
+    var brain = brainRegistry[key];
+    if (!brain) return;
+    var group = document.createElement('div');
+    group.className = 'model-group';
+    group.innerHTML = '<label style="color:' + brain.color + '">' + brain.name + ' Model</label>';
+    var sel = document.createElement('select');
+    sel.id = 'model-' + key;
+    brain.models.forEach(function(m) {
+      var opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      if (m === (modelOverrides[key] || brain.default_model)) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', function() {
+      modelOverrides[key] = sel.value;
+    });
+    group.appendChild(sel);
+    modelSelectorsDiv.appendChild(group);
+  });
+}
+
 // File attachment
 fileBtn.addEventListener('click', function() {
   if (attachedFileContent) {
-    // Clear the file
     attachedFileContent = null;
     attachedFileName = null;
     fileNameSpan.textContent = '';
@@ -337,19 +428,14 @@ fileInput.addEventListener('change', function() {
   fileNameSpan.textContent = file.name;
   fileBtn.classList.add('has-file');
 
-  // Read file as text (works for code, csv, json, md, txt, xml, yaml, html, etc.)
-  // For binary files (images, pdf), read as base64
   var textExtensions = /\.(txt|md|csv|json|jsonl|xml|yaml|yml|toml|ini|cfg|conf|log|sql|py|js|ts|jsx|tsx|java|go|rs|rb|php|c|cpp|h|hpp|cs|swift|kt|sh|bash|zsh|fish|ps1|bat|cmd|html|htm|css|scss|sass|less|vue|svelte|r|R|m|tex|bib|makefile|dockerfile|gitignore|env|editorconfig|properties|gradle|sbt|cabal|hs|ex|exs|erl|clj|scala|lua|pl|pm|tcl|awk|sed|diff|patch|rst|adoc|org|nix|dhall|tf|hcl|twb|twbx|dax|pbix)$/i;
   var isText = textExtensions.test(file.name) || file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml';
 
   if (isText) {
     var reader = new FileReader();
-    reader.onload = function(e) {
-      attachedFileContent = e.target.result;
-    };
+    reader.onload = function(e) { attachedFileContent = e.target.result; };
     reader.readAsText(file);
   } else {
-    // Binary files: read as base64
     var reader = new FileReader();
     reader.onload = function(e) {
       var base64 = e.target.result.split(',')[1] || '';
@@ -357,6 +443,12 @@ fileInput.addEventListener('change', function() {
     };
     reader.readAsDataURL(file);
   }
+});
+
+// Config panel toggle
+configToggle.addEventListener('click', function() {
+  configPanel.classList.toggle('open');
+  configToggle.classList.toggle('active');
 });
 
 // Execution log panel toggle
@@ -372,19 +464,13 @@ execClose.addEventListener('click', function() {
 function addExecEntry(entry) {
   var div = document.createElement('div');
   div.className = 'exec-entry ' + (entry.success ? 'success' : 'fail');
-  var html = '<div class="exec-model ' + esc(entry.model) + '">' + esc(entry.model) + '</div>';
+  var html = '<div class="exec-model" style="color:' + (brainRegistry[entry.model] ? brainRegistry[entry.model].color : 'var(--dim)') + '">' + esc(entry.model) + '</div>';
   html += '<span class="exec-tool">' + esc(entry.tool) + '</span>';
-  if (entry.input) {
-    html += '<div class="exec-detail">' + esc(entry.input) + '</div>';
-  }
-  if (entry.git_branch) {
-    html += '<div class="exec-git">GIT: ' + esc(entry.git_branch) + '</div>';
-  }
+  if (entry.input) html += '<div class="exec-detail">' + esc(entry.input) + '</div>';
+  if (entry.git_branch) html += '<div class="exec-git">GIT: ' + esc(entry.git_branch) + '</div>';
   div.innerHTML = html;
   execEntries.insertBefore(div, execEntries.firstChild);
-  while (execEntries.children.length > 200) {
-    execEntries.removeChild(execEntries.lastChild);
-  }
+  while (execEntries.children.length > 200) execEntries.removeChild(execEntries.lastChild);
 }
 
 function addToolCallsToExecLog(tools, model) {
@@ -393,26 +479,20 @@ function addToolCallsToExecLog(tools, model) {
     var t = tools[i];
     var inputStr = '';
     try { inputStr = JSON.stringify(t.input).substring(0, 200); } catch(e) {}
-    addExecEntry({
-      model: model,
-      tool: t.tool,
-      input: inputStr,
-      success: t.success !== false,
-      git_branch: null,
-    });
+    addExecEntry({ model: model, tool: t.tool, input: inputStr, success: t.success !== false, git_branch: null });
   }
 }
 
-function renderToolPills(tools, parentEl, modelClass) {
+function renderToolPills(tools, parentEl, brainKey) {
   if (!tools || tools.length === 0) return;
+  var brain = brainRegistry[brainKey] || {};
+  var color = brain.color || 'var(--dim)';
   var pills = document.createElement('div');
   pills.className = 'tool-pills';
   var seen = {};
   var gitBranches = [];
   tools.forEach(function(t) {
-    if (!seen[t.tool]) {
-      seen[t.tool] = { count: 0, anyFail: false };
-    }
+    if (!seen[t.tool]) seen[t.tool] = { count: 0, anyFail: false };
     seen[t.tool].count++;
     if (t.success === false) seen[t.tool].anyFail = true;
     if (t.result && t.result.indexOf('[backup:') !== -1) {
@@ -422,8 +502,11 @@ function renderToolPills(tools, parentEl, modelClass) {
   });
   Object.keys(seen).forEach(function(name) {
     var pill = document.createElement('span');
-    pill.className = 'tool-pill ' + modelClass;
-    if (seen[name].anyFail) pill.className += ' fail';
+    pill.className = 'tool-pill' + (seen[name].anyFail ? ' fail' : '');
+    pill.style.background = color.replace(')', ',.1)').replace('rgb', 'rgba').replace('#', '');
+    // Use hex color for styling
+    pill.style.cssText = 'background:' + color + '15;color:' + color + ';border-color:' + color + '33;';
+    if (seen[name].anyFail) pill.classList.add('fail');
     pill.textContent = name + (seen[name].count > 1 ? ' x' + seen[name].count : '');
     pills.appendChild(pill);
   });
@@ -440,14 +523,11 @@ function renderToolCalls(tools, parentEl) {
   if (!tools || tools.length === 0) return;
   var section = document.createElement('div');
   section.className = 'tool-section';
-
   var toggle = document.createElement('button');
   toggle.className = 'tool-toggle';
   toggle.innerHTML = '<span class="arrow">&#9654;</span> ' + tools.length + ' tool call' + (tools.length > 1 ? 's' : '');
-
   var list = document.createElement('div');
   list.className = 'tool-list';
-
   tools.forEach(function(t) {
     var item = document.createElement('div');
     item.className = 'tool-item';
@@ -458,13 +538,11 @@ function renderToolCalls(tools, parentEl) {
       + (t.result ? '<div class="tool-result">' + esc(t.result) + '</div>' : '');
     list.appendChild(item);
   });
-
   toggle.addEventListener('click', function() {
     var arrow = toggle.querySelector('.arrow');
     var isOpen = list.classList.toggle('open');
     arrow.classList.toggle('open', isOpen);
   });
-
   section.appendChild(toggle);
   section.appendChild(list);
   parentEl.appendChild(section);
@@ -482,6 +560,13 @@ var thumbSvg = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.
 
 userInput.addEventListener('input', function() { autoResize(userInput); });
 
+function getColsClass(n) {
+  if (n <= 1) return 'cols-1';
+  if (n === 2) return 'cols-2';
+  if (n === 3) return 'cols-3';
+  return 'cols-many';
+}
+
 function send() {
   var text = userInput.value.trim();
   if (!text || busy) return;
@@ -490,12 +575,10 @@ function send() {
   userInput.value = '';
   autoResize(userInput);
 
-  // Build message with file content if attached
   var messageText = text;
   var sentFileName = attachedFileName;
   if (attachedFileContent) {
     messageText = text + '\n\n---\n[Attached file: ' + attachedFileName + ']\n' + attachedFileContent;
-    // Clear attachment after sending
     attachedFileContent = null;
     attachedFileName = null;
     fileNameSpan.textContent = '';
@@ -522,31 +605,66 @@ function send() {
   pair.appendChild(userDiv);
 
   var respRow = document.createElement('div');
-  respRow.className = 'response-row';
+  respRow.className = 'response-row ' + getColsClass(activeBrains.length);
 
-  var claudeCard = document.createElement('div');
-  claudeCard.className = 'response-card claude';
-  claudeCard.innerHTML = '<div class="model-label">Claude <span class="model-name">' + esc(claudeModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
-  respRow.appendChild(claudeCard);
+  var cards = {};
+  var currentActive = activeBrains.slice(); // snapshot
 
-  var gptCard = document.createElement('div');
-  gptCard.className = 'response-card gpt';
-  gptCard.innerHTML = '<div class="model-label">GPT <span class="model-name">' + esc(gptModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
-  respRow.appendChild(gptCard);
+  currentActive.forEach(function(key) {
+    var brain = brainRegistry[key];
+    if (!brain) return;
+    var card = document.createElement('div');
+    card.className = 'response-card';
+    card.setAttribute('data-brain', key);
+    // Dynamic color via inline style
+    card.style.borderLeftColor = brain.color;
+    card.style.background = 'radial-gradient(ellipse at 0% 50%,' + brain.color + '0a 0%,var(--surface) 70%)';
 
-  var geminiCard = document.createElement('div');
-  geminiCard.className = 'response-card gemini';
-  geminiCard.innerHTML = '<div class="model-label">Gemini <span class="model-name">' + esc(geminiModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
-  respRow.appendChild(geminiCard);
+    var modelUsed = modelOverrides[key] || brain.default_model;
+    var labelHtml = '<div class="model-label" style="color:' + brain.color + '">' +
+      '<span class="thinking-dot" style="background:' + brain.color + '"></span> ' +
+      brain.name + ' <span class="model-tag">' + esc(brain.tag) + '</span>' +
+      ' <span class="model-name">' + esc(modelUsed) + '</span>';
+    if (brain.trainable) {
+      labelHtml += ' <span class="trainable-indicator">OPEN</span>';
+    }
+    labelHtml += '</div>';
+    card.innerHTML = labelHtml + '<div class="body">Thinking...</div>';
+
+    // Left border stripe
+    var stripe = document.createElement('div');
+    stripe.style.cssText = 'position:absolute;top:0;left:0;bottom:0;width:3px;background:' + brain.color;
+    card.appendChild(stripe);
+
+    respRow.appendChild(card);
+    cards[key] = card;
+  });
 
   pair.appendChild(respRow);
   chatArea.appendChild(pair);
   chatArea.scrollTop = chatArea.scrollHeight;
 
-  var abortCtrl = new AbortController();
-  var fetchTimeout = setTimeout(function() { abortCtrl.abort(); }, 600000); // 10 min
+  // Build model overrides for request
+  var reqModels = {};
+  currentActive.forEach(function(key) {
+    if (modelOverrides[key]) reqModels[key] = modelOverrides[key];
+  });
 
-  fetch('/arena/chat', {
+  var abortCtrl = new AbortController();
+  var fetchTimeout = setTimeout(function() { abortCtrl.abort(); }, 600000);
+  var allResponses = {};
+  var brainsFinished = 0;
+
+  latestPair = {
+    pairId: pairId,
+    userInput: text,
+    responses: allResponses,
+    cards: cards,
+    debates: {},
+    activeBrains: currentActive,
+  };
+
+  fetch('/arena/chat/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: abortCtrl.signal,
@@ -554,73 +672,97 @@ function send() {
       session_id: sessionId,
       message: messageText,
       system_prompt: systemPromptInput.value,
-      claude_model: claudeModelSel.value,
-      gpt_model: gptModelSel.value,
-      gemini_model: geminiModelSel.value,
+      active_brains: currentActive,
+      models: reqModels,
     })
   })
   .then(function(r) {
-    clearTimeout(fetchTimeout);
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.json();
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    function processChunk() {
+      return reader.read().then(function(result) {
+        if (result.done) return;
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (!line.startsWith('data: ')) continue;
+          var payload = line.slice(6);
+          if (payload === '[DONE]') {
+            clearTimeout(fetchTimeout);
+            continue;
+          }
+          try {
+            var resp = JSON.parse(payload);
+            var key = resp.brain;
+            var card = cards[key];
+            var brain = brainRegistry[key];
+            if (!card || !brain) continue;
+
+            var dot = card.querySelector('.thinking-dot');
+            if (dot) dot.remove();
+
+            card.querySelector('.body').textContent = resp.text || '[No response]';
+            allResponses[key] = resp.text || '';
+
+            if (resp.fallback_used) {
+              var labelEl = card.querySelector('.model-label');
+              var fbBadge = document.createElement('span');
+              fbBadge.className = 'fallback-indicator';
+              fbBadge.textContent = 'FALLBACK: ' + (resp.fallback_provider || '?').toUpperCase();
+              labelEl.appendChild(fbBadge);
+            }
+
+            renderToolPills(resp.tool_calls, card, key);
+            renderToolCalls(resp.tool_calls, card);
+            renderRateWarning(resp.rate_warning, card);
+            addToolCallsToExecLog(resp.tool_calls, key);
+            chatArea.scrollTop = chatArea.scrollHeight;
+          } catch(e) {}
+        }
+        return processChunk();
+      });
+    }
+    return processChunk();
   })
-  .then(function(data) {
-    claudeCard.querySelector('.body').textContent = data.claude_response;
-    gptCard.querySelector('.body').textContent = data.gpt_response;
-    geminiCard.querySelector('.body').textContent = data.gemini_response;
-
-    renderToolPills(data.claude_tools, claudeCard, 'claude');
-    renderToolPills(data.gpt_tools, gptCard, 'gpt');
-    renderToolPills(data.gemini_tools, geminiCard, 'gemini');
-
-    renderToolCalls(data.claude_tools, claudeCard);
-    renderToolCalls(data.gpt_tools, gptCard);
-    renderToolCalls(data.gemini_tools, geminiCard);
-
-    renderRateWarning(data.claude_rate_warning, claudeCard);
-    renderRateWarning(data.gpt_rate_warning, gptCard);
-    renderRateWarning(data.gemini_rate_warning, geminiCard);
-
-    addToolCallsToExecLog(data.claude_tools, 'claude');
-    addToolCallsToExecLog(data.gpt_tools, 'gpt');
-    addToolCallsToExecLog(data.gemini_tools, 'gemini');
-
-    latestPair = {
-      pairId: pairId,
-      userInput: text,
-      claudeResponse: data.claude_response,
-      gptResponse: data.gpt_response,
-      geminiResponse: data.gemini_response,
-      cards: { claude: claudeCard, gpt: gptCard, gemini: geminiCard },
-      debates: {},
-    };
-
-    // Action row with preference buttons + debate
+  .then(function() {
+    // All brains done -- show action row
     var actionRow = document.createElement('div');
     actionRow.className = 'action-row';
 
+    // Preference buttons
     var prefBtns = {};
-    ['claude', 'gpt', 'gemini'].forEach(function(model) {
+    currentActive.forEach(function(key) {
+      var brain = brainRegistry[key];
       var btn = document.createElement('button');
       btn.className = 'pref-btn';
-      btn.setAttribute('data-model', model);
-      btn.innerHTML = thumbSvg + ' ' + model.charAt(0).toUpperCase() + model.slice(1);
+      btn.setAttribute('data-model', key);
+      btn.innerHTML = thumbSvg + ' ' + brain.name;
       actionRow.appendChild(btn);
-      prefBtns[model] = btn;
+      prefBtns[key] = btn;
     });
 
+    // Debate button
     var debateBtn = document.createElement('button');
     debateBtn.className = 'debate-btn';
-    debateBtn.textContent = 'DEBATE -- Pick 2 brains';
+    debateBtn.textContent = 'DEBATE -- Pick 2+';
     actionRow.appendChild(debateBtn);
 
     pair.appendChild(actionRow);
 
     // Preference handling
     function handlePref(model) {
-      ['claude', 'gpt', 'gemini'].forEach(function(m) {
+      currentActive.forEach(function(m) {
         prefBtns[m].classList.toggle('selected', m === model);
-        latestPair.cards[m].classList.toggle('preferred', m === model);
+        if (cards[m]) {
+          cards[m].style.borderColor = m === model ? (brainRegistry[m] ? brainRegistry[m].color : 'var(--gold)') : 'var(--border)';
+          cards[m].style.boxShadow = m === model ? '0 0 30px ' + (brainRegistry[m] ? brainRegistry[m].color : 'var(--gold)') + '25' : '';
+        }
       });
       fetch('/arena/prefer', {
         method: 'POST',
@@ -628,19 +770,15 @@ function send() {
         body: JSON.stringify({
           session_id: sessionId,
           user_input: latestPair.userInput,
-          claude_response: latestPair.claudeResponse,
-          gpt_response: latestPair.gptResponse,
-          gemini_response: latestPair.geminiResponse,
+          responses: latestPair.responses,
           preferred_model: model,
-          debate_claude: latestPair.debates.claude || '',
-          debate_gpt: latestPair.debates.gpt || '',
-          debate_gemini: latestPair.debates.gemini || '',
+          debates: latestPair.debates,
         })
       }).catch(function() {});
     }
 
-    ['claude', 'gpt', 'gemini'].forEach(function(model) {
-      prefBtns[model].addEventListener('click', function() { handlePref(model); });
+    currentActive.forEach(function(key) {
+      prefBtns[key].addEventListener('click', function() { handlePref(key); });
     });
 
     // Debate: pick 2 cards
@@ -649,99 +787,101 @@ function send() {
 
     debateBtn.addEventListener('click', function() {
       if (debateBtn.disabled) return;
-
       if (!isSelectingDebate) {
-        // Enter selection mode
         isSelectingDebate = true;
         debateSelection = [];
-        debateBtn.textContent = 'SELECT 2 CARDS...';
-        debateBtn.disabled = true; // re-enabled when 2 are picked
-        ['claude', 'gpt', 'gemini'].forEach(function(m) {
-          latestPair.cards[m].classList.add('selectable');
-          latestPair.cards[m].classList.remove('debate-selected');
+        debateBtn.textContent = 'SELECT 2+ CARDS...';
+        debateBtn.disabled = true;
+        currentActive.forEach(function(m) {
+          cards[m].classList.add('selectable');
+          cards[m].classList.remove('debate-selected');
+          cards[m].style.borderColor = 'var(--border)';
+          cards[m].style.boxShadow = '';
         });
-        return;
       }
     });
 
-    // Card click for debate selection
-    ['claude', 'gpt', 'gemini'].forEach(function(model) {
-      latestPair.cards[model].addEventListener('click', function() {
-        if (!isSelectingDebate) return;
+    function updateDebateBtn() {
+      if (debateSelection.length >= 2) {
+        debateBtn.disabled = false;
+        var names = debateSelection.map(function(k) {
+          return brainRegistry[k] ? brainRegistry[k].name : k;
+        });
+        debateBtn.textContent = 'START: ' + names.join(' vs ');
+        debateBtn.onclick = function() {
+          fireDebate(debateSelection, pair);
+        };
+      } else {
+        debateBtn.disabled = true;
+        debateBtn.textContent = 'SELECT 2+ CARDS...';
+        debateBtn.onclick = null;
+      }
+    }
 
-        var idx = debateSelection.indexOf(model);
+    currentActive.forEach(function(key) {
+      cards[key].addEventListener('click', function() {
+        if (!isSelectingDebate) return;
+        var idx = debateSelection.indexOf(key);
         if (idx !== -1) {
-          // Deselect
           debateSelection.splice(idx, 1);
-          latestPair.cards[model].classList.remove('debate-selected');
-          debateBtn.disabled = true;
-          debateBtn.textContent = 'SELECT 2 CARDS...';
+          cards[key].classList.remove('debate-selected');
+          cards[key].style.borderColor = 'var(--border)';
+          cards[key].style.boxShadow = '';
+          updateDebateBtn();
           return;
         }
-        if (debateSelection.length >= 2) return; // already 2 picked
 
-        debateSelection.push(model);
-        latestPair.cards[model].classList.add('debate-selected');
-
-        if (debateSelection.length === 2) {
-          debateBtn.disabled = false;
-          debateBtn.textContent = 'START DEBATE: ' + debateSelection[0].toUpperCase() + ' vs ' + debateSelection[1].toUpperCase();
-
-          // Next click on debateBtn fires the debate
-          debateBtn.onclick = function() {
-            fireDebate(debateSelection[0], debateSelection[1], pair);
-          };
-        }
+        debateSelection.push(key);
+        cards[key].classList.add('debate-selected');
+        cards[key].style.borderColor = 'var(--red)';
+        cards[key].style.boxShadow = '0 0 20px rgba(255,68,102,.2)';
+        updateDebateBtn();
       });
     });
 
-    function fireDebate(brainA, brainB, pairEl) {
+    function fireDebate(selectedBrains, pairEl) {
       isSelectingDebate = false;
       debateBtn.disabled = true;
       debateBtn.textContent = 'DEBATING...';
       debateBtn.onclick = null;
-      ['claude', 'gpt', 'gemini'].forEach(function(m) {
-        latestPair.cards[m].classList.remove('selectable', 'debate-selected');
+      currentActive.forEach(function(m) {
+        cards[m].classList.remove('selectable', 'debate-selected');
+        cards[m].style.borderColor = 'var(--border)';
+        cards[m].style.boxShadow = '';
       });
 
-      var brainLabels = {claude: 'Claude', gpt: 'GPT', gemini: 'Gemini'};
-
       var debateRow = document.createElement('div');
-      debateRow.className = 'debate-row';
+      debateRow.className = 'response-row ' + getColsClass(selectedBrains.length);
 
-      var cardA = document.createElement('div');
-      cardA.className = 'debate-card';
-      cardA.innerHTML = '<div class="debate-label">' + brainLabels[brainA] + '\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
-      debateRow.appendChild(cardA);
-
-      var cardB = document.createElement('div');
-      cardB.className = 'debate-card';
-      cardB.innerHTML = '<div class="debate-label">' + brainLabels[brainB] + '\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
-      debateRow.appendChild(cardB);
+      var debateCards = {};
+      selectedBrains.forEach(function(key) {
+        var brain = brainRegistry[key] || {};
+        var name = brain.name || key;
+        var card = document.createElement('div');
+        card.className = 'debate-card';
+        card.style.borderColor = brain.color || 'var(--red)';
+        card.innerHTML = '<div class="debate-label" style="color:' + (brain.color || 'var(--red)') + '">' + name + '\'s Critique</div><div class="body"><span class="thinking-dot" style="background:' + (brain.color || 'var(--red)') + '"></span> Analyzing...</div>';
+        debateRow.appendChild(card);
+        debateCards[key] = card;
+      });
 
       pairEl.appendChild(debateRow);
       chatArea.scrollTop = chatArea.scrollHeight;
 
-      var responses = {
-        claude: latestPair.claudeResponse,
-        gpt: latestPair.gptResponse,
-        gemini: latestPair.geminiResponse,
-      };
+      var debateModels = {};
+      currentActive.forEach(function(k) {
+        if (modelOverrides[k]) debateModels[k] = modelOverrides[k];
+      });
 
       fetch('/arena/debate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
-          claude_response: responses.claude,
-          gpt_response: responses.gpt,
-          gemini_response: responses.gemini,
+          brains: selectedBrains,
           original_prompt: latestPair.userInput,
-          claude_model: claudeModelSel.value,
-          gpt_model: gptModelSel.value,
-          gemini_model: geminiModelSel.value,
-          brain_a: brainA,
-          brain_b: brainB,
+          responses: latestPair.responses,
+          models: debateModels,
         })
       })
       .then(function(r) {
@@ -749,23 +889,28 @@ function send() {
         return r.json();
       })
       .then(function(d) {
-        cardA.querySelector('.body').textContent = d.debate_a;
-        cardB.querySelector('.body').textContent = d.debate_b;
-        renderToolPills(d.tools_a, cardA, brainA);
-        renderToolPills(d.tools_b, cardB, brainB);
-        renderToolCalls(d.tools_a, cardA);
-        renderToolCalls(d.tools_b, cardB);
-        addToolCallsToExecLog(d.tools_a, brainA);
-        addToolCallsToExecLog(d.tools_b, brainB);
-        latestPair.debates[brainA] = d.debate_a;
-        latestPair.debates[brainB] = d.debate_b;
-        debateBtn.textContent = 'DEBATED: ' + brainA.toUpperCase() + ' vs ' + brainB.toUpperCase();
+        var critiques = d.critiques || {};
+        var names = [];
+        selectedBrains.forEach(function(key) {
+          var c = critiques[key] || {};
+          var card = debateCards[key];
+          if (card) {
+            card.querySelector('.body').textContent = c.text || '[No response]';
+            renderToolPills(c.tools, card, key);
+            renderToolCalls(c.tools, card);
+            addToolCallsToExecLog(c.tools, key);
+          }
+          latestPair.debates[key] = c.text || '';
+          names.push(brainRegistry[key] ? brainRegistry[key].name : key);
+        });
+        debateBtn.textContent = 'DEBATED: ' + names.join(' vs ');
         chatArea.scrollTop = chatArea.scrollHeight;
       })
       .catch(function(e) {
-        cardA.querySelector('.body').textContent = 'Error: ' + e.message;
-        cardB.querySelector('.body').textContent = 'Error: ' + e.message;
-        debateBtn.textContent = 'DEBATE -- Pick 2 brains';
+        selectedBrains.forEach(function(key) {
+          if (debateCards[key]) debateCards[key].querySelector('.body').textContent = 'Error: ' + e.message;
+        });
+        debateBtn.textContent = 'DEBATE -- Pick 2+';
         debateBtn.disabled = false;
       });
     }
@@ -776,12 +921,12 @@ function send() {
     userInput.focus();
   })
   .catch(function(e) {
-    claudeCard.querySelector('.body').textContent = 'Error: ' + e.message;
-    claudeCard.querySelector('.body').style.color = 'var(--red)';
-    gptCard.querySelector('.body').textContent = 'Error: ' + e.message;
-    gptCard.querySelector('.body').style.color = 'var(--red)';
-    geminiCard.querySelector('.body').textContent = 'Error: ' + e.message;
-    geminiCard.querySelector('.body').style.color = 'var(--red)';
+    currentActive.forEach(function(key) {
+      if (cards[key]) {
+        cards[key].querySelector('.body').textContent = 'Error: ' + e.message;
+        cards[key].querySelector('.body').style.color = 'var(--red)';
+      }
+    });
     busy = false;
     sendBtn.disabled = false;
   });
@@ -796,6 +941,7 @@ userInput.addEventListener('keydown', function(e) {
 });
 
 userInput.focus();
+loadBrains();
 })();
 </script>
 </body>

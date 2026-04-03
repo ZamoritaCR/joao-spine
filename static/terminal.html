@@ -217,12 +217,12 @@
     }
   });
 
-  // Keepalive ping
+  // Keepalive ping (15s to stay well within server/proxy timeouts)
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ping' }));
     }
-  }, 30000);
+  }, 15000);
 
   // Boot
   connect();

@@ -1,16 +1,13 @@
-"""AI Arena -- Claude vs GPT side-by-side chat with full intelligence wiring.
+"""AI Arena -- 7 Brains side-by-side chat with full intelligence wiring.
 
-Both models get:
-  - ROG server filesystem access (read, write, list, search, run commands)
-  - Council agent dispatch and status
-  - JOAO memory read/write
-  - Claude: MCP servers (JOAO internal + external integrations) + direct tool_use
-  - GPT: OpenAI function calling bridge to the same tools
+Claude + GPT get full tool loops. All others get pure reasoning.
+Fallback routing: Groq -> OpenRouter, Cerebras -> Groq, GPT -> GitHub Models.
 
-POST /arena/chat   -- send message, get parallel Claude + GPT + Gemini responses (with tool loops)
-POST /arena/debate -- pick 2 of 3 brains to critique each other
+POST /arena/chat   -- send message, get parallel responses from all active brains
+POST /arena/debate -- pick 2 brains to critique each other
 POST /arena/prefer -- log preference to Supabase
 GET  /arena/log    -- get execution log for a session
+GET  /arena/brains -- get brain registry for frontend
 """
 
 from __future__ import annotations
@@ -29,7 +26,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from services.supabase_client import get_client
@@ -40,33 +37,29 @@ router = APIRouter(prefix="/arena", tags=["arena"])
 # In-memory conversation history per session
 _sessions: dict[str, dict[str, Any]] = {}
 MAX_SESSIONS = 50
-MAX_TOOL_ROUNDS = 999  # Effectively unlimited tool rounds
+MAX_TOOL_ROUNDS = 3  # Cap tool rounds to keep arena responses fast
 
 # In-memory execution log per session (recent entries, capped)
 _exec_log: dict[str, deque] = {}
 _MAX_LOG_ENTRIES = 200
 
-# Rate limit tracking
-_rate_tracker: dict[str, dict] = {
-    "claude": {"count": 0, "window_start": 0.0, "limit_hit": False},
-    "gpt": {"count": 0, "window_start": 0.0, "limit_hit": False},
-    "gemini": {"count": 0, "window_start": 0.0, "limit_hit": False},
-}
+# Rate limit tracking -- initialized for all brains
+_rate_tracker: dict[str, dict] = {}
 _RATE_WINDOW = 3600  # 1 hour window
 
 
-def _track_rate(model: str) -> str | None:
+def _track_rate(brain: str) -> str | None:
     """Track API call rate. Returns warning string if approaching limit."""
     now = time.time()
-    t = _rate_tracker[model]
+    if brain not in _rate_tracker:
+        _rate_tracker[brain] = {"count": 0, "window_start": 0.0, "limit_hit": False}
+    t = _rate_tracker[brain]
     if now - t["window_start"] > _RATE_WINDOW:
         t["count"] = 0
         t["window_start"] = now
         t["limit_hit"] = False
     t["count"] += 1
-    # Claude Pro/Teams: ~75 msgs/hr for Opus, ~150 for Sonnet
-    # GPT Enterprise: effectively unlimited via API
-    if model == "claude" and t["count"] >= 70:
+    if brain == "claude" and t["count"] >= 70:
         return f"Claude rate limit warning: {t['count']}/~75 messages this hour"
     return None
 
@@ -89,7 +82,7 @@ def _prune_sessions():
 
 ARENA_SYSTEM_PROMPT = """\
 You are an AI assistant in Johan Zamora's AI Arena -- a side-by-side comparison environment \
-where you compete against another AI model. You have FULL access to Johan's infrastructure \
+where you compete against other AI models. You have FULL access to Johan's infrastructure \
 and should USE YOUR TOOLS proactively to give accurate, grounded answers.
 
 == WHO JOHAN IS ==
@@ -151,15 +144,16 @@ Rules: No emojis. Be direct. Facts over fluff. Use tools aggressively.\
 """
 
 
+ALL_BRAIN_KEYS = ["claude", "gpt", "gemini", "deepseek", "llama", "mistral", "qwen"]
+
+
 def _get_session(session_id: str) -> dict[str, Any]:
     if session_id not in _sessions:
         _prune_sessions()
-        _sessions[session_id] = {
-            "claude": [],
-            "gpt": [],
-            "gemini": [],
-            "system_prompt": ARENA_SYSTEM_PROMPT,
-        }
+        session: dict[str, Any] = {"system_prompt": ARENA_SYSTEM_PROMPT}
+        for key in ALL_BRAIN_KEYS:
+            session[key] = []
+        _sessions[session_id] = session
     return _sessions[session_id]
 
 
@@ -190,46 +184,34 @@ class ChatRequest(BaseModel):
     session_id: str
     message: str
     system_prompt: str = ""
-    claude_model: str = "claude-sonnet-4-20250514"
-    gpt_model: str = "gpt-4o"
-    gemini_model: str = "gemini-2.5-flash"
+    active_brains: list[str] = ["claude", "gpt", "gemini"]
+    models: dict[str, str] = {}  # optional per-brain model override
 
 
 class DebateRequest(BaseModel):
     session_id: str
-    claude_response: str = ""
-    gpt_response: str = ""
-    gemini_response: str = ""
-    original_prompt: str
-    claude_model: str = "claude-sonnet-4-20250514"
-    gpt_model: str = "gpt-4o"
-    gemini_model: str = "gemini-2.5-flash"
     brain_a: str = "claude"
     brain_b: str = "gpt"
+    brains: list[str] = []  # N-brain debate (overrides brain_a/brain_b if set)
+    original_prompt: str
+    responses: dict[str, str] = {}  # brain_key -> response text
+    models: dict[str, str] = {}
 
 
 class PreferenceRequest(BaseModel):
     session_id: str
     user_input: str
-    claude_response: str = ""
-    gpt_response: str = ""
-    gemini_response: str = ""
+    responses: dict[str, str] = {}  # brain_key -> response text
     preferred_model: str
-    debate_claude: str = ""
-    debate_gpt: str = ""
-    debate_gemini: str = ""
+    debates: dict[str, str] = {}
 
 
 # == Git Auto-Backup (Part 7A) ============================================
 
 def _git_auto_backup(path: str, model: str) -> str | None:
-    """Create a git backup branch before a write/command modifies code.
-
-    Returns the branch name if created, None otherwise.
-    """
+    """Create a git backup branch before a write/command modifies code."""
     try:
         p = Path(path).expanduser().resolve()
-        # Walk up to find a .git directory
         git_root = None
         check = p if p.is_dir() else p.parent
         for _ in range(10):
@@ -244,7 +226,6 @@ def _git_auto_backup(path: str, model: str) -> str | None:
             return None
 
         branch_name = f"arena-fix-{int(time.time())}"
-        # Get current branch
         cur = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             capture_output=True, text=True, cwd=str(git_root), timeout=5,
@@ -253,7 +234,6 @@ def _git_auto_backup(path: str, model: str) -> str | None:
         if not current_branch or current_branch == "HEAD":
             return None
 
-        # Create backup branch from current state
         subprocess.run(
             ["git", "branch", branch_name],
             capture_output=True, text=True, cwd=str(git_root), timeout=5,
@@ -300,7 +280,6 @@ async def _execute_tool(
             content = tool_input.get("content", "")
             if not path:
                 return "ERROR: path is required"
-            # Git backup before write
             git_branch = _git_auto_backup(path, model)
             p = Path(path).expanduser()
             p.parent.mkdir(parents=True, exist_ok=True)
@@ -352,7 +331,6 @@ async def _execute_tool(
             for d in dangerous:
                 if d in command:
                     return f"ERROR: Blocked dangerous command pattern: {d}"
-            # Git backup if command looks like it modifies code
             write_patterns = ["sed -i", "tee ", "> ", ">> ", "mv ", "cp ", "git checkout", "git reset"]
             if any(wp in command for wp in write_patterns):
                 git_branch = _git_auto_backup("/home/zamoritacr", model)
@@ -462,7 +440,6 @@ async def _execute_tool(
         result_text = f"ERROR: {tool_name} failed: {e}"
         success = False
 
-    # Log to in-memory execution log
     _log_exec(session_id, {
         "model": model,
         "tool": tool_name,
@@ -472,7 +449,6 @@ async def _execute_tool(
         "git_branch": git_branch,
     })
 
-    # Log to Supabase (fire-and-forget)
     _sb_insert("arena_tool_calls", {
         "id": str(uuid.uuid4()),
         "session_id": session_id,
@@ -485,7 +461,6 @@ async def _execute_tool(
         "success": success,
     })
 
-    # Log write/command executions separately
     if tool_name in ("write_file", "run_command"):
         _sb_insert("arena_executions", {
             "id": str(uuid.uuid4()),
@@ -619,18 +594,11 @@ GPT_TOOLS = [
 ]
 
 # == MCP Server Definitions for Claude API ==================================
-# Only servers that work without OAuth. Enterprise servers (Atlassian, HubSpot,
-# Canva, Figma, Gmail, Stripe, etc.) need session-based OAuth from Claude.ai
-# and do NOT work via raw API calls.
 
 MCP_SERVERS = [
-    # Biomedical / Research (no auth required)
-    # Only include servers verified to be reachable and healthy.
-    # Removed: opentargets (dead/timeout), deepsense.ai clinical_trials/biorxiv/chembl (301 redirects)
     {"type": "url", "url": "https://pubmed.mcp.claude.com/mcp", "name": "pubmed"},
 ]
 
-# Build MCP toolset entries for the tools array (Claude beta MCP connector)
 MCP_TOOLSETS = [
     {"type": "mcp", "server_name": s["name"]}
     for s in MCP_SERVERS
@@ -645,16 +613,13 @@ async def _call_claude(
     model: str,
     session_id: str = "",
 ) -> dict[str, Any]:
-    """Call Anthropic Messages API with MCP servers + direct tools.
-
-    Returns {"text": str, "tool_calls": list[dict], "rate_warning": str|None}.
-    """
+    """Call Anthropic Messages API with MCP servers + direct tools."""
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         return {"text": "[ERROR] ANTHROPIC_API_KEY not set", "tool_calls": [], "rate_warning": None}
 
     rate_warning = _track_rate("claude")
-    if _rate_tracker["claude"].get("limit_hit"):
+    if _rate_tracker.get("claude", {}).get("limit_hit"):
         return {
             "text": "[RATE LIMITED] Claude has hit the hourly message limit. Wait a few minutes and try again.",
             "tool_calls": [],
@@ -663,7 +628,7 @@ async def _call_claude(
 
     anthropic_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
     tool_log: list[dict] = []
-    use_mcp = bool(MCP_SERVERS)  # Start with MCP enabled, fallback if it fails
+    use_mcp = bool(MCP_SERVERS)
 
     for _round in range(MAX_TOOL_ROUNDS):
         payload: dict[str, Any] = {
@@ -680,12 +645,11 @@ async def _call_claude(
             "content-type": "application/json",
         }
 
-        # MCP servers -- connected via beta MCP connector
         if use_mcp:
             payload["mcp_servers"] = MCP_SERVERS
             headers["anthropic-beta"] = "mcp-client-2025-04-04"
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
@@ -693,7 +657,7 @@ async def _call_claude(
             )
 
         if resp.status_code == 429:
-            _rate_tracker["claude"]["limit_hit"] = True
+            _rate_tracker.setdefault("claude", {})["limit_hit"] = True
             return {
                 "text": "[RATE LIMITED] Claude API rate limit reached. Try again in a few minutes.",
                 "tool_calls": tool_log,
@@ -701,11 +665,10 @@ async def _call_claude(
             }
 
         if resp.status_code != 200:
-            # If MCP is enabled and the error looks MCP-related, retry without MCP
             if use_mcp and ("MCP" in resp.text or "mcp" in resp.text or "503" in resp.text):
                 logger.warning("Claude MCP error (status %d), retrying without MCP: %s", resp.status_code, resp.text[:300])
                 use_mcp = False
-                continue  # Retry this round without MCP
+                continue
             logger.error("Claude API error %d: %s", resp.status_code, resp.text[:500])
             return {
                 "text": f"[ERROR] Claude API returned {resp.status_code}: {resp.text[:300]}",
@@ -716,7 +679,6 @@ async def _call_claude(
         data = resp.json()
         stop_reason = data.get("stop_reason", "end_turn")
 
-        # Log any MCP tool usage from the response (resolved server-side)
         for block in data.get("content", []):
             if block.get("type") == "mcp_tool_use":
                 mcp_name = block.get("name", "unknown")
@@ -731,7 +693,6 @@ async def _call_claude(
                     "success": True,
                 })
             elif block.get("type") == "mcp_tool_result":
-                # Log MCP result if present
                 if tool_log and tool_log[-1].get("source") == "mcp":
                     mcp_content = block.get("content", "")
                     if isinstance(mcp_content, list):
@@ -740,9 +701,7 @@ async def _call_claude(
                         mcp_content = mcp_content[:500]
                     tool_log[-1]["result"] = str(mcp_content)[:500]
 
-        # Check if Claude wants to use direct tools (our local ones)
         if stop_reason == "tool_use":
-            # Gather all tool_use blocks and execute them
             tool_results = []
             for block in data.get("content", []):
                 if block.get("type") == "tool_use":
@@ -763,12 +722,10 @@ async def _call_claude(
                         "content": result,
                     })
 
-            # Add assistant response + tool results to messages for next round
             anthropic_messages.append({"role": "assistant", "content": data["content"]})
             anthropic_messages.append({"role": "user", "content": tool_results})
             continue
 
-        # No more tool calls -- extract final text
         text_parts = []
         for block in data.get("content", []):
             if block.get("type") == "text":
@@ -779,7 +736,6 @@ async def _call_claude(
             "rate_warning": rate_warning,
         }
 
-    # Exhausted tool rounds
     return {
         "text": "[ERROR] Max tool rounds exceeded",
         "tool_calls": tool_log,
@@ -795,10 +751,7 @@ async def _call_gpt(
     model: str,
     session_id: str = "",
 ) -> dict[str, Any]:
-    """Call OpenAI Chat Completions API with function calling tools.
-
-    Returns {"text": str, "tool_calls": list[dict], "rate_warning": str|None}.
-    """
+    """Call OpenAI Chat Completions API with function calling tools."""
     api_key = os.environ.get("OPENAI_API_KEY", "")
     if not api_key:
         return {"text": "[ERROR] OPENAI_API_KEY not set", "tool_calls": [], "rate_warning": None}
@@ -819,7 +772,7 @@ async def _call_gpt(
             "tools": GPT_TOOLS,
         }
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -830,11 +783,9 @@ async def _call_gpt(
             )
 
         if resp.status_code == 429:
-            return {
-                "text": "[RATE LIMITED] GPT API rate limit reached. Try again shortly.",
-                "tool_calls": tool_log,
-                "rate_warning": "Rate limit hit (429)",
-            }
+            # Fallback to GitHub Models
+            logger.warning("GPT rate limited, trying GitHub Models fallback")
+            return await _call_github(messages, system_prompt, model, session_id)
 
         if resp.status_code != 200:
             logger.error("GPT API error %d: %s", resp.status_code, resp.text[:500])
@@ -850,7 +801,6 @@ async def _call_gpt(
         finish_reason = choice.get("finish_reason", "stop")
 
         if finish_reason == "tool_calls" and message.get("tool_calls"):
-            # GPT wants to call tools
             openai_messages.append(message)
 
             for tc in message["tool_calls"]:
@@ -868,7 +818,6 @@ async def _call_gpt(
                 tool_log[-1]["result"] = result[:500]
                 tool_log[-1]["success"] = not result.startswith("ERROR")
 
-                # Send tool result back
                 openai_messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
@@ -876,7 +825,6 @@ async def _call_gpt(
                 })
             continue
 
-        # No more tool calls -- return final text
         return {
             "text": message.get("content") or "[No response]",
             "tool_calls": tool_log,
@@ -898,17 +846,13 @@ async def _call_gemini(
     model: str,
     session_id: str = "",
 ) -> dict[str, Any]:
-    """Call Google Gemini generateContent API. No tool calling -- pure reasoning only.
-
-    Returns {"text": str, "tool_calls": [], "rate_warning": str|None}.
-    """
+    """Call Google Gemini generateContent API. No tool calling -- pure reasoning only."""
     api_key = os.environ.get("GOOGLE_API_KEY", "")
     if not api_key:
         return {"text": "[ERROR] GOOGLE_API_KEY not set", "tool_calls": [], "rate_warning": None}
 
     _track_rate("gemini")
 
-    # Convert messages to Gemini format
     contents = []
     for m in messages:
         role = "model" if m["role"] == "assistant" else "user"
@@ -917,7 +861,7 @@ async def _call_gemini(
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": contents,
-        "generationConfig": {"maxOutputTokens": 16384},
+        "generationConfig": {"maxOutputTokens": 8192},
     }
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -967,6 +911,301 @@ async def _call_gemini(
         return {"text": f"[ERROR] Gemini call failed: {e}", "tool_calls": [], "rate_warning": None}
 
 
+# == OpenAI-compatible caller (shared by Groq, Cerebras, Mistral, GitHub, OpenRouter) ==
+
+async def _call_openai_compatible(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str,
+    endpoint: str,
+    api_key: str,
+    brain_name: str,
+    extra_headers: dict[str, str] | None = None,
+    timeout: float = 75.0,
+) -> dict[str, Any]:
+    """Generic OpenAI-compatible chat/completions caller. No tool loop."""
+    if not api_key:
+        return {"text": f"[ERROR] API key not set for {brain_name}", "tool_calls": [], "rate_warning": None}
+
+    _track_rate(brain_name)
+
+    openai_messages = [{"role": "system", "content": system_prompt}]
+    for m in messages:
+        openai_messages.append({"role": m["role"], "content": m["content"]})
+
+    payload = {
+        "model": model,
+        "max_tokens": 8192,
+        "messages": openai_messages,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(endpoint, headers=headers, json=payload)
+
+        if resp.status_code in (429, 413, 402):
+            return {
+                "text": f"[RATE LIMITED] {brain_name} rate limit reached.",
+                "tool_calls": [],
+                "rate_warning": f"Rate limit hit ({resp.status_code})",
+                "rate_limited": True,
+            }
+
+        if resp.status_code != 200:
+            logger.error("%s API error %d: %s", brain_name, resp.status_code, resp.text[:500])
+            return {
+                "text": f"[ERROR] {brain_name} API returned {resp.status_code}: {resp.text[:300]}",
+                "tool_calls": [],
+                "rate_warning": None,
+            }
+
+        data = resp.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        text = message.get("content") or "[No response]"
+
+        # Strip <think>...</think> blocks from reasoning models (DeepSeek R1, Qwen QwQ)
+        import re
+        text = re.sub(r"<think>[\s\S]*?</think>\s*", "", text).strip()
+
+        return {
+            "text": text,
+            "tool_calls": [],
+            "rate_warning": None,
+        }
+
+    except httpx.TimeoutException:
+        return {"text": f"[ERROR] {brain_name} API request timed out", "tool_calls": [], "rate_warning": None}
+    except Exception as e:
+        logger.error("%s API call failed: %s", brain_name, e)
+        return {"text": f"[ERROR] {brain_name} call failed: {e}", "tool_calls": [], "rate_warning": None}
+
+
+# == Groq (DeepSeek R1, Llama, Qwen) ======================================
+
+async def _call_groq(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    result = await _call_openai_compatible(
+        messages, system_prompt, model, session_id,
+        endpoint="https://api.groq.com/openai/v1/chat/completions",
+        api_key=os.environ.get("GROQ_API_KEY", ""),
+        brain_name="groq",
+    )
+    # Fallback to OpenRouter on rate limit or error
+    if result.get("rate_limited") or "[ERROR]" in result.get("text", ""):
+        logger.warning("Groq failed for %s, trying OpenRouter fallback", model)
+        or_model_map = {
+            "llama-3.3-70b-versatile": "meta-llama/llama-3.3-70b-instruct:free",
+            "qwen/qwen3-32b": "qwen/qwen3-next-80b-a3b-instruct:free",
+        }
+        or_model = or_model_map.get(model)
+        if or_model:
+            fallback = await _call_openrouter(messages, system_prompt, or_model, session_id)
+            if "[ERROR]" not in fallback.get("text", "") and not fallback.get("rate_limited"):
+                fallback["fallback_used"] = True
+                fallback["fallback_provider"] = "openrouter"
+                return fallback
+    return result
+
+
+async def _call_open_model(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+    groq_model: str = "",
+) -> dict[str, Any]:
+    """Try OpenRouter first, fall back to Groq if it fails."""
+    result = await _call_openrouter(messages, system_prompt, model, session_id)
+    if result.get("rate_limited") or "[ERROR]" in result.get("text", ""):
+        if groq_model:
+            logger.warning("OpenRouter failed for %s, trying Groq fallback %s", model, groq_model)
+            fallback = await _call_openai_compatible(
+                messages, system_prompt, groq_model, session_id,
+                endpoint="https://api.groq.com/openai/v1/chat/completions",
+                api_key=os.environ.get("GROQ_API_KEY", ""),
+                brain_name="groq",
+            )
+            if "[ERROR]" not in fallback.get("text", "") and not fallback.get("rate_limited"):
+                fallback["fallback_used"] = True
+                fallback["fallback_provider"] = "groq"
+                return fallback
+    return result
+
+
+# == Cerebras (Llama fallback) =============================================
+
+async def _call_cerebras(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    result = await _call_openai_compatible(
+        messages, system_prompt, model, session_id,
+        endpoint="https://api.cerebras.ai/v1/chat/completions",
+        api_key=os.environ.get("CEREBRAS_API_KEY", ""),
+        brain_name="cerebras",
+    )
+    # Fallback to Groq on rate limit
+    if result.get("rate_limited"):
+        logger.warning("Cerebras rate limited for %s, trying Groq fallback", model)
+        groq_model_map = {
+            "llama3.1-8b": "llama-3.1-8b-instant",
+        }
+        groq_model = groq_model_map.get(model, "llama-3.3-70b-versatile")
+        fallback = await _call_groq(messages, system_prompt, groq_model, session_id)
+        fallback["fallback_used"] = True
+        fallback["fallback_provider"] = "groq"
+        return fallback
+    return result
+
+
+# == Mistral ===============================================================
+
+async def _call_mistral(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    result = await _call_openai_compatible(
+        messages, system_prompt, model, session_id,
+        endpoint="https://api.mistral.ai/v1/chat/completions",
+        api_key=os.environ.get("MISTRAL_API_KEY", ""),
+        brain_name="mistral",
+    )
+    if result.get("rate_limited"):
+        logger.warning("Mistral rate limited, trying OpenRouter fallback")
+        fallback = await _call_openrouter(messages, system_prompt, "mistralai/mistral-large-latest", session_id)
+        fallback["fallback_used"] = True
+        fallback["fallback_provider"] = "openrouter"
+        return fallback
+    return result
+
+
+# == GitHub Models (free GPT-4o fallback) ==================================
+
+async def _call_github(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    return await _call_openai_compatible(
+        messages, system_prompt, model if "/" not in model else "gpt-4o", session_id,
+        endpoint="https://models.inference.ai.azure.com/chat/completions",
+        api_key=os.environ.get("GITHUB_MODELS_KEY", ""),
+        brain_name="github-models",
+    )
+
+
+# == OpenRouter (universal fallback) =======================================
+
+async def _call_openrouter(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    return await _call_openai_compatible(
+        messages, system_prompt, model, session_id,
+        endpoint="https://openrouter.ai/api/v1/chat/completions",
+        api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+        brain_name="openrouter",
+        extra_headers={"HTTP-Referer": "https://joao.theartofthepossible.io"},
+    )
+
+
+# == Brain Registry ========================================================
+
+BRAINS = {
+    "claude": {
+        "name": "CLAUDE", "color": "#00e5ff", "tag": "THE BRAIN",
+        "caller": _call_claude, "has_tools": True,
+        "models": ["claude-sonnet-4-20250514", "claude-opus-4-20250514"],
+        "default_model": "claude-sonnet-4-20250514",
+        "trainable": False,
+    },
+    "gpt": {
+        "name": "GPT", "color": "#00ff88", "tag": "THE GENERALIST",
+        "caller": _call_gpt, "has_tools": True,
+        "models": ["gpt-4o", "gpt-4.1"],
+        "default_model": "gpt-4o",
+        "trainable": False,
+    },
+    "gemini": {
+        "name": "GEMINI", "color": "#4488ff", "tag": "GOOGLE ORACLE",
+        "caller": _call_gemini, "has_tools": False,
+        "models": ["gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview"],
+        "default_model": "gemini-2.5-flash",
+        "trainable": False,
+    },
+    "deepseek": {
+        "name": "DEEPSEEK", "color": "#b388ff", "tag": "REASONING BEAST",
+        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model=""),
+        "has_tools": False,
+        "models": ["deepseek/deepseek-r1-distill-qwen-32b", "deepseek/deepseek-chat-v3.1"],
+        "default_model": "deepseek/deepseek-r1-distill-qwen-32b",
+        "trainable": True,
+    },
+    "llama": {
+        "name": "LLAMA", "color": "#ff9800", "tag": "OPEN WARRIOR",
+        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model="llama-3.3-70b-versatile"),
+        "has_tools": False,
+        "models": ["meta-llama/llama-3.3-70b-instruct:free"],
+        "default_model": "meta-llama/llama-3.3-70b-instruct:free",
+        "trainable": True,
+    },
+    "mistral": {
+        "name": "MISTRAL", "color": "#ff4466", "tag": "EU FRONTIER",
+        "caller": _call_mistral, "has_tools": False,
+        "models": ["mistral-large-latest", "mistral-small-latest"],
+        "default_model": "mistral-large-latest",
+        "trainable": True,
+    },
+    "qwen": {
+        "name": "QWEN", "color": "#00bcd4", "tag": "MATH KING",
+        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model="qwen/qwen3-32b"),
+        "has_tools": False,
+        "models": ["qwen/qwen3-next-80b-a3b-instruct:free", "qwen/qwen3.6-plus:free"],
+        "default_model": "qwen/qwen3-next-80b-a3b-instruct:free",
+        "trainable": True,
+    },
+}
+
+
+# == GET /arena/brains -- brain registry for frontend ======================
+
+@router.get("/brains")
+async def arena_brains():
+    """Return the brain registry (without caller functions) for the frontend."""
+    result = {}
+    for key, brain in BRAINS.items():
+        result[key] = {
+            "name": brain["name"],
+            "color": brain["color"],
+            "tag": brain["tag"],
+            "has_tools": brain["has_tools"],
+            "models": brain["models"],
+            "default_model": brain["default_model"],
+            "trainable": brain["trainable"],
+        }
+    return result
+
+
 # == POST /arena/chat ======================================================
 
 @router.post("/chat")
@@ -977,62 +1216,165 @@ async def arena_chat(req: ChatRequest):
         session["system_prompt"] = req.system_prompt
     system_prompt = session["system_prompt"]
 
+    # Validate active brains
+    active = [b for b in req.active_brains if b in BRAINS]
+    if not active:
+        active = ["claude"]
+    # Claude is always on
+    if "claude" not in active:
+        active.insert(0, "claude")
+
     user_msg = {"role": "user", "content": req.message}
-    session["claude"].append(user_msg)
-    session["gpt"].append(user_msg)
-    session["gemini"].append(user_msg)
 
-    claude_task = _call_claude(session["claude"], system_prompt, req.claude_model, req.session_id)
-    gpt_task = _call_gpt(session["gpt"], system_prompt, req.gpt_model, req.session_id)
-    gemini_task = _call_gemini(session["gemini"], system_prompt, req.gemini_model, req.session_id)
+    # Append user message to all active brain histories
+    for brain_key in active:
+        if brain_key not in session:
+            session[brain_key] = []
+        session[brain_key].append(user_msg)
 
-    claude_result, gpt_result, gemini_result = await asyncio.gather(
-        claude_task, gpt_task, gemini_task, return_exceptions=True
-    )
+    # Build tasks for all active brains
+    tasks = {}
+    for brain_key in active:
+        brain = BRAINS[brain_key]
+        model = req.models.get(brain_key, brain["default_model"])
+        caller = brain["caller"]
+        tasks[brain_key] = caller(session[brain_key], system_prompt, model, req.session_id)
 
-    if isinstance(claude_result, Exception):
-        claude_result = {"text": f"[ERROR] {claude_result}", "tool_calls": [], "rate_warning": None}
-    if isinstance(gpt_result, Exception):
-        gpt_result = {"text": f"[ERROR] {gpt_result}", "tool_calls": [], "rate_warning": None}
-    if isinstance(gemini_result, Exception):
-        gemini_result = {"text": f"[ERROR] {gemini_result}", "tool_calls": [], "rate_warning": None}
+    # Execute all in parallel with per-brain timeout (80s to stay under Cloudflare's 100s)
+    async def _with_timeout(coro, brain_key, timeout=80):
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError:
+            return {"text": f"[TIMEOUT] {brain_key} took too long to respond", "tool_calls": [], "rate_warning": None}
 
-    session["claude"].append({"role": "assistant", "content": claude_result["text"]})
-    session["gpt"].append({"role": "assistant", "content": gpt_result["text"]})
-    session["gemini"].append({"role": "assistant", "content": gemini_result["text"]})
+    keys = list(tasks.keys())
+    results_list = await asyncio.gather(*[_with_timeout(tasks[k], k) for k in keys], return_exceptions=True)
+
+    results = {}
+    for i, key in enumerate(keys):
+        r = results_list[i]
+        if isinstance(r, Exception):
+            r = {"text": f"[ERROR] {r}", "tool_calls": [], "rate_warning": None}
+        results[key] = r
+        # Store assistant response in session history
+        session[key].append({"role": "assistant", "content": r["text"]})
 
     # Log conversation to Supabase
     conv_id = str(uuid.uuid4())
-    _sb_insert("arena_conversations", {
+    log_row = {
         "id": conv_id,
         "session_id": req.session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_input": req.message[:5000],
-        "claude_response": claude_result["text"][:10000],
-        "gpt_response": gpt_result["text"][:10000],
-        "gemini_response": gemini_result["text"][:10000],
         "system_prompt": system_prompt[:2000],
-        "claude_model": req.claude_model,
-        "gpt_model": req.gpt_model,
-        "gemini_model": req.gemini_model,
-    })
+        # Store all brain responses as JSON
+        "claude_response": results.get("claude", {}).get("text", "")[:10000],
+        "gpt_response": results.get("gpt", {}).get("text", "")[:10000],
+        "gemini_response": results.get("gemini", {}).get("text", "")[:10000],
+    }
+    _sb_insert("arena_conversations", log_row)
 
-    return {
-        "claude_response": claude_result["text"],
-        "gpt_response": gpt_result["text"],
-        "gemini_response": gemini_result["text"],
-        "claude_tools": claude_result["tool_calls"],
-        "gpt_tools": gpt_result["tool_calls"],
-        "gemini_tools": gemini_result["tool_calls"],
-        "claude_model": req.claude_model,
-        "gpt_model": req.gpt_model,
-        "gemini_model": req.gemini_model,
+    # Build response
+    response = {
         "session_id": req.session_id,
         "conversation_id": conv_id,
-        "claude_rate_warning": claude_result.get("rate_warning"),
-        "gpt_rate_warning": gpt_result.get("rate_warning"),
-        "gemini_rate_warning": gemini_result.get("rate_warning"),
+        "active_brains": active,
+        "responses": {},
     }
+    for key in active:
+        r = results[key]
+        brain = BRAINS[key]
+        model_used = req.models.get(key, brain["default_model"])
+        response["responses"][key] = {
+            "text": r["text"],
+            "tool_calls": r.get("tool_calls", []),
+            "model": model_used,
+            "rate_warning": r.get("rate_warning"),
+            "fallback_used": r.get("fallback_used", False),
+            "fallback_provider": r.get("fallback_provider"),
+        }
+
+    return response
+
+
+# == POST /arena/chat/stream -- SSE streaming, each brain emits as it finishes
+@router.post("/chat/stream")
+async def arena_chat_stream(req: ChatRequest):
+    session = _get_session(req.session_id)
+
+    if req.system_prompt:
+        session["system_prompt"] = req.system_prompt
+    system_prompt = session["system_prompt"]
+
+    active = [b for b in req.active_brains if b in BRAINS]
+    if not active:
+        active = ["claude"]
+    if "claude" not in active:
+        active.insert(0, "claude")
+
+    user_msg = {"role": "user", "content": req.message}
+    for brain_key in active:
+        if brain_key not in session:
+            session[brain_key] = []
+        session[brain_key].append(user_msg)
+
+    conv_id = str(uuid.uuid4())
+
+    async def _stream():
+        results_store: dict[str, Any] = {}
+        done_event = asyncio.Event()
+        pending = set(active)
+
+        async def _run_brain(key):
+            brain = BRAINS[key]
+            model = req.models.get(key, brain["default_model"])
+            try:
+                result = await asyncio.wait_for(
+                    brain["caller"](session[key], system_prompt, model, req.session_id),
+                    timeout=80,
+                )
+            except asyncio.TimeoutError:
+                result = {"text": f"[TIMEOUT] {key} took too long", "tool_calls": [], "rate_warning": None}
+            except Exception as e:
+                result = {"text": f"[ERROR] {e}", "tool_calls": [], "rate_warning": None}
+
+            session[key].append({"role": "assistant", "content": result["text"]})
+            results_store[key] = result
+            return key, result
+
+        tasks = [asyncio.create_task(_run_brain(k)) for k in active]
+
+        for coro in asyncio.as_completed(tasks):
+            key, result = await coro
+            brain = BRAINS[key]
+            model_used = req.models.get(key, brain["default_model"])
+            payload = {
+                "brain": key,
+                "text": result["text"],
+                "tool_calls": result.get("tool_calls", []),
+                "model": model_used,
+                "rate_warning": result.get("rate_warning"),
+                "fallback_used": result.get("fallback_used", False),
+                "fallback_provider": result.get("fallback_provider"),
+            }
+            yield f"data: {json.dumps(payload)}\n\n"
+
+        # Log to supabase
+        log_row = {
+            "id": conv_id,
+            "session_id": req.session_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "user_input": req.message[:5000],
+            "system_prompt": system_prompt[:2000],
+            "claude_response": results_store.get("claude", {}).get("text", "")[:10000],
+            "gpt_response": results_store.get("gpt", {}).get("text", "")[:10000],
+            "gemini_response": results_store.get("gemini", {}).get("text", "")[:10000],
+        }
+        _sb_insert("arena_conversations", log_row)
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 # == POST /arena/debate ====================================================
@@ -1042,71 +1384,70 @@ async def arena_debate(req: DebateRequest):
     session = _get_session(req.session_id)
     system_prompt = session["system_prompt"]
 
-    # Map brain names to their responses and models
-    brain_responses = {
-        "claude": req.claude_response,
-        "gpt": req.gpt_response,
-        "gemini": req.gemini_response,
-    }
-    brain_labels = {"claude": "Claude", "gpt": "GPT", "gemini": "Gemini"}
-    brain_models = {
-        "claude": req.claude_model,
-        "gpt": req.gpt_model,
-        "gemini": req.gemini_model,
-    }
-    brain_callers = {
-        "claude": _call_claude,
-        "gpt": _call_gpt,
-        "gemini": _call_gemini,
-    }
+    # Support N-brain debate via `brains` list, fallback to legacy brain_a/brain_b
+    debate_brains = req.brains if len(req.brains) >= 2 else [req.brain_a, req.brain_b]
+    for key in debate_brains:
+        if key not in BRAINS:
+            raise HTTPException(400, f"Invalid brain: {key}")
 
-    a, b = req.brain_a, req.brain_b
+    # Build critique prompt for each brain: critique all other participants
+    tasks = []
+    for key in debate_brains:
+        brain = BRAINS[key]
+        own_response = req.responses.get(key, "")
+        others_text = ""
+        for other_key in debate_brains:
+            if other_key == key:
+                continue
+            other_name = BRAINS[other_key]["name"]
+            other_response = req.responses.get(other_key, "")
+            others_text += f"\n\n--- {other_name} responded ---\n{other_response}"
 
-    debate_prompt_a = (
-        f"The user asked: \"{req.original_prompt}\"\n\n"
-        f"Your response was:\n{brain_responses[a]}\n\n"
-        f"Another AI ({brain_labels[b]}) responded with:\n{brain_responses[b]}\n\n"
-        "Critique the other AI's response. What did it get right? What did it get wrong? "
-        "Where does your answer differ and why is your approach better or worse? Be honest and direct."
-    )
+        debate_prompt = (
+            f"The user asked: \"{req.original_prompt}\"\n\n"
+            f"Your response was:\n{own_response}\n\n"
+            f"Other AIs responded:{others_text}\n\n"
+            "Critique each of the other AIs' responses. What did they get right? What did they get wrong? "
+            "Where does your answer differ and why is your approach better or worse? Be honest and direct."
+        )
 
-    debate_prompt_b = (
-        f"The user asked: \"{req.original_prompt}\"\n\n"
-        f"Your response was:\n{brain_responses[b]}\n\n"
-        f"Another AI ({brain_labels[a]}) responded with:\n{brain_responses[a]}\n\n"
-        "Critique the other AI's response. What did it get right? What did it get wrong? "
-        "Where does your answer differ and why is your approach better or worse? Be honest and direct."
-    )
+        model = req.models.get(key, brain["default_model"])
+        tasks.append((key, brain["caller"]([{"role": "user", "content": debate_prompt}], system_prompt, model, req.session_id)))
 
-    task_a = brain_callers[a]([{"role": "user", "content": debate_prompt_a}], system_prompt, brain_models[a], req.session_id)
-    task_b = brain_callers[b]([{"role": "user", "content": debate_prompt_b}], system_prompt, brain_models[b], req.session_id)
+    results_raw = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
 
-    result_a, result_b = await asyncio.gather(task_a, task_b, return_exceptions=True)
+    critiques = {}
+    for i, (key, _) in enumerate(tasks):
+        result = results_raw[i]
+        if isinstance(result, Exception):
+            result = {"text": f"[ERROR] {result}", "tool_calls": [], "rate_warning": None}
+        critiques[key] = result
 
-    if isinstance(result_a, Exception):
-        result_a = {"text": f"[ERROR] {result_a}", "tool_calls": [], "rate_warning": None}
-    if isinstance(result_b, Exception):
-        result_b = {"text": f"[ERROR] {result_b}", "tool_calls": [], "rate_warning": None}
-
-    # Log debate to Supabase
     _sb_insert("arena_debates", {
         "id": str(uuid.uuid4()),
         "session_id": req.session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "brain_a": a,
-        "brain_b": b,
-        "critique_a": result_a["text"][:10000],
-        "critique_b": result_b["text"][:10000],
+        "brain_a": debate_brains[0],
+        "brain_b": debate_brains[1] if len(debate_brains) > 1 else "",
+        "critique_a": critiques[debate_brains[0]]["text"][:10000],
+        "critique_b": critiques[debate_brains[1]]["text"][:10000] if len(debate_brains) > 1 else "",
     })
 
-    return {
-        "brain_a": a,
-        "brain_b": b,
-        "debate_a": result_a["text"],
-        "debate_b": result_b["text"],
-        "tools_a": result_a["tool_calls"],
-        "tools_b": result_b["tool_calls"],
+    # Return both legacy format (for 2-brain compat) and new multi-brain format
+    response: dict[str, Any] = {
+        "brains": debate_brains,
+        "critiques": {k: {"text": v["text"], "tools": v.get("tool_calls", [])} for k, v in critiques.items()},
     }
+    # Legacy compat
+    if len(debate_brains) >= 2:
+        response["brain_a"] = debate_brains[0]
+        response["brain_b"] = debate_brains[1]
+        response["debate_a"] = critiques[debate_brains[0]]["text"]
+        response["debate_b"] = critiques[debate_brains[1]]["text"]
+        response["tools_a"] = critiques[debate_brains[0]].get("tool_calls", [])
+        response["tools_b"] = critiques[debate_brains[1]].get("tool_calls", [])
+
+    return response
 
 
 # == POST /arena/prefer ====================================================
@@ -1122,13 +1463,14 @@ async def arena_prefer(req: PreferenceRequest):
         "id": str(uuid.uuid4()),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_input": req.user_input[:2000],
-        "claude_response": req.claude_response[:5000],
-        "gpt_response": req.gpt_response[:5000],
-        "gemini_response": req.gemini_response[:5000],
         "preferred_model": req.preferred_model,
-        "debate_claude": req.debate_claude[:5000] if req.debate_claude else None,
-        "debate_gpt": req.debate_gpt[:5000] if req.debate_gpt else None,
-        "debate_gemini": req.debate_gemini[:5000] if req.debate_gemini else None,
+        # Store top 3 for backward compat with existing table
+        "claude_response": req.responses.get("claude", "")[:5000],
+        "gpt_response": req.responses.get("gpt", "")[:5000],
+        "gemini_response": req.responses.get("gemini", "")[:5000],
+        "debate_claude": req.debates.get("claude", "")[:5000] or None,
+        "debate_gpt": req.debates.get("gpt", "")[:5000] or None,
+        "debate_gemini": req.debates.get("gemini", "")[:5000] or None,
     }
 
     try:

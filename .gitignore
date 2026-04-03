@@ -9,3 +9,15 @@ scout_intel.db
 links/
 outputs/
 audio/
+MASTER_KEYS.env
+.env
+*.key
+secrets/
+node_modules/
+venv/
+*.egg-info/
+dist/
+build/
+.DS_Store
+nohup.out
+*.db
