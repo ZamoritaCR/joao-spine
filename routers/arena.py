@@ -192,7 +192,7 @@ class ChatRequest(BaseModel):
     system_prompt: str = ""
     claude_model: str = "claude-sonnet-4-20250514"
     gpt_model: str = "gpt-4o"
-    gemini_model: str = "gemini-3.1-pro-preview"
+    gemini_model: str = "gemini-2.5-flash"
 
 
 class DebateRequest(BaseModel):
@@ -203,7 +203,7 @@ class DebateRequest(BaseModel):
     original_prompt: str
     claude_model: str = "claude-sonnet-4-20250514"
     gpt_model: str = "gpt-4o"
-    gemini_model: str = "gemini-3.1-pro-preview"
+    gemini_model: str = "gemini-2.5-flash"
     brain_a: str = "claude"
     brain_b: str = "gpt"
 
