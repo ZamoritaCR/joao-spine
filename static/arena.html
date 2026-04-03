@@ -11,7 +11,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#06080f;--surface:#0c0f1a;--surface2:#111628;--border:#141c2e;
-  --cyan:#00e5ff;--green:#00ff88;--red:#ff4466;--gold:#fbbf24;--purple:#a78bfa;
+  --cyan:#00e5ff;--green:#00ff88;--blue:#4488ff;--red:#ff4466;--gold:#fbbf24;--purple:#a78bfa;
   --text:#e0e6f0;--dim:#4a5280;--orange:#ff8c00;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden}
@@ -69,34 +69,48 @@ body::before{
 .exec-entry .exec-model{text-transform:uppercase;letter-spacing:1px;font-weight:500;margin-bottom:2px}
 .exec-entry .exec-model.claude{color:var(--cyan)}
 .exec-entry .exec-model.gpt{color:var(--green)}
+.exec-entry .exec-model.gemini{color:var(--blue)}
 .exec-entry .exec-tool{color:var(--orange);font-weight:500}
 .exec-entry .exec-detail{color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .exec-entry .exec-git{color:var(--gold);font-size:9px;margin-top:2px}
 
 .msg-pair{display:flex;flex-direction:column;gap:12px}
 .msg-pair .user-msg{align-self:flex-end;max-width:70%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;border-bottom-right-radius:4px;padding:12px 16px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
+.msg-pair .file-badge{display:inline-block;font-size:10px;color:var(--orange);background:rgba(255,140,0,.1);border:1px solid rgba(255,140,0,.2);border-radius:4px;padding:1px 6px;margin-top:4px}
 
-.response-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.response-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 
 .response-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s}
 .response-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
 .response-card.claude::before{background:var(--cyan)}
 .response-card.gpt::before{background:var(--green)}
+.response-card.gemini::before{background:var(--blue)}
 .response-card.claude{background:radial-gradient(ellipse at 0% 50%,rgba(0,229,255,.04) 0%,var(--surface) 70%)}
 .response-card.gpt{background:radial-gradient(ellipse at 0% 50%,rgba(0,255,136,.04) 0%,var(--surface) 70%)}
+.response-card.gemini{background:radial-gradient(ellipse at 0% 50%,rgba(68,136,255,.04) 0%,var(--surface) 70%)}
 
 .response-card .model-label{font-family:'Syne';font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .response-card.claude .model-label{color:var(--cyan)}
 .response-card.gpt .model-label{color:var(--green)}
+.response-card.gemini .model-label{color:var(--blue)}
 .response-card .model-name{font-size:9px;color:var(--dim);font-weight:400;letter-spacing:0}
 
-.response-card .body{font-size:13px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:var(--text)}
+.response-card .body{font-size:13px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:var(--text);max-height:500px;overflow-y:auto}
+.response-card .body::-webkit-scrollbar{width:3px}
+.response-card .body::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+
+/* Debate selection */
+.response-card.selectable{cursor:pointer}
+.response-card.selectable:hover{border-color:var(--red);box-shadow:0 0 15px rgba(255,68,102,.1)}
+.response-card.debate-selected{border-color:var(--red);box-shadow:0 0 20px rgba(255,68,102,.2)}
+.response-card.debate-selected::after{content:'SELECTED';position:absolute;top:8px;right:8px;font-size:8px;color:var(--red);background:rgba(255,68,102,.1);border:1px solid rgba(255,68,102,.3);border-radius:3px;padding:1px 6px;letter-spacing:1px;font-weight:600}
 
 /* Tool pills */
 .tool-pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
 .tool-pill{font-size:9px;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:500}
 .tool-pill.claude{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.2)}
 .tool-pill.gpt{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
+.tool-pill.gemini{background:rgba(68,136,255,.1);color:var(--blue);border:1px solid rgba(68,136,255,.2)}
 .tool-pill.fail{opacity:.5;text-decoration:line-through}
 .tool-pill.git{background:rgba(251,191,36,.1);color:var(--gold);border:1px solid rgba(251,191,36,.2)}
 
@@ -119,9 +133,10 @@ body::before{
 .thinking-dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pulse 1.2s ease-in-out infinite}
 .response-card.claude .thinking-dot{background:var(--cyan)}
 .response-card.gpt .thinking-dot{background:var(--green)}
+.response-card.gemini .thinking-dot{background:var(--blue)}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
 
-.action-row{display:flex;justify-content:center;gap:16px;padding:8px 0}
+.action-row{display:flex;justify-content:center;gap:16px;padding:8px 0;align-items:center;flex-wrap:wrap}
 
 .debate-btn{
   background:transparent;border:1px solid var(--red);color:var(--red);
@@ -142,12 +157,13 @@ body::before{
 
 .response-card.preferred.claude{border-color:var(--cyan);box-shadow:0 0 30px rgba(0,229,255,.15)}
 .response-card.preferred.gpt{border-color:var(--green);box-shadow:0 0 30px rgba(0,255,136,.15)}
+.response-card.preferred.gemini{border-color:var(--blue);box-shadow:0 0 30px rgba(68,136,255,.15)}
 
 .debate-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .debate-card{background:var(--surface);border:1px solid var(--red);border-radius:10px;padding:16px;position:relative}
 .debate-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--red)}
 .debate-card .debate-label{font-family:'Syne';font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--red);margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.debate-card .body{font-size:12px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;color:var(--text)}
+.debate-card .body{font-size:12px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;color:var(--text);max-height:400px;overflow-y:auto}
 
 #input-bar{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:flex-end}
 #input-bar textarea{
@@ -156,6 +172,14 @@ body::before{
   min-height:44px;max-height:120px;line-height:1.5;
 }
 #input-bar textarea:focus{border-color:var(--cyan)}
+#file-btn{
+  background:var(--surface2);color:var(--dim);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;font-size:14px;transition:all .15s;flex-shrink:0;
+}
+#file-btn:hover{border-color:var(--orange);color:var(--orange)}
+#file-btn.has-file{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,.1)}
+#file-input{display:none}
+#file-name{font-size:10px;color:var(--orange);align-self:center;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #send-btn{
   background:var(--cyan);color:#000;border:none;border-radius:10px;
   padding:12px 24px;font-weight:600;font-size:13px;letter-spacing:1px;
@@ -167,11 +191,12 @@ body::before{
 #empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:16px;color:var(--dim);text-align:center;padding:40px}
 #empty-state h2{font-size:28px;color:var(--text);letter-spacing:2px}
 #empty-state p{font-size:12px;max-width:400px;line-height:1.6}
-#empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 #empty-state .intel{font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-top:8px}
 
 @media(max-width:768px){
-  .response-row,.debate-row{grid-template-columns:1fr}
+  .response-row{grid-template-columns:1fr}
+  .debate-row{grid-template-columns:1fr}
   #config{flex-direction:column;gap:8px}
   .msg-pair .user-msg{max-width:90%}
   #topbar{padding:8px 12px}
@@ -211,6 +236,14 @@ body::before{
         <option value="gpt-4.1">GPT-4.1</option>
       </select>
     </div>
+    <div class="model-group">
+      <label>Gemini Model</label>
+      <select id="gemini-model">
+        <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
+        <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+      </select>
+    </div>
     <div class="system-group">
       <label>System Prompt</label>
       <input type="text" id="system-prompt" value="" placeholder="Custom system prompt (leave blank for full-intelligence default)">
@@ -222,7 +255,7 @@ body::before{
       <div id="empty-state">
         <div class="vs">VS</div>
         <h2>AI Arena</h2>
-        <p>Send a message and watch Claude and GPT respond side by side. Both models have full access to the ROG server, Council agents, JOAO memory, and external integrations via MCP.</p>
+        <p>Send a message and watch Claude, GPT, and Gemini respond side by side. Claude and GPT have full ROG server access. Gemini runs pure reasoning. Attach files for all 3 to analyze.</p>
         <div class="intel">FULL INTELLIGENCE MODE</div>
       </div>
     </div>
@@ -239,7 +272,10 @@ body::before{
   </div>
 
   <div id="input-bar">
-    <textarea id="user-input" rows="1" placeholder="Send a message to both models..."></textarea>
+    <button id="file-btn" title="Attach a file">+</button>
+    <input type="file" id="file-input">
+    <span id="file-name"></span>
+    <textarea id="user-input" rows="1" placeholder="Send a message to all 3 models..."></textarea>
     <button id="send-btn">SEND</button>
   </div>
 </div>
@@ -255,13 +291,19 @@ var userInput = document.getElementById('user-input');
 var sendBtn = document.getElementById('send-btn');
 var claudeModelSel = document.getElementById('claude-model');
 var gptModelSel = document.getElementById('gpt-model');
+var geminiModelSel = document.getElementById('gemini-model');
 var systemPromptInput = document.getElementById('system-prompt');
 var execPanel = document.getElementById('exec-panel');
 var execEntries = document.getElementById('exec-entries');
 var execToggle = document.getElementById('exec-log-toggle');
 var execClose = document.getElementById('exec-close');
+var fileBtn = document.getElementById('file-btn');
+var fileInput = document.getElementById('file-input');
+var fileNameSpan = document.getElementById('file-name');
 var busy = false;
 var latestPair = null;
+var attachedFileContent = null;
+var attachedFileName = null;
 
 function esc(s) {
   var d = document.createElement('div');
@@ -273,6 +315,49 @@ function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
+
+// File attachment
+fileBtn.addEventListener('click', function() {
+  if (attachedFileContent) {
+    // Clear the file
+    attachedFileContent = null;
+    attachedFileName = null;
+    fileNameSpan.textContent = '';
+    fileBtn.classList.remove('has-file');
+    fileInput.value = '';
+  } else {
+    fileInput.click();
+  }
+});
+
+fileInput.addEventListener('change', function() {
+  var file = fileInput.files[0];
+  if (!file) return;
+  attachedFileName = file.name;
+  fileNameSpan.textContent = file.name;
+  fileBtn.classList.add('has-file');
+
+  // Read file as text (works for code, csv, json, md, txt, xml, yaml, html, etc.)
+  // For binary files (images, pdf), read as base64
+  var textExtensions = /\.(txt|md|csv|json|jsonl|xml|yaml|yml|toml|ini|cfg|conf|log|sql|py|js|ts|jsx|tsx|java|go|rs|rb|php|c|cpp|h|hpp|cs|swift|kt|sh|bash|zsh|fish|ps1|bat|cmd|html|htm|css|scss|sass|less|vue|svelte|r|R|m|tex|bib|makefile|dockerfile|gitignore|env|editorconfig|properties|gradle|sbt|cabal|hs|ex|exs|erl|clj|scala|lua|pl|pm|tcl|awk|sed|diff|patch|rst|adoc|org|nix|dhall|tf|hcl|twb|twbx|dax|pbix)$/i;
+  var isText = textExtensions.test(file.name) || file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml';
+
+  if (isText) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      attachedFileContent = e.target.result;
+    };
+    reader.readAsText(file);
+  } else {
+    // Binary files: read as base64
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var base64 = e.target.result.split(',')[1] || '';
+      attachedFileContent = '[FILE: ' + file.name + ' (' + file.type + ', ' + (file.size / 1024).toFixed(1) + ' KB)]\n[BASE64 ENCODED]\n' + base64;
+    };
+    reader.readAsDataURL(file);
+  }
+});
 
 // Execution log panel toggle
 execToggle.addEventListener('click', function() {
@@ -297,7 +382,6 @@ function addExecEntry(entry) {
   }
   div.innerHTML = html;
   execEntries.insertBefore(div, execEntries.firstChild);
-  // Cap entries in DOM
   while (execEntries.children.length > 200) {
     execEntries.removeChild(execEntries.lastChild);
   }
@@ -323,7 +407,6 @@ function renderToolPills(tools, parentEl, modelClass) {
   if (!tools || tools.length === 0) return;
   var pills = document.createElement('div');
   pills.className = 'tool-pills';
-  // Deduplicate tool names
   var seen = {};
   var gitBranches = [];
   tools.forEach(function(t) {
@@ -344,7 +427,6 @@ function renderToolPills(tools, parentEl, modelClass) {
     pill.textContent = name + (seen[name].count > 1 ? ' x' + seen[name].count : '');
     pills.appendChild(pill);
   });
-  // Git backup pills
   gitBranches.forEach(function(branch) {
     var pill = document.createElement('span');
     pill.className = 'tool-pill git';
@@ -396,6 +478,8 @@ function renderRateWarning(warning, parentEl) {
   parentEl.appendChild(div);
 }
 
+var thumbSvg = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/></svg>';
+
 userInput.addEventListener('input', function() { autoResize(userInput); });
 
 function send() {
@@ -405,6 +489,19 @@ function send() {
   sendBtn.disabled = true;
   userInput.value = '';
   autoResize(userInput);
+
+  // Build message with file content if attached
+  var messageText = text;
+  var sentFileName = attachedFileName;
+  if (attachedFileContent) {
+    messageText = text + '\n\n---\n[Attached file: ' + attachedFileName + ']\n' + attachedFileContent;
+    // Clear attachment after sending
+    attachedFileContent = null;
+    attachedFileName = null;
+    fileNameSpan.textContent = '';
+    fileBtn.classList.remove('has-file');
+    fileInput.value = '';
+  }
 
   if (emptyState) emptyState.style.display = 'none';
 
@@ -416,6 +513,12 @@ function send() {
   var userDiv = document.createElement('div');
   userDiv.className = 'user-msg';
   userDiv.textContent = text;
+  if (sentFileName) {
+    var badge = document.createElement('div');
+    badge.className = 'file-badge';
+    badge.textContent = '+ ' + sentFileName;
+    userDiv.appendChild(badge);
+  }
   pair.appendChild(userDiv);
 
   var respRow = document.createElement('div');
@@ -431,6 +534,11 @@ function send() {
   gptCard.innerHTML = '<div class="model-label">GPT <span class="model-name">' + esc(gptModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
   respRow.appendChild(gptCard);
 
+  var geminiCard = document.createElement('div');
+  geminiCard.className = 'response-card gemini';
+  geminiCard.innerHTML = '<div class="model-label">Gemini <span class="model-name">' + esc(geminiModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
+  respRow.appendChild(geminiCard);
+
   pair.appendChild(respRow);
   chatArea.appendChild(pair);
   chatArea.scrollTop = chatArea.scrollHeight;
@@ -440,10 +548,11 @@ function send() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       session_id: sessionId,
-      message: text,
+      message: messageText,
       system_prompt: systemPromptInput.value,
       claude_model: claudeModelSel.value,
       gpt_model: gptModelSel.value,
+      gemini_model: geminiModelSel.value,
     })
   })
   .then(function(r) {
@@ -453,61 +562,61 @@ function send() {
   .then(function(data) {
     claudeCard.querySelector('.body').textContent = data.claude_response;
     gptCard.querySelector('.body').textContent = data.gpt_response;
+    geminiCard.querySelector('.body').textContent = data.gemini_response;
 
-    // Tool pills below each response
     renderToolPills(data.claude_tools, claudeCard, 'claude');
     renderToolPills(data.gpt_tools, gptCard, 'gpt');
+    renderToolPills(data.gemini_tools, geminiCard, 'gemini');
 
-    // Expandable tool call details
     renderToolCalls(data.claude_tools, claudeCard);
     renderToolCalls(data.gpt_tools, gptCard);
+    renderToolCalls(data.gemini_tools, geminiCard);
 
-    // Rate limit warnings
     renderRateWarning(data.claude_rate_warning, claudeCard);
     renderRateWarning(data.gpt_rate_warning, gptCard);
+    renderRateWarning(data.gemini_rate_warning, geminiCard);
 
-    // Add to execution log panel
     addToolCallsToExecLog(data.claude_tools, 'claude');
     addToolCallsToExecLog(data.gpt_tools, 'gpt');
+    addToolCallsToExecLog(data.gemini_tools, 'gemini');
 
     latestPair = {
       pairId: pairId,
       userInput: text,
       claudeResponse: data.claude_response,
       gptResponse: data.gpt_response,
-      claudeCard: claudeCard,
-      gptCard: gptCard,
-      debateClaude: '',
-      debateGpt: '',
+      geminiResponse: data.gemini_response,
+      cards: { claude: claudeCard, gpt: gptCard, gemini: geminiCard },
+      debates: {},
     };
 
+    // Action row with preference buttons + debate
     var actionRow = document.createElement('div');
     actionRow.className = 'action-row';
 
-    var prefClaude = document.createElement('button');
-    prefClaude.className = 'pref-btn';
-    prefClaude.setAttribute('data-model', 'claude');
-    prefClaude.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/></svg> Claude';
-    actionRow.appendChild(prefClaude);
+    var prefBtns = {};
+    ['claude', 'gpt', 'gemini'].forEach(function(model) {
+      var btn = document.createElement('button');
+      btn.className = 'pref-btn';
+      btn.setAttribute('data-model', model);
+      btn.innerHTML = thumbSvg + ' ' + model.charAt(0).toUpperCase() + model.slice(1);
+      actionRow.appendChild(btn);
+      prefBtns[model] = btn;
+    });
 
     var debateBtn = document.createElement('button');
     debateBtn.className = 'debate-btn';
-    debateBtn.textContent = 'DEBATE';
+    debateBtn.textContent = 'DEBATE -- Pick 2 brains';
     actionRow.appendChild(debateBtn);
-
-    var prefGpt = document.createElement('button');
-    prefGpt.className = 'pref-btn';
-    prefGpt.setAttribute('data-model', 'gpt');
-    prefGpt.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/></svg> GPT';
-    actionRow.appendChild(prefGpt);
 
     pair.appendChild(actionRow);
 
+    // Preference handling
     function handlePref(model) {
-      prefClaude.classList.toggle('selected', model === 'claude');
-      prefGpt.classList.toggle('selected', model === 'gpt');
-      claudeCard.classList.toggle('preferred', model === 'claude');
-      gptCard.classList.toggle('preferred', model === 'gpt');
+      ['claude', 'gpt', 'gemini'].forEach(function(m) {
+        prefBtns[m].classList.toggle('selected', m === model);
+        latestPair.cards[m].classList.toggle('preferred', m === model);
+      });
       fetch('/arena/prefer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -516,47 +625,118 @@ function send() {
           user_input: latestPair.userInput,
           claude_response: latestPair.claudeResponse,
           gpt_response: latestPair.gptResponse,
+          gemini_response: latestPair.geminiResponse,
           preferred_model: model,
-          debate_claude: latestPair.debateClaude,
-          debate_gpt: latestPair.debateGpt,
+          debate_claude: latestPair.debates.claude || '',
+          debate_gpt: latestPair.debates.gpt || '',
+          debate_gemini: latestPair.debates.gemini || '',
         })
       }).catch(function() {});
     }
 
-    prefClaude.addEventListener('click', function() { handlePref('claude'); });
-    prefGpt.addEventListener('click', function() { handlePref('gpt'); });
+    ['claude', 'gpt', 'gemini'].forEach(function(model) {
+      prefBtns[model].addEventListener('click', function() { handlePref(model); });
+    });
+
+    // Debate: pick 2 cards
+    var debateSelection = [];
+    var isSelectingDebate = false;
 
     debateBtn.addEventListener('click', function() {
       if (debateBtn.disabled) return;
+
+      if (!isSelectingDebate) {
+        // Enter selection mode
+        isSelectingDebate = true;
+        debateSelection = [];
+        debateBtn.textContent = 'SELECT 2 CARDS...';
+        debateBtn.disabled = true; // re-enabled when 2 are picked
+        ['claude', 'gpt', 'gemini'].forEach(function(m) {
+          latestPair.cards[m].classList.add('selectable');
+          latestPair.cards[m].classList.remove('debate-selected');
+        });
+        return;
+      }
+    });
+
+    // Card click for debate selection
+    ['claude', 'gpt', 'gemini'].forEach(function(model) {
+      latestPair.cards[model].addEventListener('click', function() {
+        if (!isSelectingDebate) return;
+
+        var idx = debateSelection.indexOf(model);
+        if (idx !== -1) {
+          // Deselect
+          debateSelection.splice(idx, 1);
+          latestPair.cards[model].classList.remove('debate-selected');
+          debateBtn.disabled = true;
+          debateBtn.textContent = 'SELECT 2 CARDS...';
+          return;
+        }
+        if (debateSelection.length >= 2) return; // already 2 picked
+
+        debateSelection.push(model);
+        latestPair.cards[model].classList.add('debate-selected');
+
+        if (debateSelection.length === 2) {
+          debateBtn.disabled = false;
+          debateBtn.textContent = 'START DEBATE: ' + debateSelection[0].toUpperCase() + ' vs ' + debateSelection[1].toUpperCase();
+
+          // Next click on debateBtn fires the debate
+          debateBtn.onclick = function() {
+            fireDebate(debateSelection[0], debateSelection[1], pair);
+          };
+        }
+      });
+    });
+
+    function fireDebate(brainA, brainB, pairEl) {
+      isSelectingDebate = false;
       debateBtn.disabled = true;
       debateBtn.textContent = 'DEBATING...';
+      debateBtn.onclick = null;
+      ['claude', 'gpt', 'gemini'].forEach(function(m) {
+        latestPair.cards[m].classList.remove('selectable', 'debate-selected');
+      });
+
+      var brainLabels = {claude: 'Claude', gpt: 'GPT', gemini: 'Gemini'};
 
       var debateRow = document.createElement('div');
       debateRow.className = 'debate-row';
 
-      var debateClaudeCard = document.createElement('div');
-      debateClaudeCard.className = 'debate-card';
-      debateClaudeCard.innerHTML = '<div class="debate-label">Claude\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
-      debateRow.appendChild(debateClaudeCard);
+      var cardA = document.createElement('div');
+      cardA.className = 'debate-card';
+      cardA.innerHTML = '<div class="debate-label">' + brainLabels[brainA] + '\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
+      debateRow.appendChild(cardA);
 
-      var debateGptCard = document.createElement('div');
-      debateGptCard.className = 'debate-card';
-      debateGptCard.innerHTML = '<div class="debate-label">GPT\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
-      debateRow.appendChild(debateGptCard);
+      var cardB = document.createElement('div');
+      cardB.className = 'debate-card';
+      cardB.innerHTML = '<div class="debate-label">' + brainLabels[brainB] + '\'s Critique</div><div class="body"><span class="thinking-dot" style="background:var(--red)"></span> Analyzing...</div>';
+      debateRow.appendChild(cardB);
 
-      pair.appendChild(debateRow);
+      pairEl.appendChild(debateRow);
       chatArea.scrollTop = chatArea.scrollHeight;
+
+      var responses = {
+        claude: latestPair.claudeResponse,
+        gpt: latestPair.gptResponse,
+        gemini: latestPair.geminiResponse,
+      };
 
       fetch('/arena/debate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_id: sessionId,
-          claude_response: latestPair.claudeResponse,
-          gpt_response: latestPair.gptResponse,
+          claude_response: responses.claude,
+          gpt_response: responses.gpt,
+          gemini_response: responses.gemini,
           original_prompt: latestPair.userInput,
           claude_model: claudeModelSel.value,
           gpt_model: gptModelSel.value,
+          gemini_model: geminiModelSel.value,
+          brain_a: brainA,
+          brain_b: brainB,
         })
       })
       .then(function(r) {
@@ -564,27 +744,26 @@ function send() {
         return r.json();
       })
       .then(function(d) {
-        debateClaudeCard.querySelector('.body').textContent = d.claude_debate;
-        debateGptCard.querySelector('.body').textContent = d.gpt_debate;
-        // Render debate tool calls if any
-        renderToolPills(d.claude_tools, debateClaudeCard, 'claude');
-        renderToolPills(d.gpt_tools, debateGptCard, 'gpt');
-        renderToolCalls(d.claude_tools, debateClaudeCard);
-        renderToolCalls(d.gpt_tools, debateGptCard);
-        addToolCallsToExecLog(d.claude_tools, 'claude');
-        addToolCallsToExecLog(d.gpt_tools, 'gpt');
-        latestPair.debateClaude = d.claude_debate;
-        latestPair.debateGpt = d.gpt_debate;
-        debateBtn.textContent = 'DEBATED';
+        cardA.querySelector('.body').textContent = d.debate_a;
+        cardB.querySelector('.body').textContent = d.debate_b;
+        renderToolPills(d.tools_a, cardA, brainA);
+        renderToolPills(d.tools_b, cardB, brainB);
+        renderToolCalls(d.tools_a, cardA);
+        renderToolCalls(d.tools_b, cardB);
+        addToolCallsToExecLog(d.tools_a, brainA);
+        addToolCallsToExecLog(d.tools_b, brainB);
+        latestPair.debates[brainA] = d.debate_a;
+        latestPair.debates[brainB] = d.debate_b;
+        debateBtn.textContent = 'DEBATED: ' + brainA.toUpperCase() + ' vs ' + brainB.toUpperCase();
         chatArea.scrollTop = chatArea.scrollHeight;
       })
       .catch(function(e) {
-        debateClaudeCard.querySelector('.body').textContent = 'Error: ' + e.message;
-        debateGptCard.querySelector('.body').textContent = 'Error: ' + e.message;
-        debateBtn.textContent = 'DEBATE';
+        cardA.querySelector('.body').textContent = 'Error: ' + e.message;
+        cardB.querySelector('.body').textContent = 'Error: ' + e.message;
+        debateBtn.textContent = 'DEBATE -- Pick 2 brains';
         debateBtn.disabled = false;
       });
-    });
+    }
 
     chatArea.scrollTop = chatArea.scrollHeight;
     busy = false;
@@ -596,6 +775,8 @@ function send() {
     claudeCard.querySelector('.body').style.color = 'var(--red)';
     gptCard.querySelector('.body').textContent = 'Error: ' + e.message;
     gptCard.querySelector('.body').style.color = 'var(--red)';
+    geminiCard.querySelector('.body').textContent = 'Error: ' + e.message;
+    geminiCard.querySelector('.body').style.color = 'var(--red)';
     busy = false;
     sendBtn.disabled = false;
   });
