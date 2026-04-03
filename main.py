@@ -203,6 +203,12 @@ async def terminal_ui():
     return HTMLResponse(html)
 
 
+# AI Arena — multi-brain comparison UI
+@app.get("/arena", include_in_schema=False)
+async def arena_ui():
+    return HTMLResponse((_STATIC_DIR / "arena.html").read_text())
+
+
 # Service worker — served from /sw.js (root) so its default scope covers /
 @app.get("/sw.js", include_in_schema=False)
 async def service_worker():
