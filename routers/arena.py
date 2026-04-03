@@ -581,9 +581,9 @@ MCP_SERVERS = [
     {"type": "url", "url": "https://mcp.deepsense.ai/clinical_trials/mcp", "name": "clinical_trials"},
     {"type": "url", "url": "https://mcp.services.biorender.com/mcp", "name": "biorender"},
     {"type": "url", "url": "https://mcp.deepsense.ai/biorxiv/mcp", "name": "biorxiv"},
-    # Self-hosted (tunneled)
-    {"type": "url", "url": "https://monster.theartofthepossible.io/mcp/sse", "name": "monster"},
-    {"type": "url", "url": "https://taop-mcp.theartofthepossible.io/mcp/sse", "name": "taop-products"},
+    # Self-hosted (tunneled, streamable-http transport)
+    {"type": "url", "url": "https://monster.theartofthepossible.io/mcp", "name": "monster"},
+    {"type": "url", "url": "https://taop-mcp.theartofthepossible.io/mcp", "name": "taop-products"},
 ]
 
 
