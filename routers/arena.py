@@ -7,8 +7,8 @@ Both models get:
   - Claude: MCP servers (JOAO internal + external integrations) + direct tool_use
   - GPT: OpenAI function calling bridge to the same tools
 
-POST /arena/chat   -- send message, get parallel Claude + GPT responses (with tool loops)
-POST /arena/debate -- send each model the other's response to critique
+POST /arena/chat   -- send message, get parallel Claude + GPT + Gemini responses (with tool loops)
+POST /arena/debate -- pick 2 of 3 brains to critique each other
 POST /arena/prefer -- log preference to Supabase
 GET  /arena/log    -- get execution log for a session
 """
@@ -40,7 +40,7 @@ router = APIRouter(prefix="/arena", tags=["arena"])
 # In-memory conversation history per session
 _sessions: dict[str, dict[str, Any]] = {}
 MAX_SESSIONS = 50
-MAX_TOOL_ROUNDS = 10  # Max tool call rounds per request
+MAX_TOOL_ROUNDS = 999  # Effectively unlimited tool rounds
 
 # In-memory execution log per session (recent entries, capped)
 _exec_log: dict[str, deque] = {}
@@ -50,6 +50,7 @@ _MAX_LOG_ENTRIES = 200
 _rate_tracker: dict[str, dict] = {
     "claude": {"count": 0, "window_start": 0.0, "limit_hit": False},
     "gpt": {"count": 0, "window_start": 0.0, "limit_hit": False},
+    "gemini": {"count": 0, "window_start": 0.0, "limit_hit": False},
 }
 _RATE_WINDOW = 3600  # 1 hour window
 
@@ -86,18 +87,78 @@ def _prune_sessions():
             _exec_log.pop(k, None)
 
 
+ARENA_SYSTEM_PROMPT = """\
+You are an AI assistant in Johan Zamora's AI Arena -- a side-by-side comparison environment \
+where you compete against another AI model. You have FULL access to Johan's infrastructure \
+and should USE YOUR TOOLS proactively to give accurate, grounded answers.
+
+== WHO JOHAN IS ==
+Johan Zamora -- Director at Western Union (enterprise data/analytics), founder of \
+The Art of The Possible (TAOP). 25+ years shipping products. Based in Denver, Costa Rican origin. \
+ADHD-optimized operations. Communication style: direct, no fluff, no emojis. Facts and proof trails always.
+
+== JOAO (AI Exocortex) ==
+JOAO is Johan's AI exocortex system. 16 Council agents (Claude Code-based) running on ROG Strix server (192.168.0.55). \
+Live at https://joao.theartofthepossible.io/joao/app. Backend: joao-spine (FastAPI, port 7778). \
+- Hot pool (always on): MAX, CORE, BYTE \
+- On-demand pool (12): ARIA, CJ, SOFIA, DEX, GEMMA, LEX, NOVA, SAGE, FLUX, APEX, IRIS, VOLT \
+- Service: SCOUT (24/7 intel scanning -- ArXiv, HN, Product Hunt, tech changelogs)
+
+Agent specializations: ARIA=system design, BYTE=full-stack engineering, DEX=infrastructure/deploy, \
+SOFIA=UX/UI design, CJ=product ownership, GEMMA=research/citations, MAX=multi-LLM engineering, \
+LEX=legal/compliance, NOVA=growth/marketing, SCOUT=intel, SAGE=strategy, FLUX=fast prototyping, \
+CORE=documentation/research, APEX=data/ETL, IRIS=API integrations, VOLT=CI/CD/testing.
+
+== DR. DATA (~/projects/dr-data/) ==
+Production AI-powered Tableau-to-PowerBI migration engine. Built for Western Union enterprise scale. \
+Uploads .twb/.twbx files, Claude analyzes visual INTENT, generates working .pbix files that open in Power BI Desktop. \
+Key files: enhanced_tableau_parser.py, claude_agent.py, powerbi_visual_generator.py, pbix_assembler.py, \
+agentic_migration_engine.py. Streamlit UI on port 8502. \
+Live at https://drdata.theartofthepossible.io.
+
+== PBIX EXTRACTOR (~/projects/pbix-extractor/) ==
+CLI tool for extracting SQL, DAX, and M Query from .pbix files. Production v1.0. \
+Creates timestamped backups, writes extracted queries to text files, logs to tracker.xlsx.
+
+== FOCUSFLOW (~/focusflow/) ==
+ADHD-optimized lecture summarizer. Converts lectures (YouTube, audio, PDF, text) into \
+scannable summaries with age-stratified prompts (child/teen/adult). FastAPI + Claude. \
+Live at https://focusflow.theartofthepossible.io.
+
+== INFRASTRUCTURE ==
+- ROG Strix (Ubuntu 24.04, 192.168.0.55): Council server, all 16 agents in tmux, Ollama local inference \
+- Dell Precision (primary spine, 192.168.0.59): joao-spine, Claude API calls, Cloudflare tunnels \
+- Domain: theartofthepossible.io (GreenGeeks, 70.57.15.252), Traefik reverse proxy via Coolify (auto-SSL) \
+- Cloudflare tunnels: dispatch.theartofthepossible.io -> :8100, drdata.theartofthepossible.io -> :8502 \
+- Railway: cold fallback for total home network outage \
+- Supabase: PostgreSQL backend (idea_vault, session_log, agent_outputs, dispatch_log) \
+- Products: dopamine.watch, dopamine.chat (neurodivergent-first)
+
+== YOUR TOOLS ==
+You have direct access to the ROG server filesystem and Council agents. USE THEM: \
+- read_file/search_files: Look up actual project files before answering questions about Johan's projects \
+- run_command: Execute shell commands for system info, git history, process status \
+- council_dispatch/council_status: Dispatch tasks to specialized agents \
+- joao_memory_read/write: Access JOAO persistent memory \
+- MCP servers: PubMed for biomedical literature search \
+
+CRITICAL: When asked about Johan's projects (Dr. Data, JOAO, FocusFlow, etc.), ALWAYS use your \
+filesystem tools to read the actual code/docs rather than guessing from training data. \
+When asked biomedical/research questions, use MCP tools (PubMed) and your filesystem tools. \
+Never give a generic "Google search" answer when you have tools to get real data.
+
+Rules: No emojis. Be direct. Facts over fluff. Use tools aggressively.\
+"""
+
+
 def _get_session(session_id: str) -> dict[str, Any]:
     if session_id not in _sessions:
         _prune_sessions()
         _sessions[session_id] = {
             "claude": [],
             "gpt": [],
-            "system_prompt": (
-                "You are a powerful AI assistant with full access to the ROG server (Johan's workstation). "
-                "You can read/write files, run commands, search the filesystem, dispatch Council agents, "
-                "and access JOAO memory. Use these tools when the user's request requires server interaction. "
-                "Be concise and direct."
-            ),
+            "gemini": [],
+            "system_prompt": ARENA_SYSTEM_PROMPT,
         }
     return _sessions[session_id]
 
@@ -131,25 +192,32 @@ class ChatRequest(BaseModel):
     system_prompt: str = ""
     claude_model: str = "claude-sonnet-4-20250514"
     gpt_model: str = "gpt-4o"
+    gemini_model: str = "gemini-3.1-pro-preview"
 
 
 class DebateRequest(BaseModel):
     session_id: str
-    claude_response: str
-    gpt_response: str
+    claude_response: str = ""
+    gpt_response: str = ""
+    gemini_response: str = ""
     original_prompt: str
     claude_model: str = "claude-sonnet-4-20250514"
     gpt_model: str = "gpt-4o"
+    gemini_model: str = "gemini-3.1-pro-preview"
+    brain_a: str = "claude"
+    brain_b: str = "gpt"
 
 
 class PreferenceRequest(BaseModel):
     session_id: str
     user_input: str
-    claude_response: str
-    gpt_response: str
+    claude_response: str = ""
+    gpt_response: str = ""
+    gemini_response: str = ""
     preferred_model: str
     debate_claude: str = ""
     debate_gpt: str = ""
+    debate_gemini: str = ""
 
 
 # == Git Auto-Backup (Part 7A) ============================================
@@ -551,39 +619,21 @@ GPT_TOOLS = [
 ]
 
 # == MCP Server Definitions for Claude API ==================================
+# Only servers that work without OAuth. Enterprise servers (Atlassian, HubSpot,
+# Canva, Figma, Gmail, Stripe, etc.) need session-based OAuth from Claude.ai
+# and do NOT work via raw API calls.
 
 MCP_SERVERS = [
-    # JOAO internal
-    {"type": "url", "url": "https://joao.theartofthepossible.io/mcp/sse", "name": "joao"},
-    {"type": "url", "url": "https://joao.theartofthepossible.io/taop/mcp/sse", "name": "taop"},
-    # External integrations
-    {"type": "url", "url": "https://mcp.atlassian.com/v1/mcp", "name": "atlassian"},
-    {"type": "url", "url": "https://mcp.hubspot.com/anthropic", "name": "hubspot"},
-    {"type": "url", "url": "https://mcp.box.com", "name": "box"},
-    {"type": "url", "url": "https://mcp.asana.com/sse", "name": "asana"},
-    {"type": "url", "url": "https://mcp.canva.com/mcp", "name": "canva"},
-    {"type": "url", "url": "https://mcp.linear.app/mcp", "name": "linear"},
-    {"type": "url", "url": "https://mcp.figma.com/mcp", "name": "figma"},
-    {"type": "url", "url": "https://mcp.intercom.com/mcp", "name": "intercom"},
-    {"type": "url", "url": "https://mcp.monday.com/mcp", "name": "monday"},
-    {"type": "url", "url": "https://mcp.notion.com/mcp", "name": "notion"},
-    {"type": "url", "url": "https://mcp.vercel.com", "name": "vercel"},
-    {"type": "url", "url": "https://gmail.mcp.claude.com/mcp", "name": "gmail"},
-    {"type": "url", "url": "https://mcp.stripe.com", "name": "stripe"},
-    {"type": "url", "url": "https://mcp.make.com", "name": "make"},
-    {"type": "url", "url": "https://microsoft365.mcp.claude.com/mcp", "name": "microsoft365"},
-    {"type": "url", "url": "https://mcp.synapse.org/mcp", "name": "synapse"},
-    {"type": "url", "url": "https://mcp.deepsense.ai/chembl/mcp", "name": "chembl"},
-    {"type": "url", "url": "https://mcp.k.owkin.com/mcp", "name": "owkin"},
-    {"type": "url", "url": "https://mcp.platform.opentargets.org/mcp", "name": "opentargets"},
-    {"type": "url", "url": "https://connector.scholargateway.ai/mcp", "name": "scholar"},
+    # Biomedical / Research (no auth required)
+    # Only include servers verified to be reachable and healthy.
+    # Removed: opentargets (dead/timeout), deepsense.ai clinical_trials/biorxiv/chembl (301 redirects)
     {"type": "url", "url": "https://pubmed.mcp.claude.com/mcp", "name": "pubmed"},
-    {"type": "url", "url": "https://mcp.deepsense.ai/clinical_trials/mcp", "name": "clinical_trials"},
-    {"type": "url", "url": "https://mcp.services.biorender.com/mcp", "name": "biorender"},
-    {"type": "url", "url": "https://mcp.deepsense.ai/biorxiv/mcp", "name": "biorxiv"},
-    # Self-hosted (tunneled, streamable-http transport)
-    {"type": "url", "url": "https://monster.theartofthepossible.io/mcp", "name": "monster"},
-    {"type": "url", "url": "https://taop-mcp.theartofthepossible.io/mcp", "name": "taop-products"},
+]
+
+# Build MCP toolset entries for the tools array (Claude beta MCP connector)
+MCP_TOOLSETS = [
+    {"type": "mcp", "server_name": s["name"]}
+    for s in MCP_SERVERS
 ]
 
 
@@ -613,28 +663,32 @@ async def _call_claude(
 
     anthropic_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
     tool_log: list[dict] = []
+    use_mcp = bool(MCP_SERVERS)  # Start with MCP enabled, fallback if it fails
 
     for _round in range(MAX_TOOL_ROUNDS):
         payload: dict[str, Any] = {
             "model": model,
             "max_tokens": 16384,
-            "system": system_prompt,
+            "system": [{"type": "text", "text": system_prompt}],
             "messages": anthropic_messages,
             "tools": CLAUDE_TOOLS,
         }
 
-        # MCP servers -- only supported on newer API versions
-        if MCP_SERVERS:
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        # MCP servers -- connected via beta MCP connector
+        if use_mcp:
             payload["mcp_servers"] = MCP_SERVERS
+            headers["anthropic-beta"] = "mcp-client-2025-04-04"
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": api_key,
-                    "anthropic-version": "2025-01-01",
-                    "content-type": "application/json",
-                },
+                headers=headers,
                 json=payload,
             )
 
@@ -647,6 +701,11 @@ async def _call_claude(
             }
 
         if resp.status_code != 200:
+            # If MCP is enabled and the error looks MCP-related, retry without MCP
+            if use_mcp and ("MCP" in resp.text or "mcp" in resp.text or "503" in resp.text):
+                logger.warning("Claude MCP error (status %d), retrying without MCP: %s", resp.status_code, resp.text[:300])
+                use_mcp = False
+                continue  # Retry this round without MCP
             logger.error("Claude API error %d: %s", resp.status_code, resp.text[:500])
             return {
                 "text": f"[ERROR] Claude API returned {resp.status_code}: {resp.text[:300]}",
@@ -657,7 +716,31 @@ async def _call_claude(
         data = resp.json()
         stop_reason = data.get("stop_reason", "end_turn")
 
-        # Check if Claude wants to use tools
+        # Log any MCP tool usage from the response (resolved server-side)
+        for block in data.get("content", []):
+            if block.get("type") == "mcp_tool_use":
+                mcp_name = block.get("name", "unknown")
+                mcp_server = block.get("server_name", "unknown")
+                mcp_input = block.get("input", {})
+                logger.info("Arena Claude MCP tool: %s/%s(%s)", mcp_server, mcp_name, json.dumps(mcp_input)[:200])
+                tool_log.append({
+                    "tool": f"{mcp_server}/{mcp_name}",
+                    "input": mcp_input,
+                    "source": "mcp",
+                    "server": mcp_server,
+                    "success": True,
+                })
+            elif block.get("type") == "mcp_tool_result":
+                # Log MCP result if present
+                if tool_log and tool_log[-1].get("source") == "mcp":
+                    mcp_content = block.get("content", "")
+                    if isinstance(mcp_content, list):
+                        mcp_content = json.dumps(mcp_content)[:500]
+                    elif isinstance(mcp_content, str):
+                        mcp_content = mcp_content[:500]
+                    tool_log[-1]["result"] = str(mcp_content)[:500]
+
+        # Check if Claude wants to use direct tools (our local ones)
         if stop_reason == "tool_use":
             # Gather all tool_use blocks and execute them
             tool_results = []
@@ -807,6 +890,83 @@ async def _call_gpt(
     }
 
 
+# == Gemini API call (pure reasoning, no tool loop) ========================
+
+async def _call_gemini(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    """Call Google Gemini generateContent API. No tool calling -- pure reasoning only.
+
+    Returns {"text": str, "tool_calls": [], "rate_warning": str|None}.
+    """
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
+    if not api_key:
+        return {"text": "[ERROR] GOOGLE_API_KEY not set", "tool_calls": [], "rate_warning": None}
+
+    _track_rate("gemini")
+
+    # Convert messages to Gemini format
+    contents = []
+    for m in messages:
+        role = "model" if m["role"] == "assistant" else "user"
+        contents.append({"role": role, "parts": [{"text": m["content"]}]})
+
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": contents,
+        "generationConfig": {"maxOutputTokens": 16384},
+    }
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(url, json=payload)
+
+        if resp.status_code == 429:
+            return {
+                "text": "[RATE LIMITED] Gemini API rate limit reached. Try again shortly.",
+                "tool_calls": [],
+                "rate_warning": "Rate limit hit (429)",
+            }
+
+        if resp.status_code != 200:
+            logger.error("Gemini API error %d: %s", resp.status_code, resp.text[:500])
+            return {
+                "text": f"[ERROR] Gemini API returned {resp.status_code}: {resp.text[:300]}",
+                "tool_calls": [],
+                "rate_warning": None,
+            }
+
+        data = resp.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            block_reason = data.get("promptFeedback", {}).get("blockReason", "unknown")
+            return {
+                "text": f"[BLOCKED] Gemini refused to respond (reason: {block_reason})",
+                "tool_calls": [],
+                "rate_warning": None,
+            }
+
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "\n".join(p.get("text", "") for p in parts if "text" in p)
+
+        return {
+            "text": text or "[No response]",
+            "tool_calls": [],
+            "rate_warning": None,
+        }
+
+    except httpx.TimeoutException:
+        return {"text": "[ERROR] Gemini API request timed out", "tool_calls": [], "rate_warning": None}
+    except Exception as e:
+        logger.error("Gemini API call failed: %s", e)
+        return {"text": f"[ERROR] Gemini call failed: {e}", "tool_calls": [], "rate_warning": None}
+
+
 # == POST /arena/chat ======================================================
 
 @router.post("/chat")
@@ -820,21 +980,26 @@ async def arena_chat(req: ChatRequest):
     user_msg = {"role": "user", "content": req.message}
     session["claude"].append(user_msg)
     session["gpt"].append(user_msg)
+    session["gemini"].append(user_msg)
 
     claude_task = _call_claude(session["claude"], system_prompt, req.claude_model, req.session_id)
     gpt_task = _call_gpt(session["gpt"], system_prompt, req.gpt_model, req.session_id)
+    gemini_task = _call_gemini(session["gemini"], system_prompt, req.gemini_model, req.session_id)
 
-    claude_result, gpt_result = await asyncio.gather(
-        claude_task, gpt_task, return_exceptions=True
+    claude_result, gpt_result, gemini_result = await asyncio.gather(
+        claude_task, gpt_task, gemini_task, return_exceptions=True
     )
 
     if isinstance(claude_result, Exception):
         claude_result = {"text": f"[ERROR] {claude_result}", "tool_calls": [], "rate_warning": None}
     if isinstance(gpt_result, Exception):
         gpt_result = {"text": f"[ERROR] {gpt_result}", "tool_calls": [], "rate_warning": None}
+    if isinstance(gemini_result, Exception):
+        gemini_result = {"text": f"[ERROR] {gemini_result}", "tool_calls": [], "rate_warning": None}
 
     session["claude"].append({"role": "assistant", "content": claude_result["text"]})
     session["gpt"].append({"role": "assistant", "content": gpt_result["text"]})
+    session["gemini"].append({"role": "assistant", "content": gemini_result["text"]})
 
     # Log conversation to Supabase
     conv_id = str(uuid.uuid4())
@@ -845,22 +1010,28 @@ async def arena_chat(req: ChatRequest):
         "user_input": req.message[:5000],
         "claude_response": claude_result["text"][:10000],
         "gpt_response": gpt_result["text"][:10000],
+        "gemini_response": gemini_result["text"][:10000],
         "system_prompt": system_prompt[:2000],
         "claude_model": req.claude_model,
         "gpt_model": req.gpt_model,
+        "gemini_model": req.gemini_model,
     })
 
     return {
         "claude_response": claude_result["text"],
         "gpt_response": gpt_result["text"],
+        "gemini_response": gemini_result["text"],
         "claude_tools": claude_result["tool_calls"],
         "gpt_tools": gpt_result["tool_calls"],
+        "gemini_tools": gemini_result["tool_calls"],
         "claude_model": req.claude_model,
         "gpt_model": req.gpt_model,
+        "gemini_model": req.gemini_model,
         "session_id": req.session_id,
         "conversation_id": conv_id,
         "claude_rate_warning": claude_result.get("rate_warning"),
         "gpt_rate_warning": gpt_result.get("rate_warning"),
+        "gemini_rate_warning": gemini_result.get("rate_warning"),
     }
 
 
@@ -871,51 +1042,70 @@ async def arena_debate(req: DebateRequest):
     session = _get_session(req.session_id)
     system_prompt = session["system_prompt"]
 
-    debate_prompt_for_claude = (
+    # Map brain names to their responses and models
+    brain_responses = {
+        "claude": req.claude_response,
+        "gpt": req.gpt_response,
+        "gemini": req.gemini_response,
+    }
+    brain_labels = {"claude": "Claude", "gpt": "GPT", "gemini": "Gemini"}
+    brain_models = {
+        "claude": req.claude_model,
+        "gpt": req.gpt_model,
+        "gemini": req.gemini_model,
+    }
+    brain_callers = {
+        "claude": _call_claude,
+        "gpt": _call_gpt,
+        "gemini": _call_gemini,
+    }
+
+    a, b = req.brain_a, req.brain_b
+
+    debate_prompt_a = (
         f"The user asked: \"{req.original_prompt}\"\n\n"
-        f"Your response was:\n{req.claude_response}\n\n"
-        f"Another AI (GPT) responded with:\n{req.gpt_response}\n\n"
+        f"Your response was:\n{brain_responses[a]}\n\n"
+        f"Another AI ({brain_labels[b]}) responded with:\n{brain_responses[b]}\n\n"
         "Critique the other AI's response. What did it get right? What did it get wrong? "
         "Where does your answer differ and why is your approach better or worse? Be honest and direct."
     )
 
-    debate_prompt_for_gpt = (
+    debate_prompt_b = (
         f"The user asked: \"{req.original_prompt}\"\n\n"
-        f"Your response was:\n{req.gpt_response}\n\n"
-        f"Another AI (Claude) responded with:\n{req.claude_response}\n\n"
+        f"Your response was:\n{brain_responses[b]}\n\n"
+        f"Another AI ({brain_labels[a]}) responded with:\n{brain_responses[a]}\n\n"
         "Critique the other AI's response. What did it get right? What did it get wrong? "
         "Where does your answer differ and why is your approach better or worse? Be honest and direct."
     )
 
-    claude_debate_msgs = [{"role": "user", "content": debate_prompt_for_claude}]
-    gpt_debate_msgs = [{"role": "user", "content": debate_prompt_for_gpt}]
+    task_a = brain_callers[a]([{"role": "user", "content": debate_prompt_a}], system_prompt, brain_models[a], req.session_id)
+    task_b = brain_callers[b]([{"role": "user", "content": debate_prompt_b}], system_prompt, brain_models[b], req.session_id)
 
-    claude_task = _call_claude(claude_debate_msgs, system_prompt, req.claude_model, req.session_id)
-    gpt_task = _call_gpt(gpt_debate_msgs, system_prompt, req.gpt_model, req.session_id)
+    result_a, result_b = await asyncio.gather(task_a, task_b, return_exceptions=True)
 
-    claude_debate, gpt_debate = await asyncio.gather(
-        claude_task, gpt_task, return_exceptions=True
-    )
-
-    if isinstance(claude_debate, Exception):
-        claude_debate = {"text": f"[ERROR] {claude_debate}", "tool_calls": [], "rate_warning": None}
-    if isinstance(gpt_debate, Exception):
-        gpt_debate = {"text": f"[ERROR] {gpt_debate}", "tool_calls": [], "rate_warning": None}
+    if isinstance(result_a, Exception):
+        result_a = {"text": f"[ERROR] {result_a}", "tool_calls": [], "rate_warning": None}
+    if isinstance(result_b, Exception):
+        result_b = {"text": f"[ERROR] {result_b}", "tool_calls": [], "rate_warning": None}
 
     # Log debate to Supabase
     _sb_insert("arena_debates", {
         "id": str(uuid.uuid4()),
         "session_id": req.session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "claude_critique": claude_debate["text"][:10000],
-        "gpt_critique": gpt_debate["text"][:10000],
+        "brain_a": a,
+        "brain_b": b,
+        "critique_a": result_a["text"][:10000],
+        "critique_b": result_b["text"][:10000],
     })
 
     return {
-        "claude_debate": claude_debate["text"],
-        "gpt_debate": gpt_debate["text"],
-        "claude_tools": claude_debate["tool_calls"],
-        "gpt_tools": gpt_debate["tool_calls"],
+        "brain_a": a,
+        "brain_b": b,
+        "debate_a": result_a["text"],
+        "debate_b": result_b["text"],
+        "tools_a": result_a["tool_calls"],
+        "tools_b": result_b["tool_calls"],
     }
 
 
@@ -934,9 +1124,11 @@ async def arena_prefer(req: PreferenceRequest):
         "user_input": req.user_input[:2000],
         "claude_response": req.claude_response[:5000],
         "gpt_response": req.gpt_response[:5000],
+        "gemini_response": req.gemini_response[:5000],
         "preferred_model": req.preferred_model,
         "debate_claude": req.debate_claude[:5000] if req.debate_claude else None,
         "debate_gpt": req.debate_gpt[:5000] if req.debate_gpt else None,
+        "debate_gemini": req.debate_gemini[:5000] if req.debate_gemini else None,
     }
 
     try:
