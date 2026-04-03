@@ -480,6 +480,35 @@ def _append_chat_feed(user_message: str, response_text: str) -> None:
         logger.warning("Failed to append chat feed: %s", e)
 
 
+def _auto_grow_context(user_msg: str, response: str) -> None:
+    """Auto-append conversation exchange to JOAO_SESSION_LOG.md for persistent memory.
+
+    Also rotates the session log if it exceeds 2MB to prevent unbounded growth.
+    """
+    try:
+        from datetime import datetime, timezone
+
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Append to session log (the running history)
+        _SESSION_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        entry = f"\n---\n### [{ts}]\n**User:** {user_msg[:500]}\n**JOAO:** {response[:1000]}\n"
+        with open(_SESSION_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(entry)
+
+        # Rotate if over 2MB
+        if _SESSION_LOG_FILE.exists() and _SESSION_LOG_FILE.stat().st_size > 2_000_000:
+            content = _SESSION_LOG_FILE.read_text(encoding="utf-8")
+            # Keep last 1MB
+            truncated = content[-1_000_000:]
+            header = "# JOAO Session Log (auto-rotated)\n\n[Previous entries truncated]\n\n"
+            _SESSION_LOG_FILE.write_text(header + truncated, encoding="utf-8")
+            logger.info("Session log rotated (was >2MB)")
+
+    except Exception as e:
+        logger.warning("Failed to auto-grow context: %s", e)
+
+
 # ── Council Tools for Chat ──────────────────────────────────────────────
 
 COUNCIL_TOOLS = [
@@ -596,6 +625,329 @@ COUNCIL_TOOLS = [
             "required": ["dispatch_id"],
         },
     },
+    # ── File System & Server Tools ─────────────────────────────────────────
+    {
+        "name": "read_file",
+        "description": (
+            "Read a file from the server. Use when Johan asks to check a file, config, log, "
+            "script, or any content on the ROG server. Supports text files of any kind."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute path to the file (e.g. /home/zamoritacr/joao-spine/main.py)",
+                },
+                "tail": {
+                    "type": "integer",
+                    "description": "Only return the last N lines (useful for logs). 0 = full file.",
+                    "default": 0,
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "write_file",
+        "description": (
+            "Write or overwrite a file on the server. Use when Johan asks to create, update, "
+            "or fix a config, script, or any text file."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute path to the file to write",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Full file content to write",
+                },
+                "append": {
+                    "type": "boolean",
+                    "description": "If true, append instead of overwrite",
+                    "default": False,
+                },
+            },
+            "required": ["path", "content"],
+        },
+    },
+    {
+        "name": "list_directory",
+        "description": (
+            "List files and directories. Use when Johan asks 'what files are in...', "
+            "'show me the project structure', 'list the logs', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Absolute path to the directory",
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "If true, list recursively (max 500 entries)",
+                    "default": False,
+                },
+                "pattern": {
+                    "type": "string",
+                    "description": "Optional glob pattern filter (e.g. '*.py', '*.log')",
+                },
+            },
+            "required": ["path"],
+        },
+    },
+    {
+        "name": "search_files",
+        "description": (
+            "Search file contents using grep/regex. Use when Johan asks to find code, "
+            "search for a string, locate where something is defined, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Search pattern (regex supported)",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Directory to search in (default: /home/zamoritacr)",
+                    "default": "/home/zamoritacr",
+                },
+                "file_pattern": {
+                    "type": "string",
+                    "description": "Glob to filter files (e.g. '*.py', '*.sh')",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Max results to return",
+                    "default": 30,
+                },
+            },
+            "required": ["pattern"],
+        },
+    },
+    {
+        "name": "run_command",
+        "description": (
+            "Run a shell command on the server. Use for system checks, service restarts, "
+            "process inspection, git operations, package management, or any server task. "
+            "Use when Johan asks to restart something, check a service, run a script, etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "Shell command to execute (runs as zamoritacr user)",
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Timeout in seconds (default 30, max 120)",
+                    "default": 30,
+                },
+            },
+            "required": ["command"],
+        },
+    },
+    # ── Dr. Data Tools ─────────────────────────────────────────────────────
+    {
+        "name": "drdata_analyze",
+        "description": (
+            "Analyze a data file using Dr. Data's AI engines. Upload a CSV/Excel file "
+            "and get a full data profile with quality scores, semantic types, and insights. "
+            "Use when Johan asks to 'analyze this data', 'profile this file', 'check data quality', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the data file (CSV, XLSX, Parquet, JSON, etc.)",
+                },
+                "question": {
+                    "type": "string",
+                    "description": "Optional question about the data (e.g. 'what are the top trends?')",
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "drdata_quality_scan",
+        "description": (
+            "Run a full DAMA-DMBOK data quality scan on a file. Returns scores for 6 dimensions: "
+            "completeness, accuracy, consistency, timeliness, uniqueness, validity. "
+            "Use when Johan asks 'check quality', 'run DQ scan', 'is this data clean?', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the data file to scan",
+                },
+                "min_score": {
+                    "type": "integer",
+                    "description": "Minimum quality score to pass (default 80)",
+                    "default": 80,
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "drdata_build_dashboard",
+        "description": (
+            "Build an interactive HTML dashboard or Power BI project from a data file. "
+            "Use when Johan asks 'build a dashboard', 'create a report', 'make a Power BI from this', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the data file",
+                },
+                "request": {
+                    "type": "string",
+                    "description": "What kind of dashboard to build (e.g. 'sales overview with KPIs and trends')",
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Output format: 'html' for interactive dashboard, 'powerbi' for .pbip project",
+                    "enum": ["html", "powerbi"],
+                    "default": "html",
+                },
+            },
+            "required": ["file_path", "request"],
+        },
+    },
+    {
+        "name": "drdata_chat",
+        "description": (
+            "Ask Dr. Data a question about loaded data. Dr. Data can analyze, explain, "
+            "build charts, find patterns, and generate reports conversationally. "
+            "Use when Johan asks data questions like 'what are the outliers?', "
+            "'explain the correlation between X and Y', 'summarize the key findings', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "Question or request for Dr. Data",
+                },
+                "file_path": {
+                    "type": "string",
+                    "description": "Optional data file to load first (if not already loaded)",
+                },
+            },
+            "required": ["message"],
+        },
+    },
+    # ── FocusFlow Tools ────────────────────────────────────────────────────
+    {
+        "name": "focusflow_process_url",
+        "description": (
+            "Process a YouTube or lecture URL through FocusFlow -- transcribe and summarize "
+            "for ADHD-friendly reading. Use when Johan says 'summarize this video', "
+            "'transcribe this lecture', 'focusflow this URL', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "YouTube, Udemy, or video URL to process",
+                },
+                "age_group": {
+                    "type": "string",
+                    "description": "Target audience: child, teen, or adult",
+                    "enum": ["child", "teen", "adult"],
+                    "default": "adult",
+                },
+                "class_name": {
+                    "type": "string",
+                    "description": "Name/topic of the lecture (e.g. 'Machine Learning 101')",
+                    "default": "Lecture",
+                },
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "focusflow_process_file",
+        "description": (
+            "Process an audio/video file through FocusFlow -- transcribe and summarize. "
+            "Use when Johan says 'summarize this recording', 'transcribe this audio file', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to audio/video file (MP3, MP4, WAV, M4A, OGG, WEBM, FLAC, AAC)",
+                },
+                "age_group": {
+                    "type": "string",
+                    "description": "Target audience: child, teen, or adult",
+                    "enum": ["child", "teen", "adult"],
+                    "default": "adult",
+                },
+                "class_name": {
+                    "type": "string",
+                    "description": "Name/topic of the lecture",
+                    "default": "Lecture",
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    {
+        "name": "focusflow_status",
+        "description": (
+            "Check the status of a FocusFlow processing job. "
+            "Use after submitting a URL or file to check if it's done."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "job_id": {
+                    "type": "string",
+                    "description": "Job ID returned from focusflow_process_url or focusflow_process_file",
+                },
+            },
+            "required": ["job_id"],
+        },
+    },
+    {
+        "name": "focusflow_download",
+        "description": (
+            "Download a FocusFlow summary in a specific format. "
+            "Use when Johan asks for 'the PDF', 'give me the slides', etc."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID from a completed FocusFlow job",
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Download format",
+                    "enum": ["txt", "html", "pdf", "docx", "pptx", "xlsx"],
+                    "default": "pdf",
+                },
+            },
+            "required": ["session_id"],
+        },
+    },
 ]
 
 
@@ -643,9 +995,21 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                 data = resp.json()
                 agents = data.get("agents", {})
                 lines = []
-                for name, info in agents.items():
-                    status = "ONLINE" if info.get("active") else "OFFLINE"
-                    lines.append(f"  {name}: {status}")
+                for name, info in sorted(agents.items()):
+                    pool = info.get("pool", "unknown")
+                    claude = info.get("claude_running", False)
+                    active = info.get("active", False)
+                    if claude:
+                        status = "ALIVE (Claude running)"
+                    elif active:
+                        status = "IDLE (tmux up, no Claude)"
+                    elif pool == "on-demand":
+                        status = "STANDBY (on-demand, launches when dispatched)"
+                    elif pool == "service":
+                        status = "SERVICE (systemd)"
+                    else:
+                        status = "OFFLINE"
+                    lines.append(f"  {name}: {status} [{pool}]")
                 return "Council Agent Status:\n" + "\n".join(lines)
 
             elif tool_name == "council_dispatch":
@@ -680,8 +1044,8 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                 output = data.get("output", "No output available")
                 # Truncate to last 1200 chars to keep tool results manageable
                 # (prevents Claude API timeout when multiple agents are queried)
-                if len(output) > 1200:
-                    output = "...\n" + output[-1200:]
+                if len(output) > 3000:
+                    output = "...\n" + output[-3000:]
                 return f"{agent} session output:\n{output}"
 
             elif tool_name == "qa_review":
@@ -723,7 +1087,7 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                 elif action in ("deploy", "reject"):
                     # Override via QA router
                     resp = await http.post(
-                        f"http://localhost:8000/joao/council/qa/{dispatch_id}/override",
+                        f"http://localhost:7778/joao/council/qa/{dispatch_id}/override",
                         params={"action": action, "override_by": "johan"},
                     )
                     if resp.status_code == 200:
@@ -734,22 +1098,567 @@ async def _execute_council_tool(tool_name: str, tool_input: dict) -> str:
                 return f"Unknown qa_review action: {action}"
 
             else:
-                return f"Unknown tool: {tool_name}"
+                # File system and server tools — run locally, no dispatch needed
+                return await _execute_server_tool(tool_name, tool_input)
 
     except Exception as e:
         logger.error("Council tool %s failed: %s", tool_name, e)
         return f"ERROR executing {tool_name}: {e}"
 
 
+async def _execute_server_tool(tool_name: str, tool_input: dict) -> str:
+    """Execute file system and server tools locally."""
+    import asyncio
+    import subprocess
+    import glob as _glob
+
+    try:
+        if tool_name == "read_file":
+            path = tool_input.get("path", "")
+            tail = tool_input.get("tail", 0)
+            if not path:
+                return "ERROR: path is required"
+            p = Path(path).expanduser()
+            if not p.exists():
+                return f"ERROR: File not found: {path}"
+            if not p.is_file():
+                return f"ERROR: Not a file: {path}"
+            # Size guard: max 200KB
+            if p.stat().st_size > 200_000:
+                if tail > 0:
+                    lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+                    content = "\n".join(lines[-tail:])
+                    return f"[Last {tail} lines of {path}]\n{content}"
+                else:
+                    # Read first 100KB + last 50KB
+                    raw = p.read_text(encoding="utf-8", errors="replace")
+                    return f"[File truncated: {p.stat().st_size} bytes]\n{raw[:100_000]}\n...\n[TRUNCATED]\n...\n{raw[-50_000:]}"
+            content = p.read_text(encoding="utf-8", errors="replace")
+            if tail > 0:
+                lines = content.splitlines()
+                content = "\n".join(lines[-tail:])
+                return f"[Last {tail} lines of {path}]\n{content}"
+            return content
+
+        elif tool_name == "write_file":
+            path = tool_input.get("path", "")
+            content = tool_input.get("content", "")
+            append = tool_input.get("append", False)
+            if not path:
+                return "ERROR: path is required"
+            p = Path(path).expanduser()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            mode = "a" if append else "w"
+            p.write_text(content, encoding="utf-8") if not append else p.open("a", encoding="utf-8").write(content)
+            return f"OK: {'Appended to' if append else 'Wrote'} {path} ({len(content)} chars)"
+
+        elif tool_name == "list_directory":
+            path = tool_input.get("path", "")
+            recursive = tool_input.get("recursive", False)
+            pattern = tool_input.get("pattern", "")
+            if not path:
+                return "ERROR: path is required"
+            p = Path(path).expanduser()
+            if not p.exists():
+                return f"ERROR: Directory not found: {path}"
+            if not p.is_dir():
+                return f"ERROR: Not a directory: {path}"
+            entries = []
+            if recursive:
+                glob_pat = f"**/{pattern}" if pattern else "**/*"
+                for item in sorted(p.glob(glob_pat)):
+                    rel = item.relative_to(p)
+                    prefix = "d " if item.is_dir() else "f "
+                    entries.append(f"{prefix}{rel}")
+                    if len(entries) >= 500:
+                        entries.append("... (truncated at 500)")
+                        break
+            else:
+                items = sorted(p.iterdir())
+                if pattern:
+                    items = sorted(p.glob(pattern))
+                for item in items:
+                    prefix = "d " if item.is_dir() else "f "
+                    size = ""
+                    if item.is_file():
+                        s = item.stat().st_size
+                        size = f" ({s:,} bytes)" if s < 1_000_000 else f" ({s / 1_000_000:.1f}MB)"
+                    entries.append(f"{prefix}{item.name}{size}")
+                    if len(entries) >= 500:
+                        entries.append("... (truncated at 500)")
+                        break
+            return f"Directory: {path}\n" + "\n".join(entries) if entries else f"Directory {path} is empty"
+
+        elif tool_name == "search_files":
+            pattern = tool_input.get("pattern", "")
+            path = tool_input.get("path", "/home/zamoritacr")
+            file_pattern = tool_input.get("file_pattern", "")
+            max_results = min(tool_input.get("max_results", 30), 100)
+            if not pattern:
+                return "ERROR: pattern is required"
+            cmd = ["grep", "-rn", "--include", file_pattern, pattern, path] if file_pattern else ["grep", "-rn", pattern, path]
+            cmd += ["-m", str(max_results)]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15,
+            )
+            output = result.stdout.strip()
+            if not output:
+                return f"No matches found for '{pattern}' in {path}"
+            # Truncate long output
+            if len(output) > 8000:
+                output = output[:8000] + "\n... (truncated)"
+            return output
+
+        elif tool_name == "run_command":
+            command = tool_input.get("command", "")
+            timeout = min(tool_input.get("timeout", 30), 120)
+            if not command:
+                return "ERROR: command is required"
+            # Block obviously dangerous commands
+            dangerous = ["rm -rf /", "mkfs", "dd if=", "> /dev/sd"]
+            for d in dangerous:
+                if d in command:
+                    return f"ERROR: Blocked dangerous command pattern: {d}"
+            result = subprocess.run(
+                ["bash", "-c", command],
+                capture_output=True, text=True, timeout=timeout,
+                env={**os.environ, "HOME": str(Path.home())},
+            )
+            output = ""
+            if result.stdout:
+                output += result.stdout
+            if result.stderr:
+                output += ("\n[STDERR]\n" + result.stderr) if output else result.stderr
+            if not output:
+                output = f"(no output, exit code {result.returncode})"
+            # Truncate
+            if len(output) > 8000:
+                output = output[:8000] + "\n... (truncated)"
+            return output
+
+        elif tool_name.startswith("drdata_"):
+            return await _execute_drdata_tool(tool_name, tool_input)
+
+        elif tool_name.startswith("focusflow_"):
+            return await _execute_focusflow_tool(tool_name, tool_input)
+
+        else:
+            return f"Unknown server tool: {tool_name}"
+
+    except subprocess.TimeoutExpired:
+        return f"ERROR: Command timed out"
+    except Exception as e:
+        logger.error("Server tool %s failed: %s", tool_name, e)
+        return f"ERROR: {tool_name} failed: {e}"
+
+
+# ── Dr. Data Tool Execution ────────────────────────────────────────────
+
+# Shared DrDataAgent instance (lazy init)
+_drdata_agent = None
+_drdata_lock = None
+
+
+def _get_drdata_agent():
+    """Lazy-init Dr. Data agent."""
+    global _drdata_agent
+    if _drdata_agent is not None:
+        return _drdata_agent
+    import sys
+    drdata_root = str(Path.home() / "taop-repos" / "dr-data")
+    if drdata_root not in sys.path:
+        sys.path.insert(0, drdata_root)
+    try:
+        from app.dr_data_agent import DrDataAgent
+        _drdata_agent = DrDataAgent()
+        return _drdata_agent
+    except Exception as e:
+        logger.error("Failed to init DrDataAgent: %s", e)
+        return None
+
+
+async def _execute_drdata_tool(tool_name: str, tool_input: dict) -> str:
+    """Execute Dr. Data tools."""
+    import asyncio
+    import pandas as pd
+
+    try:
+        if tool_name == "drdata_analyze":
+            file_path = tool_input.get("file_path", "")
+            question = tool_input.get("question", "")
+            if not file_path:
+                return "ERROR: file_path is required"
+            p = Path(file_path).expanduser()
+            if not p.exists():
+                return f"ERROR: File not found: {file_path}"
+
+            def _run():
+                import sys
+                drdata_root = str(Path.home() / "taop-repos" / "dr-data")
+                if drdata_root not in sys.path:
+                    sys.path.insert(0, drdata_root)
+                from core.data_analyzer import DataAnalyzer
+                from core.deep_analyzer import DeepAnalyzer
+
+                ext = p.suffix.lower()
+                if ext in (".csv", ".tsv"):
+                    df = pd.read_csv(str(p), sep=None, engine="python")
+                elif ext in (".xlsx", ".xls"):
+                    df = pd.read_excel(str(p))
+                elif ext == ".parquet":
+                    df = pd.read_parquet(str(p))
+                elif ext == ".json":
+                    df = pd.read_json(str(p))
+                else:
+                    return f"ERROR: Unsupported file type: {ext}"
+
+                table_name = p.stem.replace(" ", "_").replace("-", "_")
+                analyzer = DataAnalyzer()
+                profile = analyzer.analyze(df, table_name=table_name)
+
+                deep = DeepAnalyzer()
+                deep_profile = deep.profile(df)
+
+                lines = [
+                    f"Data Profile: {table_name}",
+                    f"Rows: {profile.get('row_count', '?'):,}  Columns: {profile.get('column_count', '?')}",
+                    f"Quality Score: {deep_profile.get('data_quality_score', deep_profile.get('quality_score', '?'))}",
+                    "",
+                    "Columns:",
+                ]
+                for col in profile.get("columns", [])[:30]:
+                    sem = col.get("semantic_type", "?")
+                    dtype = col.get("dtype", "?")
+                    nulls = col.get("null_percentage", 0)
+                    lines.append(f"  {col['name']}: {dtype} ({sem}) nulls={nulls:.1f}%")
+
+                insights = deep_profile.get("quick_insights", deep_profile.get("insights", []))
+                if insights:
+                    lines.append("")
+                    lines.append("Insights:")
+                    for ins in insights[:10]:
+                        if isinstance(ins, dict):
+                            lines.append(f"  - {ins.get('text', ins.get('insight', str(ins)))}")
+                        else:
+                            lines.append(f"  - {ins}")
+
+                return "\n".join(lines)
+
+            return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+        elif tool_name == "drdata_quality_scan":
+            file_path = tool_input.get("file_path", "")
+            min_score = tool_input.get("min_score", 80)
+            if not file_path:
+                return "ERROR: file_path is required"
+            p = Path(file_path).expanduser()
+            if not p.exists():
+                return f"ERROR: File not found: {file_path}"
+
+            def _run():
+                import sys
+                drdata_root = str(Path.home() / "taop-repos" / "dr-data")
+                if drdata_root not in sys.path:
+                    sys.path.insert(0, drdata_root)
+                from core.dq_engine import DataQualityEngine
+
+                ext = p.suffix.lower()
+                if ext in (".csv", ".tsv"):
+                    df = pd.read_csv(str(p), sep=None, engine="python")
+                elif ext in (".xlsx", ".xls"):
+                    df = pd.read_excel(str(p))
+                elif ext == ".parquet":
+                    df = pd.read_parquet(str(p))
+                else:
+                    return f"ERROR: Unsupported file type: {ext}"
+
+                table_name = p.stem.replace(" ", "_").replace("-", "_")
+                dq = DataQualityEngine()
+                result = dq.scan_table(df, table_name)
+
+                overall = result.get("overall_score", "?")
+                dims = result.get("dimensions", {})
+                lines = [
+                    f"Data Quality Scan: {table_name}",
+                    f"Overall Score: {overall}",
+                    f"Quality Gate: {'PASS' if isinstance(overall, (int, float)) and overall >= min_score else 'FAIL'} (min={min_score})",
+                    "",
+                    "Dimensions:",
+                ]
+                for dim_name, dim_data in dims.items():
+                    score = dim_data.get("score", "?")
+                    issues = dim_data.get("issues", [])
+                    lines.append(f"  {dim_name}: {score}")
+                    for issue in issues[:3]:
+                        if isinstance(issue, dict):
+                            lines.append(f"    - {issue.get('message', str(issue))}")
+                        else:
+                            lines.append(f"    - {issue}")
+
+                recs = result.get("recommendations", [])
+                if recs:
+                    lines.append("")
+                    lines.append("Recommendations:")
+                    for r in recs[:5]:
+                        if isinstance(r, dict):
+                            pri = r.get("priority", "")
+                            msg = r.get("message", str(r))
+                            lines.append(f"  [{pri}] {msg}")
+                        else:
+                            lines.append(f"  - {r}")
+
+                return "\n".join(lines)
+
+            return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+        elif tool_name == "drdata_build_dashboard":
+            file_path = tool_input.get("file_path", "")
+            request = tool_input.get("request", "")
+            fmt = tool_input.get("format", "html")
+            if not file_path or not request:
+                return "ERROR: file_path and request are required"
+            p = Path(file_path).expanduser()
+            if not p.exists():
+                return f"ERROR: File not found: {file_path}"
+
+            def _run():
+                import sys, json as _j
+                drdata_root = str(Path.home() / "taop-repos" / "dr-data")
+                if drdata_root not in sys.path:
+                    sys.path.insert(0, drdata_root)
+
+                ext = p.suffix.lower()
+                if ext in (".csv", ".tsv"):
+                    df = pd.read_csv(str(p), sep=None, engine="python")
+                elif ext in (".xlsx", ".xls"):
+                    df = pd.read_excel(str(p))
+                elif ext == ".parquet":
+                    df = pd.read_parquet(str(p))
+                else:
+                    return f"ERROR: Unsupported file type: {ext}"
+
+                agent = _get_drdata_agent()
+                if not agent:
+                    return "ERROR: Could not initialize Dr. Data agent"
+
+                agent.inject_file(str(p), df)
+
+                if fmt == "html":
+                    result_json = agent._tool_build_html({
+                        "request": request,
+                        "title": request[:60],
+                    })
+                else:
+                    result_json = agent._tool_build_powerbi({
+                        "request": request,
+                        "project_name": request[:40],
+                        "audience": "executive",
+                    })
+
+                try:
+                    result = _j.loads(result_json)
+                    if "error" in result:
+                        return f"ERROR: {result['error']}"
+                    path = result.get("file_path", result.get("path", ""))
+                    return f"Dashboard built: {path}\n{_j.dumps(result, indent=2)[:2000]}"
+                except Exception:
+                    return result_json[:3000]
+
+            return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+        elif tool_name == "drdata_chat":
+            message = tool_input.get("message", "")
+            file_path = tool_input.get("file_path", "")
+            if not message:
+                return "ERROR: message is required"
+
+            def _run():
+                import sys
+                drdata_root = str(Path.home() / "taop-repos" / "dr-data")
+                if drdata_root not in sys.path:
+                    sys.path.insert(0, drdata_root)
+
+                agent = _get_drdata_agent()
+                if not agent:
+                    return "ERROR: Could not initialize Dr. Data agent"
+
+                if file_path:
+                    fp = Path(file_path).expanduser()
+                    if fp.exists():
+                        ext = fp.suffix.lower()
+                        if ext in (".csv", ".tsv"):
+                            df = pd.read_csv(str(fp), sep=None, engine="python")
+                        elif ext in (".xlsx", ".xls"):
+                            df = pd.read_excel(str(fp))
+                        elif ext == ".parquet":
+                            df = pd.read_parquet(str(fp))
+                        else:
+                            df = None
+                        if df is not None:
+                            agent.inject_file(str(fp), df)
+
+                result = agent.chat(message)
+                text = result.get("text", str(result)) if isinstance(result, dict) else str(result)
+                files = result.get("files", []) if isinstance(result, dict) else []
+
+                output = text
+                if files:
+                    output += "\n\nGenerated files:\n" + "\n".join(f"  - {f}" for f in files)
+                if len(output) > 5000:
+                    output = output[:5000] + "\n... (truncated)"
+                return output
+
+            return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+        else:
+            return f"Unknown drdata tool: {tool_name}"
+
+    except Exception as e:
+        logger.error("DrData tool %s failed: %s", tool_name, e)
+        return f"ERROR: {tool_name} failed: {e}"
+
+
+# ── FocusFlow Tool Execution ───────────────────────────────────────────
+
+_FOCUSFLOW_URL = "http://localhost:8001"
+
+
+async def _execute_focusflow_tool(tool_name: str, tool_input: dict) -> str:
+    """Execute FocusFlow tools via its REST API."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as http:
+            if tool_name == "focusflow_process_url":
+                url = tool_input.get("url", "")
+                age_group = tool_input.get("age_group", "adult")
+                class_name = tool_input.get("class_name", "Lecture")
+                if not url:
+                    return "ERROR: url is required"
+                resp = await http.post(
+                    f"{_FOCUSFLOW_URL}/youtube",
+                    data={"url": url, "age_group": age_group, "class_name": class_name},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                job_id = data.get("job_id", "")
+                return (
+                    f"FocusFlow job submitted: {job_id}\n"
+                    f"URL: {url}\n"
+                    f"Age group: {age_group}\n"
+                    f"Use focusflow_status to check progress."
+                )
+
+            elif tool_name == "focusflow_process_file":
+                file_path = tool_input.get("file_path", "")
+                age_group = tool_input.get("age_group", "adult")
+                class_name = tool_input.get("class_name", "Lecture")
+                if not file_path:
+                    return "ERROR: file_path is required"
+                p = Path(file_path).expanduser()
+                if not p.exists():
+                    return f"ERROR: File not found: {file_path}"
+                with open(p, "rb") as f:
+                    resp = await http.post(
+                        f"{_FOCUSFLOW_URL}/process",
+                        files={"file": (p.name, f, "audio/mpeg")},
+                        data={"age_group": age_group, "class_name": class_name},
+                    )
+                resp.raise_for_status()
+                data = resp.json()
+                job_id = data.get("job_id", "")
+                return (
+                    f"FocusFlow job submitted: {job_id}\n"
+                    f"File: {file_path}\n"
+                    f"Use focusflow_status to check progress."
+                )
+
+            elif tool_name == "focusflow_status":
+                job_id = tool_input.get("job_id", "")
+                if not job_id:
+                    return "ERROR: job_id is required"
+                resp = await http.get(f"{_FOCUSFLOW_URL}/status/{job_id}")
+                resp.raise_for_status()
+                data = resp.json()
+                status = data.get("status", "unknown")
+                if status == "done":
+                    session_id = data.get("session_id", "")
+                    summary = data.get("summary", "")
+                    result = f"Status: DONE\nSession ID: {session_id}\n"
+                    if summary:
+                        result += f"\nSummary:\n{summary[:3000]}"
+                    result += f"\n\nUse focusflow_download with session_id='{session_id}' to get PDF/PPTX/DOCX."
+                    return result
+                elif status == "processing":
+                    progress = data.get("progress", "")
+                    return f"Status: PROCESSING\nProgress: {progress}"
+                elif status == "error":
+                    return f"Status: ERROR\n{data.get('error', 'Unknown error')}"
+                else:
+                    return f"Status: {status}\n{str(data)[:1000]}"
+
+            elif tool_name == "focusflow_download":
+                session_id = tool_input.get("session_id", "")
+                fmt = tool_input.get("format", "pdf")
+                if not session_id:
+                    return "ERROR: session_id is required"
+                resp = await http.get(
+                    f"{_FOCUSFLOW_URL}/download/{session_id}",
+                    params={"fmt": fmt},
+                )
+                resp.raise_for_status()
+                # Save to output directory
+                out_dir = Path.home() / "focusflow" / "output"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out_file = out_dir / f"focusflow_{session_id[:8]}.{fmt}"
+                out_file.write_bytes(resp.content)
+                return f"Downloaded: {out_file} ({len(resp.content):,} bytes)"
+
+            else:
+                return f"Unknown focusflow tool: {tool_name}"
+
+    except httpx.HTTPStatusError as e:
+        return f"ERROR: FocusFlow returned {e.response.status_code}: {e.response.text[:500]}"
+    except httpx.ConnectError:
+        return "ERROR: FocusFlow service unreachable at localhost:8001. Is it running?"
+    except Exception as e:
+        logger.error("FocusFlow tool %s failed: %s", tool_name, e)
+        return f"ERROR: {tool_name} failed: {e}"
+
+
+_TAOP_CONTEXT_FILE = Path.home() / "council" / "brain" / "TAOP_MASTER_CONTEXT_v3.md"
+
+
 async def _load_context() -> tuple[str, str]:
-    """Load context and session log from local files or tunnel."""
+    """Load context and session log from local files or tunnel.
+
+    Hard cap: context_text <= 15,000 chars (~3,750 tokens) to stay well
+    within Sonnet's 200k limit after tools + messages are added.
+    """
+    _MAX_CONTEXT = 15_000
+    _MAX_SESSION_LOG = 4_000
+
     context_text = ""
     session_log_text = ""
     if _CONTEXT_FILE.exists():
-        context_text = _CONTEXT_FILE.read_text(encoding="utf-8")
+        raw = _CONTEXT_FILE.read_text(encoding="utf-8")
+        # Cap master context at 12k to leave room for TAOP
+        context_text = raw[:12_000] if len(raw) > 12_000 else raw
+        if len(raw) > 12_000:
+            logger.warning("JOAO_MASTER_CONTEXT.md truncated from %d to 12000 chars", len(raw))
+        # Load TAOP master context (ground truth by ARIA)
+        remaining = _MAX_CONTEXT - len(context_text)
+        if _TAOP_CONTEXT_FILE.exists() and remaining > 500:
+            taop_ctx = _TAOP_CONTEXT_FILE.read_text(encoding="utf-8")
+            cap = min(len(taop_ctx), remaining - 100)  # leave room for header
+            if cap > 0:
+                taop_ctx = taop_ctx[:cap]
+                if len(taop_ctx) < len(_TAOP_CONTEXT_FILE.read_text(encoding="utf-8")):
+                    taop_ctx += "\n... [TRUNCATED]"
+                context_text += "\n\n---\n\n## TAOP Master Context (Ground Truth)\n\n" + taop_ctx
         if _SESSION_LOG_FILE.exists():
             full_log = _SESSION_LOG_FILE.read_text(encoding="utf-8")
-            session_log_text = full_log[-4000:] if len(full_log) > 4000 else full_log
+            session_log_text = full_log[-_MAX_SESSION_LOG:] if len(full_log) > _MAX_SESSION_LOG else full_log
     else:
         tunnel_url = os.environ.get(
             "JOAO_TUNNEL_URL",
@@ -785,25 +1694,50 @@ async def chat_proxy(req: ChatRequest):
         system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
 
     system_prompt += (
-        "\n\n---\n\n## Council Dispatch (MANDATORY)\n\n"
-        "You have 4 tools: council_status, council_dispatch, council_session_output, qa_review.\n"
+        "\n\n---\n\n## Your Tools (MANDATORY -- USE THEM)\n\n"
+        "### Council Tools\n"
+        "- council_status: Check which agents are online\n"
+        "- council_dispatch: Send a task to an agent\n"
+        "- council_session_output: Check agent progress/output\n"
+        "- qa_review: Check QA scores or override deploy/reject\n"
+        "- escalate_to_opus: Deep analysis via Claude Opus\n\n"
+        "### Server Tools (FULL ACCESS)\n"
+        "- read_file: Read any file on the server\n"
+        "- write_file: Write/create/append to files\n"
+        "- list_directory: List directory contents\n"
+        "- search_files: Search file contents with regex\n"
+        "- run_command: Execute any shell command on the server\n\n"
+        "### Dr. Data Tools (Data Intelligence)\n"
+        "- drdata_analyze: Profile a data file (semantic types, quality, insights)\n"
+        "- drdata_quality_scan: Run DAMA-DMBOK DQ scan (6 dimensions, quality gate)\n"
+        "- drdata_build_dashboard: Build HTML dashboard or Power BI project from data\n"
+        "- drdata_chat: Ask Dr. Data questions about data (analysis, patterns, reports)\n\n"
+        "### FocusFlow Tools (Lecture Summarizer)\n"
+        "- focusflow_process_url: Transcribe + summarize a YouTube/lecture URL\n"
+        "- focusflow_process_file: Transcribe + summarize an audio/video file\n"
+        "- focusflow_status: Check processing job status\n"
+        "- focusflow_download: Download summary as PDF/PPTX/DOCX/HTML/TXT/XLSX\n\n"
         "RULES:\n"
-        "- When Johan mentions ANY agent (ARIA, BYTE, CJ, DEX, SOFIA, GEMMA, MAX, LEX, NOVA, "
-        "SAGE, FLUX, CORE, APEX, IRIS, VOLT), "
-        "asks who is online, asks to dispatch, check status, or check progress: "
-        "ALWAYS call the appropriate tool. NEVER respond with text like "
-        "'I cannot see', 'I don't have visibility', 'check directly', etc.\n"
-        "- To check status: call council_status\n"
-        "- To dispatch a task: call council_dispatch\n"
-        "- To check an agent's progress: call council_session_output\n"
-        "- To check QA scores or override: call qa_review (action='status', 'deploy', or 'reject')\n"
-        "- NEVER suggest SSH commands, manual checks, or say you lack access. "
-        "You HAVE access through your tools. USE THEM.\n"
-        "- Always confirm results to Johan after tool execution.\n"
-        "- You also have escalate_to_opus for deep analysis. Use it when Johan asks for "
-        "'deep thinking', 'opus mode', 'analyze this deeply', QA review, architecture review, "
-        "or any task that requires the highest reasoning capability. "
-        "Sonnet handles everything else."
+        "- When Johan mentions ANY agent, asks who is online, dispatch, status, or progress: "
+        "ALWAYS call the appropriate tool.\n"
+        "- When Johan asks about files, logs, configs, code, services, processes: "
+        "USE read_file, list_directory, search_files, or run_command.\n"
+        "- When Johan asks to fix, update, or create something: "
+        "USE write_file or run_command.\n"
+        "- When Johan asks about DATA (analyze, quality, dashboard, profile, trends): "
+        "USE drdata_analyze, drdata_quality_scan, drdata_build_dashboard, or drdata_chat.\n"
+        "- When Johan asks to summarize a VIDEO or LECTURE or AUDIO: "
+        "USE focusflow_process_url or focusflow_process_file, then focusflow_status to poll.\n"
+        "- NEVER say 'I cannot see', 'I don't have access', 'check directly', etc. "
+        "You HAVE full access to the entire server. USE YOUR TOOLS.\n"
+        "- Hot pool agents (MAX, CORE, BYTE) are always running. On-demand agents "
+        "are launched automatically when dispatched.\n"
+        "- Always confirm results after tool execution.\n"
+        "- Use escalate_to_opus for complex architecture, deep debugging, or when Johan "
+        "explicitly asks for 'deep thinking' or 'opus'.\n"
+        "- You are running on the ROG Strix server (192.168.0.55). Home dir: /home/zamoritacr\n"
+        "- Key paths: ~/joao-spine/ (spine), ~/joao-interface/ (interface), ~/council/ (agents), "
+        "~/projects/ (projects), ~/taop-site/ (hub), ~/logs/ (all logs)\n"
     )
 
     if req.messages:
@@ -908,6 +1842,8 @@ async def chat_proxy(req: ChatRequest):
                 if last.role == "user":
                     user_msg = last.content if isinstance(last.content, str) else "[multimodal message]"
             _append_chat_feed(user_msg, full_response)
+            # Auto-grow context: append exchange summary to session log
+            _auto_grow_context(user_msg, full_response)
 
         yield "data: [DONE]\n\n"
 

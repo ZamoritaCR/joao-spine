@@ -12,14 +12,13 @@
 :root{
   --bg:#06080f;--surface:#0c0f1a;--surface2:#111628;--border:#141c2e;
   --cyan:#00e5ff;--green:#00ff88;--red:#ff4466;--gold:#fbbf24;--purple:#a78bfa;
-  --text:#e0e6f0;--dim:#4a5280;
+  --text:#e0e6f0;--dim:#4a5280;--orange:#ff8c00;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;-webkit-font-smoothing:antialiased;overflow:hidden}
 h1,h2,h3{font-family:'Syne',sans-serif;font-weight:700}
 button{font-family:'IBM Plex Mono',monospace;cursor:pointer}
 input,textarea,select{font-family:'IBM Plex Mono',monospace}
 
-/* Grid overlay */
 body::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background-image:
@@ -28,17 +27,18 @@ body::before{
   background-size:40px 40px;
 }
 
-/* Layout */
 #app{display:flex;flex-direction:column;height:100%;position:relative;z-index:1}
 #topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
 #topbar .logo{font-family:'Syne';font-size:18px;font-weight:800;letter-spacing:2px}
 #topbar .logo .j{color:var(--cyan)}
-#topbar .logo .a{color:var(--text)}
 #topbar .arena-tag{font-size:11px;color:var(--red);border:1px solid var(--red);padding:2px 8px;border-radius:4px;margin-left:12px;text-transform:uppercase;letter-spacing:1px}
+#topbar .right-controls{display:flex;align-items:center;gap:12px}
 #topbar .back{color:var(--dim);text-decoration:none;font-size:12px;transition:color .15s}
 #topbar .back:hover{color:var(--cyan)}
+#exec-log-toggle{background:none;border:1px solid var(--border);color:var(--dim);border-radius:4px;padding:4px 10px;font-size:10px;text-transform:uppercase;letter-spacing:1px;transition:all .15s}
+#exec-log-toggle:hover{border-color:var(--orange);color:var(--orange)}
+#exec-log-toggle.active{border-color:var(--orange);color:var(--orange);background:rgba(255,140,0,.1)}
 
-/* Config bar */
 #config{display:flex;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:center;flex-wrap:wrap}
 #config label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
 #config select,#config input[type="text"]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:11px;outline:none}
@@ -47,27 +47,41 @@ body::before{
 #config .system-group{flex:1;min-width:200px;display:flex;flex-direction:column;gap:2px}
 #config .system-group input{width:100%}
 
-/* Chat area */
+#main-area{display:flex;flex:1;overflow:hidden}
+
 #chat-area{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:24px}
 #chat-area::-webkit-scrollbar{width:4px}
 #chat-area::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
 
-/* Message pair */
+/* Execution log panel */
+#exec-panel{width:0;overflow:hidden;border-left:1px solid var(--border);background:var(--surface);transition:width .2s;flex-shrink:0}
+#exec-panel.open{width:340px}
+#exec-panel-inner{width:340px;height:100%;display:flex;flex-direction:column}
+#exec-panel-header{padding:12px 16px;border-bottom:1px solid var(--border);font-family:'Syne';font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--orange);display:flex;justify-content:space-between;align-items:center}
+#exec-panel-header .close-btn{background:none;border:none;color:var(--dim);font-size:14px;padding:0 4px}
+#exec-panel-header .close-btn:hover{color:var(--text)}
+#exec-entries{flex:1;overflow-y:auto;padding:8px}
+#exec-entries::-webkit-scrollbar{width:3px}
+#exec-entries::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+.exec-entry{padding:8px 10px;border-radius:6px;margin-bottom:4px;font-size:10px;border-left:3px solid}
+.exec-entry.success{border-color:var(--green);background:rgba(0,255,136,.03)}
+.exec-entry.fail{border-color:var(--red);background:rgba(255,68,102,.03)}
+.exec-entry .exec-model{text-transform:uppercase;letter-spacing:1px;font-weight:500;margin-bottom:2px}
+.exec-entry .exec-model.claude{color:var(--cyan)}
+.exec-entry .exec-model.gpt{color:var(--green)}
+.exec-entry .exec-tool{color:var(--orange);font-weight:500}
+.exec-entry .exec-detail{color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exec-entry .exec-git{color:var(--gold);font-size:9px;margin-top:2px}
+
 .msg-pair{display:flex;flex-direction:column;gap:12px}
 .msg-pair .user-msg{align-self:flex-end;max-width:70%;background:var(--surface2);border:1px solid var(--border);border-radius:12px;border-bottom-right-radius:4px;padding:12px 16px;font-size:13px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
 
-/* Response row */
 .response-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 
-/* Response cards */
 .response-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;position:relative;overflow:hidden;transition:border-color .3s,box-shadow .3s}
-.response-card::before{
-  content:'';position:absolute;top:0;left:0;bottom:0;width:3px;
-}
+.response-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
 .response-card.claude::before{background:var(--cyan)}
 .response-card.gpt::before{background:var(--green)}
-
-/* Radial glow behind cards */
 .response-card.claude{background:radial-gradient(ellipse at 0% 50%,rgba(0,229,255,.04) 0%,var(--surface) 70%)}
 .response-card.gpt{background:radial-gradient(ellipse at 0% 50%,rgba(0,255,136,.04) 0%,var(--surface) 70%)}
 
@@ -78,13 +92,35 @@ body::before{
 
 .response-card .body{font-size:13px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:var(--text)}
 
-/* Pulsing dot while thinking */
+/* Tool pills */
+.tool-pills{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.tool-pill{font-size:9px;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:500}
+.tool-pill.claude{background:rgba(0,229,255,.1);color:var(--cyan);border:1px solid rgba(0,229,255,.2)}
+.tool-pill.gpt{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
+.tool-pill.fail{opacity:.5;text-decoration:line-through}
+.tool-pill.git{background:rgba(251,191,36,.1);color:var(--gold);border:1px solid rgba(251,191,36,.2)}
+
+/* Tool calls expandable section */
+.tool-section{margin-top:12px;border-top:1px solid var(--border);padding-top:8px}
+.tool-toggle{background:none;border:none;color:var(--orange);font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:4px 0;display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace}
+.tool-toggle:hover{color:var(--gold)}
+.tool-toggle .arrow{transition:transform .2s;display:inline-block;font-size:8px}
+.tool-toggle .arrow.open{transform:rotate(90deg)}
+.tool-list{display:none;margin-top:8px;font-size:11px}
+.tool-list.open{display:block}
+.tool-item{background:rgba(255,140,0,.05);border:1px solid rgba(255,140,0,.15);border-radius:6px;padding:8px 10px;margin-bottom:6px}
+.tool-item .tool-name{color:var(--orange);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+.tool-item .tool-input{color:var(--dim);font-size:10px;margin-top:3px;white-space:pre-wrap;word-break:break-all;max-height:60px;overflow:hidden}
+.tool-item .tool-result{color:var(--text);font-size:10px;margin-top:3px;opacity:.7;white-space:pre-wrap;word-break:break-all;max-height:80px;overflow:hidden}
+
+/* Rate limit warning */
+.rate-warning{font-size:10px;color:var(--red);background:rgba(255,68,102,.08);border:1px solid rgba(255,68,102,.2);border-radius:6px;padding:6px 10px;margin-top:8px}
+
 .thinking-dot{width:8px;height:8px;border-radius:50%;display:inline-block;animation:pulse 1.2s ease-in-out infinite}
 .response-card.claude .thinking-dot{background:var(--cyan)}
 .response-card.gpt .thinking-dot{background:var(--green)}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
 
-/* Action row between cards */
 .action-row{display:flex;justify-content:center;gap:16px;padding:8px 0}
 
 .debate-btn{
@@ -104,18 +140,15 @@ body::before{
 .pref-btn.selected{border-color:var(--gold);color:var(--gold);background:rgba(251,191,36,.1)}
 .pref-btn svg{width:14px;height:14px;fill:currentColor}
 
-/* Selected card glow */
 .response-card.preferred.claude{border-color:var(--cyan);box-shadow:0 0 30px rgba(0,229,255,.15)}
 .response-card.preferred.gpt{border-color:var(--green);box-shadow:0 0 30px rgba(0,255,136,.15)}
 
-/* Debate cards */
 .debate-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .debate-card{background:var(--surface);border:1px solid var(--red);border-radius:10px;padding:16px;position:relative}
 .debate-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--red)}
 .debate-card .debate-label{font-family:'Syne';font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--red);margin-bottom:10px;display:flex;align-items:center;gap:6px}
 .debate-card .body{font-size:12px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;color:var(--text)}
 
-/* Input bar */
 #input-bar{display:flex;gap:10px;padding:12px 20px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;align-items:flex-end}
 #input-bar textarea{
   flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;
@@ -131,13 +164,12 @@ body::before{
 #send-btn:hover{box-shadow:0 0 20px rgba(0,229,255,.3)}
 #send-btn:disabled{opacity:.4;cursor:not-allowed}
 
-/* Empty state */
 #empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:16px;color:var(--dim);text-align:center;padding:40px}
 #empty-state h2{font-size:28px;color:var(--text);letter-spacing:2px}
 #empty-state p{font-size:12px;max-width:400px;line-height:1.6}
 #empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+#empty-state .intel{font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-top:8px}
 
-/* Responsive */
 @media(max-width:768px){
   .response-row,.debate-row{grid-template-columns:1fr}
   #config{flex-direction:column;gap:8px}
@@ -145,6 +177,8 @@ body::before{
   #topbar{padding:8px 12px}
   #chat-area{padding:12px}
   #input-bar{padding:10px 12px}
+  #exec-panel.open{width:260px}
+  #exec-panel-inner{width:260px}
 }
 </style>
 </head>
@@ -156,7 +190,10 @@ body::before{
       <span class="logo"><span class="j">JOAO</span></span>
       <span class="arena-tag">AI Arena</span>
     </div>
-    <a href="/hub" class="back">&larr; Back to Hub</a>
+    <div class="right-controls">
+      <button id="exec-log-toggle">Execution Log</button>
+      <a href="/hub" class="back">&larr; Back to Hub</a>
+    </div>
   </div>
 
   <div id="config">
@@ -176,15 +213,28 @@ body::before{
     </div>
     <div class="system-group">
       <label>System Prompt</label>
-      <input type="text" id="system-prompt" value="You are a helpful, intelligent assistant. Be concise and direct." placeholder="Shared system prompt...">
+      <input type="text" id="system-prompt" value="" placeholder="Custom system prompt (leave blank for full-intelligence default)">
     </div>
   </div>
 
-  <div id="chat-area">
-    <div id="empty-state">
-      <div class="vs">VS</div>
-      <h2>AI Arena</h2>
-      <p>Send a message and watch Claude and GPT respond side by side. Then trigger a debate to see them critique each other.</p>
+  <div id="main-area">
+    <div id="chat-area">
+      <div id="empty-state">
+        <div class="vs">VS</div>
+        <h2>AI Arena</h2>
+        <p>Send a message and watch Claude and GPT respond side by side. Both models have full access to the ROG server, Council agents, JOAO memory, and external integrations via MCP.</p>
+        <div class="intel">FULL INTELLIGENCE MODE</div>
+      </div>
+    </div>
+
+    <div id="exec-panel">
+      <div id="exec-panel-inner">
+        <div id="exec-panel-header">
+          <span>Execution Log</span>
+          <button class="close-btn" id="exec-close">x</button>
+        </div>
+        <div id="exec-entries"></div>
+      </div>
     </div>
   </div>
 
@@ -206,9 +256,11 @@ var sendBtn = document.getElementById('send-btn');
 var claudeModelSel = document.getElementById('claude-model');
 var gptModelSel = document.getElementById('gpt-model');
 var systemPromptInput = document.getElementById('system-prompt');
+var execPanel = document.getElementById('exec-panel');
+var execEntries = document.getElementById('exec-entries');
+var execToggle = document.getElementById('exec-log-toggle');
+var execClose = document.getElementById('exec-close');
 var busy = false;
-
-// Track latest responses for debate/preference
 var latestPair = null;
 
 function esc(s) {
@@ -222,9 +274,130 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
 }
 
+// Execution log panel toggle
+execToggle.addEventListener('click', function() {
+  execPanel.classList.toggle('open');
+  execToggle.classList.toggle('active');
+});
+execClose.addEventListener('click', function() {
+  execPanel.classList.remove('open');
+  execToggle.classList.remove('active');
+});
+
+function addExecEntry(entry) {
+  var div = document.createElement('div');
+  div.className = 'exec-entry ' + (entry.success ? 'success' : 'fail');
+  var html = '<div class="exec-model ' + esc(entry.model) + '">' + esc(entry.model) + '</div>';
+  html += '<span class="exec-tool">' + esc(entry.tool) + '</span>';
+  if (entry.input) {
+    html += '<div class="exec-detail">' + esc(entry.input) + '</div>';
+  }
+  if (entry.git_branch) {
+    html += '<div class="exec-git">GIT: ' + esc(entry.git_branch) + '</div>';
+  }
+  div.innerHTML = html;
+  execEntries.insertBefore(div, execEntries.firstChild);
+  // Cap entries in DOM
+  while (execEntries.children.length > 200) {
+    execEntries.removeChild(execEntries.lastChild);
+  }
+}
+
+function addToolCallsToExecLog(tools, model) {
+  if (!tools || tools.length === 0) return;
+  for (var i = 0; i < tools.length; i++) {
+    var t = tools[i];
+    var inputStr = '';
+    try { inputStr = JSON.stringify(t.input).substring(0, 200); } catch(e) {}
+    addExecEntry({
+      model: model,
+      tool: t.tool,
+      input: inputStr,
+      success: t.success !== false,
+      git_branch: null,
+    });
+  }
+}
+
+function renderToolPills(tools, parentEl, modelClass) {
+  if (!tools || tools.length === 0) return;
+  var pills = document.createElement('div');
+  pills.className = 'tool-pills';
+  // Deduplicate tool names
+  var seen = {};
+  var gitBranches = [];
+  tools.forEach(function(t) {
+    if (!seen[t.tool]) {
+      seen[t.tool] = { count: 0, anyFail: false };
+    }
+    seen[t.tool].count++;
+    if (t.success === false) seen[t.tool].anyFail = true;
+    if (t.result && t.result.indexOf('[backup:') !== -1) {
+      var m = t.result.match(/\[backup:\s*([^\]]+)\]/);
+      if (m) gitBranches.push(m[1]);
+    }
+  });
+  Object.keys(seen).forEach(function(name) {
+    var pill = document.createElement('span');
+    pill.className = 'tool-pill ' + modelClass;
+    if (seen[name].anyFail) pill.className += ' fail';
+    pill.textContent = name + (seen[name].count > 1 ? ' x' + seen[name].count : '');
+    pills.appendChild(pill);
+  });
+  // Git backup pills
+  gitBranches.forEach(function(branch) {
+    var pill = document.createElement('span');
+    pill.className = 'tool-pill git';
+    pill.textContent = 'GIT: ' + branch;
+    pills.appendChild(pill);
+  });
+  parentEl.appendChild(pills);
+}
+
+function renderToolCalls(tools, parentEl) {
+  if (!tools || tools.length === 0) return;
+  var section = document.createElement('div');
+  section.className = 'tool-section';
+
+  var toggle = document.createElement('button');
+  toggle.className = 'tool-toggle';
+  toggle.innerHTML = '<span class="arrow">&#9654;</span> ' + tools.length + ' tool call' + (tools.length > 1 ? 's' : '');
+
+  var list = document.createElement('div');
+  list.className = 'tool-list';
+
+  tools.forEach(function(t) {
+    var item = document.createElement('div');
+    item.className = 'tool-item';
+    var inputStr = '';
+    try { inputStr = JSON.stringify(t.input, null, 1); } catch(e) { inputStr = String(t.input); }
+    item.innerHTML = '<div class="tool-name">' + esc(t.tool) + '</div>'
+      + '<div class="tool-input">' + esc(inputStr) + '</div>'
+      + (t.result ? '<div class="tool-result">' + esc(t.result) + '</div>' : '');
+    list.appendChild(item);
+  });
+
+  toggle.addEventListener('click', function() {
+    var arrow = toggle.querySelector('.arrow');
+    var isOpen = list.classList.toggle('open');
+    arrow.classList.toggle('open', isOpen);
+  });
+
+  section.appendChild(toggle);
+  section.appendChild(list);
+  parentEl.appendChild(section);
+}
+
+function renderRateWarning(warning, parentEl) {
+  if (!warning) return;
+  var div = document.createElement('div');
+  div.className = 'rate-warning';
+  div.textContent = warning;
+  parentEl.appendChild(div);
+}
+
 userInput.addEventListener('input', function() { autoResize(userInput); });
 
-// -- Send message --
 function send() {
   var text = userInput.value.trim();
   if (!text || busy) return;
@@ -233,35 +406,26 @@ function send() {
   userInput.value = '';
   autoResize(userInput);
 
-  // Hide empty state
-  if (emptyState) {
-    emptyState.style.display = 'none';
-  }
+  if (emptyState) emptyState.style.display = 'none';
 
   var pairId = 'pair-' + Date.now();
-
-  // Build message pair container
   var pair = document.createElement('div');
   pair.className = 'msg-pair';
   pair.id = pairId;
 
-  // User message
   var userDiv = document.createElement('div');
   userDiv.className = 'user-msg';
   userDiv.textContent = text;
   pair.appendChild(userDiv);
 
-  // Response row
   var respRow = document.createElement('div');
   respRow.className = 'response-row';
 
-  // Claude card
   var claudeCard = document.createElement('div');
   claudeCard.className = 'response-card claude';
   claudeCard.innerHTML = '<div class="model-label">Claude <span class="model-name">' + esc(claudeModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
   respRow.appendChild(claudeCard);
 
-  // GPT card
   var gptCard = document.createElement('div');
   gptCard.className = 'response-card gpt';
   gptCard.innerHTML = '<div class="model-label">GPT <span class="model-name">' + esc(gptModelSel.value) + '</span></div><div class="body"><span class="thinking-dot"></span> Thinking...</div>';
@@ -271,7 +435,6 @@ function send() {
   chatArea.appendChild(pair);
   chatArea.scrollTop = chatArea.scrollHeight;
 
-  // API call
   fetch('/arena/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -288,10 +451,24 @@ function send() {
     return r.json();
   })
   .then(function(data) {
-    // Update Claude card
     claudeCard.querySelector('.body').textContent = data.claude_response;
-    // Update GPT card
     gptCard.querySelector('.body').textContent = data.gpt_response;
+
+    // Tool pills below each response
+    renderToolPills(data.claude_tools, claudeCard, 'claude');
+    renderToolPills(data.gpt_tools, gptCard, 'gpt');
+
+    // Expandable tool call details
+    renderToolCalls(data.claude_tools, claudeCard);
+    renderToolCalls(data.gpt_tools, gptCard);
+
+    // Rate limit warnings
+    renderRateWarning(data.claude_rate_warning, claudeCard);
+    renderRateWarning(data.gpt_rate_warning, gptCard);
+
+    // Add to execution log panel
+    addToolCallsToExecLog(data.claude_tools, 'claude');
+    addToolCallsToExecLog(data.gpt_tools, 'gpt');
 
     latestPair = {
       pairId: pairId,
@@ -304,39 +481,33 @@ function send() {
       debateGpt: '',
     };
 
-    // Add action row
     var actionRow = document.createElement('div');
     actionRow.className = 'action-row';
 
-    // Claude preference button
     var prefClaude = document.createElement('button');
     prefClaude.className = 'pref-btn';
     prefClaude.setAttribute('data-model', 'claude');
-    prefClaude.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 22V11l-5-5 1.41-1.41L7 8.17V2h10v6.17l3.59-3.58L22 6l-5 5v11H7zm2-2h6v-8.17l3-3V4H9v4.83l-3 3V20z"/><path d="M9 20h6v-8.17l3-3V4H9v4.83l-3 3V20z" opacity=".6"/></svg> Claude';
+    prefClaude.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/></svg> Claude';
     actionRow.appendChild(prefClaude);
 
-    // Debate button
     var debateBtn = document.createElement('button');
     debateBtn.className = 'debate-btn';
     debateBtn.textContent = 'DEBATE';
     actionRow.appendChild(debateBtn);
 
-    // GPT preference button
     var prefGpt = document.createElement('button');
     prefGpt.className = 'pref-btn';
     prefGpt.setAttribute('data-model', 'gpt');
-    prefGpt.innerHTML = '<svg viewBox="0 0 24 24"><path d="M7 22V11l-5-5 1.41-1.41L7 8.17V2h10v6.17l3.59-3.58L22 6l-5 5v11H7zm2-2h6v-8.17l3-3V4H9v4.83l-3 3V20z"/><path d="M9 20h6v-8.17l3-3V4H9v4.83l-3 3V20z" opacity=".6"/></svg> GPT';
+    prefGpt.innerHTML = '<svg viewBox="0 0 24 24"><path d="M2 20h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zm19.83-7.12c.11-.25.17-.52.17-.8V11c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66-.23-.45-.52-.86-.88-1.22L14 2 7.59 8.41C7.21 8.79 7 9.3 7 9.83v7.84C7 18.95 8.05 20 9.34 20h8.11c.7 0 1.36-.37 1.72-.97l2.66-6.15z"/></svg> GPT';
     actionRow.appendChild(prefGpt);
 
     pair.appendChild(actionRow);
 
-    // Preference handlers
     function handlePref(model) {
       prefClaude.classList.toggle('selected', model === 'claude');
       prefGpt.classList.toggle('selected', model === 'gpt');
       claudeCard.classList.toggle('preferred', model === 'claude');
       gptCard.classList.toggle('preferred', model === 'gpt');
-
       fetch('/arena/prefer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -355,13 +526,11 @@ function send() {
     prefClaude.addEventListener('click', function() { handlePref('claude'); });
     prefGpt.addEventListener('click', function() { handlePref('gpt'); });
 
-    // Debate handler
     debateBtn.addEventListener('click', function() {
       if (debateBtn.disabled) return;
       debateBtn.disabled = true;
       debateBtn.textContent = 'DEBATING...';
 
-      // Create debate row
       var debateRow = document.createElement('div');
       debateRow.className = 'debate-row';
 
@@ -397,6 +566,13 @@ function send() {
       .then(function(d) {
         debateClaudeCard.querySelector('.body').textContent = d.claude_debate;
         debateGptCard.querySelector('.body').textContent = d.gpt_debate;
+        // Render debate tool calls if any
+        renderToolPills(d.claude_tools, debateClaudeCard, 'claude');
+        renderToolPills(d.gpt_tools, debateGptCard, 'gpt');
+        renderToolCalls(d.claude_tools, debateClaudeCard);
+        renderToolCalls(d.gpt_tools, debateGptCard);
+        addToolCallsToExecLog(d.claude_tools, 'claude');
+        addToolCallsToExecLog(d.gpt_tools, 'gpt');
         latestPair.debateClaude = d.claude_debate;
         latestPair.debateGpt = d.gpt_debate;
         debateBtn.textContent = 'DEBATED';

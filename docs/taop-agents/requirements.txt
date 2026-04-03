@@ -1,0 +1,14 @@
+# TAOP Agent Workforce — Requirements
+# pip install -r requirements.txt
+
+# AI APIs
+anthropic>=0.40.0
+openai>=1.50.0
+google-generativeai>=0.8.0
+
+# Interfaces
+streamlit>=1.40.0
+python-telegram-bot>=21.0
+
+# Utils
+python-dotenv>=1.0.0

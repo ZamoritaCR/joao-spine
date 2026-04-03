@@ -22,7 +22,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
-from mcp.server.transport_security import TransportSecuritySettings
+
 
 from models.schemas import (
     AgentOutputRecord,
@@ -34,16 +34,12 @@ from services import ai_processor, dispatch, ftp_client, supabase_client, telegr
 
 _RAILWAY_HOST = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
 
-_allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+_allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*", "192.168.0.*:*"]
 if _RAILWAY_HOST:
     _allowed_hosts.append(_RAILWAY_HOST)
 
 mcp = FastMCP(
     "joao-spine",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=_allowed_hosts,
-    ),
 )
 
 

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JOAO -- Terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #111118;
+    border-bottom: 1px solid #1e1e2e;
+    flex-shrink: 0;
+  }
+
+  #header .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #10b981; box-shadow: 0 0 6px #10b981;
+  }
+
+  #header .dot.disconnected {
+    background: #ef4444; box-shadow: 0 0 6px #ef4444;
+  }
+
+  #header .title {
+    color: #10b981; font-weight: 700; font-size: 12px; letter-spacing: 0.08em;
+  }
+
+  #header .status {
+    margin-left: auto; font-size: 10px; color: #555;
+  }
+
+  #header .status.connected { color: #10b981; }
+  #header .status.error { color: #ef4444; }
+
+  #terminal-container {
+    flex: 1;
+    padding: 4px;
+    overflow: hidden;
+  }
+
+  .xterm { height: 100%; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="dot" id="conn-dot"></div>
+  <div class="title">JOAO -- TERMINAL</div>
+  <div class="status" id="status">connecting...</div>
+</div>
+
+<div id="terminal-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+<script>
+  const statusEl = document.getElementById('status');
+  const connDot = document.getElementById('conn-dot');
+
+  // Terminal setup
+  const term = new Terminal({
+    cursorBlink: true,
+    fontSize: 13,
+    fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', monospace",
+    theme: {
+      background: '#0a0a0f',
+      foreground: '#e0e0e0',
+      cursor: '#10b981',
+      cursorAccent: '#0a0a0f',
+      selectionBackground: '#1e1e2e',
+      black: '#0a0a0f',
+      red: '#ef4444',
+      green: '#10b981',
+      yellow: '#fbbf24',
+      blue: '#3b82f6',
+      magenta: '#a78bfa',
+      cyan: '#00f5ff',
+      white: '#e0e0e0',
+      brightBlack: '#4a5280',
+      brightRed: '#f87171',
+      brightGreen: '#34d399',
+      brightYellow: '#fcd34d',
+      brightBlue: '#60a5fa',
+      brightMagenta: '#c4b5fd',
+      brightCyan: '#67e8f9',
+      brightWhite: '#f0f4ff',
+    },
+    allowProposedApi: true,
+  });
+
+  const fitAddon = new FitAddon.FitAddon();
+  const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+  term.loadAddon(fitAddon);
+  term.loadAddon(webLinksAddon);
+  term.open(document.getElementById('terminal-container'));
+  fitAddon.fit();
+
+  // Resize handling
+  window.addEventListener('resize', () => fitAddon.fit());
+  new ResizeObserver(() => fitAddon.fit()).observe(document.getElementById('terminal-container'));
+
+  // WebSocket connection
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token') || '__TERMINAL_TOKEN__';
+  const sessionId = params.get('session') || 'default';
+
+  let ws = null;
+  let reconnectTimer = null;
+  const RECONNECT_DELAY = 3000;
+
+  function setStatus(text, state) {
+    statusEl.textContent = text;
+    statusEl.className = 'status ' + (state || '');
+    if (state === 'connected') {
+      connDot.classList.remove('disconnected');
+    } else {
+      connDot.classList.add('disconnected');
+    }
+  }
+
+  function connect() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const cols = term.cols;
+    const rows = term.rows;
+    const url = `${proto}//${host}/ws/terminal?session_id=${sessionId}&cols=${cols}&rows=${rows}&token=${encodeURIComponent(token)}`;
+
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setStatus('connected', 'connected');
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        switch (msg.type) {
+          case 'output':
+            term.write(msg.data);
+            break;
+          case 'scrollback':
+            term.write(msg.data);
+            break;
+          case 'exit':
+            term.write('\r\n[Process exited with code ' + msg.code + ']\r\n');
+            setStatus('exited', 'error');
+            break;
+          case 'pong':
+            break;
+          case 'error':
+            term.write('\r\n\x1b[31m[Error: ' + msg.message + ']\x1b[0m\r\n');
+            break;
+        }
+      } catch (e) {
+        console.warn('Failed to parse message:', e);
+      }
+    };
+
+    ws.onclose = (event) => {
+      if (event.code === 4001) {
+        setStatus('unauthorized', 'error');
+        term.write('\r\n\x1b[31m[Unauthorized -- check terminal token]\x1b[0m\r\n');
+        return;
+      }
+      setStatus('disconnected -- reconnecting...', 'error');
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => {
+      setStatus('connection error', 'error');
+    };
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, RECONNECT_DELAY);
+  }
+
+  // Terminal input -> WebSocket
+  term.onData((data) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'input', data: data }));
+    }
+  });
+
+  // Terminal resize -> WebSocket
+  term.onResize(({ cols, rows }) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize', cols: cols, rows: rows }));
+    }
+  });
+
+  // Keepalive ping
+  setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 30000);
+
+  // Boot
+  connect();
+</script>
+</body>
+</html>

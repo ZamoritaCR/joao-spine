@@ -11,7 +11,7 @@ import logging
 import os
 
 from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
+
 
 from services import dispatch, scout as scout_service
 from tools.memory import joao_memory_read, joao_memory_write
@@ -25,10 +25,7 @@ if _RAILWAY_HOST:
 
 taop_mcp = FastMCP(
     "taop-council",
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=_allowed_hosts,
-    ),
+    
 )
 
 

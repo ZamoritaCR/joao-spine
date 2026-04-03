@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -42,7 +42,7 @@ class TextRequest(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "ok"
     service: str = "joao-spine"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SubCheck(BaseModel):
@@ -68,7 +68,7 @@ class StatusChecks(BaseModel):
 class StatusResponse(BaseModel):
     status: str  # "healthy" | "degraded" | "down"
     service: str = "joao-spine"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     version: str | None = None
     uptime_seconds: float
     checks: StatusChecks
@@ -105,7 +105,7 @@ class VoiceCommandResponse(BaseModel):
     transcript: str
     intent: VoiceIntent
     result: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # ── Internal Models ─────────────────────────────────────────────────────────

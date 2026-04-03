@@ -19,7 +19,10 @@ _client: Client | None = None
 
 def _get_key() -> str:
     """Prefer SUPABASE_SERVICE_ROLE_KEY, fall back to SUPABASE_KEY."""
-    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ["SUPABASE_KEY"]
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
+    if not key:
+        raise RuntimeError("Neither SUPABASE_SERVICE_ROLE_KEY nor SUPABASE_KEY is set")
+    return key
 
 
 def get_client() -> Client:
@@ -95,10 +98,14 @@ async def insert_dispatch_log(record: DispatchLogRecord) -> dict[str, Any]:
     """Log a council dispatch to Supabase for audit trail."""
     client = get_client()
     data = record.model_dump()
-    result = client.table("dispatch_log").insert(data).execute()
-    row = result.data[0] if result.data else {}
-    logger.info("dispatch_log insert id=%s agent=%s", row.get("id"), record.agent)
-    return row
+    try:
+        result = client.table("dispatch_log").insert(data).execute()
+        row = result.data[0] if result.data else {}
+        logger.info("dispatch_log insert id=%s agent=%s", row.get("id"), record.agent)
+        return row
+    except Exception:
+        logger.warning("insert_dispatch_log failed (table may not exist)", exc_info=True)
+        return {}
 
 
 async def query_recent_activity(limit: int = 10) -> list[dict[str, Any]]:

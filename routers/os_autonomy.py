@@ -70,9 +70,9 @@ class OsProxyApp:
                 break
 
         headers = {"Content-Type": "application/json"}
-        if "os-proxy" in OS_AGENT_URL:
+        if "os-proxy" in OS_AGENT_URL and _DISPATCH_SECRET:
             headers["Authorization"] = f"Bearer {_DISPATCH_SECRET}"
-        else:
+        elif OS_AGENT_KEY:
             headers["X-API-Key"] = OS_AGENT_KEY
 
         target = f"{OS_AGENT_URL}/{path}" if path else OS_AGENT_URL
