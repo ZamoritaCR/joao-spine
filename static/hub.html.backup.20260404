@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>JOAO -- Living OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#06080f;--surface:#0c0f1a;--surface2:#111628;--border:#1a1f35;
+  --cyan:#00f5ff;--gold:#fbbf24;--green:#10b981;--red:#ef4444;--purple:#a78bfa;--blue:#3b82f6;
+  --text:#e0e4f0;--dim:#4a5280;--safe-b:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:'Syne',sans-serif;font-weight:700}
+button{font-family:'IBM Plex Mono',monospace;cursor:pointer}
+input,textarea{font-family:'IBM Plex Mono',monospace}
+
+/* -- Auth Gate -- */
+#auth-gate{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+#auth-gate.hidden{display:none}
+#auth-gate h1{font-size:28px;letter-spacing:3px;color:var(--cyan)}
+#auth-gate p{color:var(--dim);font-size:12px;max-width:300px;text-align:center;line-height:1.5}
+#auth-gate input{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-size:14px;width:300px;outline:none}
+#auth-gate input:focus{border-color:var(--cyan)}
+#auth-gate button{background:var(--cyan);color:#000;border:none;border-radius:8px;padding:12px 24px;font-weight:500;font-size:13px}
+#auth-gate .err{color:var(--red);font-size:11px;min-height:16px}
+
+/* -- Layout -- */
+#app{display:none;flex-direction:column;height:100%}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
+#topbar .left{display:flex;align-items:center;gap:12px}
+#topbar .logo{font-family:'Syne';font-size:16px;font-weight:800;color:var(--cyan);letter-spacing:2px}
+#topbar .sys-stat{display:flex;gap:12px;font-size:11px;color:var(--dim)}
+#topbar .sys-stat span{display:flex;align-items:center;gap:4px}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+.dot-g{background:var(--green)}.dot-r{background:var(--red)}.dot-y{background:var(--gold)}
+
+/* -- Tabs -- */
+#tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;overflow-x:auto}
+.tab{padding:10px 18px;font-size:12px;font-weight:400;color:var(--dim);background:none;border:none;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+
+/* -- Panels -- */
+#panels{flex:1;overflow:hidden;position:relative}
+.panel{position:absolute;inset:0;overflow-y:auto;padding:16px;display:none}
+.panel.active{display:block}
+.panel::-webkit-scrollbar{width:4px}.panel::-webkit-scrollbar-thumb{background:#222;border-radius:2px}
+
+/* -- Cards -- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+.card h3{font-size:13px;margin-bottom:8px;color:var(--text)}
+.card-grid{display:grid;gap:12px}
+.card-grid.cols-2{grid-template-columns:1fr 1fr}
+.card-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.card-grid.cols-4{grid-template-columns:1fr 1fr 1fr 1fr}
+
+/* -- Agents -- */
+.agent-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.agent-card .name{font-family:'Syne';font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+.agent-card .meta{font-size:10px;color:var(--dim)}
+.agent-card .badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:500;text-transform:uppercase}
+.badge-hot{background:rgba(251,191,36,.15);color:var(--gold);border:1px solid rgba(251,191,36,.3)}
+.badge-on{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.badge-off{background:rgba(74,82,128,.15);color:var(--dim);border:1px solid var(--border)}
+
+/* -- Dispatch form -- */
+.dispatch-form{display:flex;gap:8px;margin-bottom:16px}
+.dispatch-form select,.dispatch-form input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:12px;outline:none}
+.dispatch-form select{width:120px}
+.dispatch-form input{flex:1}
+.dispatch-form button{background:var(--cyan);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:500}
+
+/* -- Dispatch log -- */
+.dispatch-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}
+.dispatch-row .agent-tag{font-weight:500;color:var(--cyan);min-width:50px}
+.dispatch-row .task{flex:1;color:var(--text)}
+.dispatch-row .status{font-size:10px;padding:2px 6px;border-radius:4px}
+.status-pending{background:rgba(251,191,36,.15);color:var(--gold)}
+.status-dispatched{background:rgba(59,130,246,.15);color:var(--blue)}
+.status-completed{background:rgba(16,185,129,.15);color:var(--green)}
+.status-failed{background:rgba(239,68,68,.15);color:var(--red)}
+.dispatch-row .time{color:var(--dim);font-size:10px;min-width:60px;text-align:right}
+
+/* -- Terminal -- */
+#terminal-panel{padding:0!important}
+#terminal-frame{width:100%;height:100%;border:none;background:#000}
+
+/* -- Arena -- */
+#panel-arena{padding:0!important}
+#arena-frame{width:100%;height:100%;border:none;background:#06080f}
+
+/* -- Brain -- */
+#brain-messages{flex:1;overflow-y:auto;padding:12px 0;display:flex;flex-direction:column;gap:8px}
+.brain-msg{max-width:85%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
+.brain-msg.user{align-self:flex-end;background:var(--surface2);border:1px solid var(--border);border-bottom-right-radius:4px}
+.brain-msg.assistant{align-self:flex-start;background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.15);border-bottom-left-radius:4px}
+#brain-input-area{display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border);flex-shrink:0}
+#brain-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;resize:none;max-height:100px}
+#brain-input:focus{border-color:var(--cyan)}
+#brain-send{background:var(--cyan);color:#000;border:none;border-radius:8px;padding:10px 18px;font-weight:500;font-size:12px}
+
+/* -- Memory -- */
+.memory-item{padding:10px;border-bottom:1px solid var(--border);font-size:12px}
+.memory-item .source{color:var(--purple);font-weight:500;font-size:10px;text-transform:uppercase;margin-bottom:4px}
+.memory-item .content{color:var(--text);line-height:1.5}
+.memory-item .tags{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
+.memory-item .tag{font-size:9px;padding:1px 6px;border-radius:3px;background:var(--surface2);color:var(--dim);border:1px solid var(--border)}
+.memory-item .pin-btn{background:none;border:none;color:var(--dim);font-size:11px;float:right;padding:2px 6px}
+.memory-item .pin-btn:hover{color:var(--gold)}
+.memory-item .pin-btn.pinned{color:var(--gold)}
+.memory-feed-form{display:flex;gap:8px;margin-bottom:16px}
+.memory-feed-form textarea{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;resize:none;height:60px}
+.memory-feed-form button{background:var(--cyan);color:#000;border:none;border-radius:6px;padding:8px 16px;font-size:12px;font-weight:500;align-self:flex-end}
+
+/* -- Pulse (system metrics) -- */
+.metric-card{text-align:center;padding:20px}
+.metric-card .value{font-family:'Syne';font-size:32px;font-weight:800}
+.metric-card .label{font-size:11px;color:var(--dim);margin-top:4px}
+.metric-bar{height:6px;background:var(--surface2);border-radius:3px;margin-top:8px;overflow:hidden}
+.metric-bar .fill{height:100%;border-radius:3px;transition:width .5s}
+
+/* -- Responsive -- */
+@media(max-width:768px){
+  .card-grid.cols-3,.card-grid.cols-4{grid-template-columns:1fr 1fr}
+  .tab{padding:8px 12px;font-size:11px}
+  #topbar .sys-stat{display:none}
+}
+@media(max-width:480px){
+  .card-grid.cols-2,.card-grid.cols-3,.card-grid.cols-4{grid-template-columns:1fr}
+  .panel{padding:12px}
+  .dispatch-form{flex-wrap:wrap}
+  .dispatch-form select{width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- Auth Gate -->
+<div id="auth-gate">
+  <h1>JOAO</h1>
+  <p>Living AI Operating System. Enter your Hub token to access Mission Control.</p>
+  <input type="password" id="auth-input" placeholder="Hub token" autofocus>
+  <button id="auth-btn">Enter</button>
+  <div class="err" id="auth-err"></div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <div id="topbar">
+    <div class="left">
+      <span class="logo">JOAO</span>
+      <div class="sys-stat" id="sys-stat">
+        <span>CPU <b id="st-cpu">--</b>%</span>
+        <span>MEM <b id="st-mem">--</b>%</span>
+        <span>DISK <b id="st-disk">--</b>%</span>
+        <span><span class="dot dot-g" id="st-dot"></span> <span id="st-svc">--</span></span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--dim)" id="clock"></div>
+  </div>
+
+  <div id="tabs">
+    <button class="tab active" data-tab="bridge">Bridge</button>
+    <button class="tab" data-tab="warroom">War Room</button>
+    <button class="tab" data-tab="terminal">Terminal</button>
+    <button class="tab" data-tab="brain">Brain</button>
+    <button class="tab" data-tab="memory">Memory</button>
+    <button class="tab" data-tab="projects">Projects</button>
+    <button class="tab" data-tab="pulse">Pulse</button>
+    <button class="tab" data-tab="arena" style="color:var(--red)">AI Arena</button>
+  </div>
+
+  <div id="panels">
+
+    <!-- BRIDGE -->
+    <div class="panel active" id="panel-bridge">
+      <h2 style="font-size:18px;margin-bottom:16px;color:var(--cyan)">Council Status</h2>
+      <div class="card-grid cols-4" id="agents-grid"></div>
+      <h3 style="margin:20px 0 12px;font-size:14px">Recent Dispatches</h3>
+      <div id="dispatch-log"></div>
+    </div>
+
+    <!-- WAR ROOM -->
+    <div class="panel" id="panel-warroom">
+      <h2 style="font-size:18px;margin-bottom:16px;color:var(--gold)">War Room</h2>
+      <div class="dispatch-form" id="dispatch-form">
+        <select id="dispatch-agent"></select>
+        <input type="text" id="dispatch-task" placeholder="Task for the agent...">
+        <button id="dispatch-btn">Dispatch</button>
+      </div>
+      <div id="dispatch-result" style="margin-bottom:16px"></div>
+      <h3 style="margin-bottom:12px;font-size:14px">Agent Output</h3>
+      <select id="output-agent" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;margin-bottom:8px"></select>
+      <button id="poll-btn" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 12px;color:var(--text);font-size:12px;margin-left:8px">Poll Output</button>
+      <pre id="agent-output" style="background:#000;border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:8px;font-size:11px;max-height:400px;overflow:auto;white-space:pre-wrap;color:var(--green)"></pre>
+    </div>
+
+    <!-- TERMINAL -->
+    <div class="panel" id="panel-terminal" id="terminal-panel">
+      <iframe id="terminal-frame" src="" style="width:100%;height:100%;border:none;background:#000"></iframe>
+    </div>
+
+    <!-- BRAIN -->
+    <div class="panel" id="panel-brain" style="display:none;flex-direction:column">
+      <h2 style="font-size:18px;margin-bottom:12px;color:var(--cyan)">JOAO Brain</h2>
+      <div id="brain-messages"></div>
+      <div id="brain-input-area">
+        <textarea id="brain-input" rows="1" placeholder="Talk to JOAO..."></textarea>
+        <button id="brain-send">Send</button>
+      </div>
+    </div>
+
+    <!-- MEMORY -->
+    <div class="panel" id="panel-memory">
+      <h2 style="font-size:18px;margin-bottom:12px;color:var(--purple)">Memory Engine</h2>
+      <div class="memory-feed-form">
+        <textarea id="memory-content" placeholder="Feed a memory to JOAO..."></textarea>
+        <button id="memory-feed-btn">Store</button>
+      </div>
+      <h3 style="margin-bottom:8px;font-size:13px;color:var(--gold)">Pinned</h3>
+      <div id="pinned-memories"></div>
+      <h3 style="margin:16px 0 8px;font-size:13px">Recent</h3>
+      <div id="recent-memories"></div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="panel" id="panel-projects">
+      <h2 style="font-size:18px;margin-bottom:16px;color:var(--green)">Projects</h2>
+      <div class="card-grid cols-2" id="projects-grid">
+        <div class="card"><h3 style="color:var(--cyan)">dopamine.watch</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">Emotion-driven streaming recommendations. ADHD-optimized. Live on Vercel.</p></div>
+        <div class="card"><h3 style="color:var(--purple)">dopamine.chat</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">Privacy-first messaging. E2E encrypted. Next.js + Signal protocol.</p></div>
+        <div class="card"><h3 style="color:var(--gold)">Dr. Data</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">BI migration intelligence. Tableau to Power BI translation engine.</p></div>
+        <div class="card"><h3 style="color:var(--green)">TAOP Site</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">theartofthepossible.io -- company hub, product showcase, blog.</p></div>
+        <div class="card"><h3 style="color:var(--red)">Council Infrastructure</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">16 AI agents, tmux dispatch, JOAO spine, MCP servers.</p></div>
+        <div class="card"><h3 style="color:var(--blue)">JOAO Living OS</h3><p style="font-size:11px;color:var(--dim);line-height:1.5">This. The virtual office where AI meets operations.</p></div>
+      </div>
+    </div>
+
+    <!-- AI ARENA -->
+    <div class="panel" id="panel-arena">
+      <iframe id="arena-frame" src="" style="width:100%;height:100%;border:none;background:var(--bg)"></iframe>
+    </div>
+
+    <!-- PULSE -->
+    <div class="panel" id="panel-pulse">
+      <h2 style="font-size:18px;margin-bottom:16px;color:var(--green)">System Pulse</h2>
+      <div class="card-grid cols-3" id="pulse-metrics"></div>
+      <h3 style="margin:20px 0 12px;font-size:14px">Services</h3>
+      <div id="pulse-services"></div>
+      <h3 style="margin:20px 0 12px;font-size:14px">System Logs</h3>
+      <pre id="sys-logs" style="background:#000;border:1px solid var(--border);border-radius:6px;padding:12px;font-size:11px;max-height:300px;overflow:auto;color:var(--dim)">Connecting...</pre>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+var TOKEN_KEY='joao-hub-token';
+var BASE='';
+var token=sessionStorage.getItem(TOKEN_KEY)||'';
+var brainMessages=[];
+var brainSessionId='brain-'+Date.now().toString(36);
+
+// -- DOM refs --
+var authGate=document.getElementById('auth-gate');
+var authInput=document.getElementById('auth-input');
+var authBtn=document.getElementById('auth-btn');
+var authErr=document.getElementById('auth-err');
+var app=document.getElementById('app');
+
+// -- Auth --
+function tryAuth(t){
+  authErr.textContent='';
+  fetch(BASE+'/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})})
+  .then(function(r){
+    if(r.ok){token=t;sessionStorage.setItem(TOKEN_KEY,t);authGate.classList.add('hidden');app.style.display='flex';init();}
+    else{authErr.textContent='Invalid token';authInput.focus();}
+  })
+  .catch(function(){authErr.textContent='Connection failed';});
+}
+authBtn.addEventListener('click',function(){tryAuth(authInput.value.trim())});
+authInput.addEventListener('keydown',function(e){if(e.key==='Enter')tryAuth(authInput.value.trim())});
+if(token)tryAuth(token);
+
+// -- Helpers --
+function api(path,opts){
+  opts=opts||{};
+  var sep=path.indexOf('?')>=0?'&':'?';
+  var url=BASE+path+sep+'token='+encodeURIComponent(token);
+  return fetch(url,opts);
+}
+function apiJSON(path,opts){return api(path,opts).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()});}
+function timeAgo(iso){
+  if(!iso)return'--';
+  var d=new Date(iso);var s=Math.floor((Date.now()-d.getTime())/1000);
+  if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';
+}
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+// -- Tabs --
+var tabs=document.querySelectorAll('.tab');
+var panels=document.querySelectorAll('.panel');
+tabs.forEach(function(t){
+  t.addEventListener('click',function(){
+    tabs.forEach(function(x){x.classList.remove('active')});
+    panels.forEach(function(x){x.classList.remove('active');x.style.display='none'});
+    t.classList.add('active');
+    var p=document.getElementById('panel-'+t.dataset.tab);
+    p.classList.add('active');
+    p.style.display=t.dataset.tab==='brain'?'flex':'block';
+    if(t.dataset.tab==='terminal')loadTerminal();
+    if(t.dataset.tab==='pulse')loadPulse();
+    if(t.dataset.tab==='memory')loadMemory();
+    if(t.dataset.tab==='arena')loadArena();
+  });
+});
+
+// -- Clock --
+function updateClock(){
+  var d=new Date();
+  document.getElementById('clock').textContent=d.toISOString().slice(0,19).replace('T',' ')+' UTC';
+}
+setInterval(updateClock,1000);updateClock();
+
+// -- Init --
+function init(){
+  loadAgents();
+  loadDispatches();
+  loadSystem();
+  populateAgentSelects();
+  setInterval(loadSystem,15000);
+  setInterval(loadAgents,30000);
+}
+
+// -- Bridge: Agents --
+function loadAgents(){
+  apiJSON('/api/agents').then(function(data){
+    var grid=document.getElementById('agents-grid');
+    grid.innerHTML='';
+    var agents=data.agents||{};
+    Object.keys(agents).sort().forEach(function(name){
+      var a=agents[name];
+      var badge=a.hot_pool?'badge-hot':(a.alive?'badge-on':'badge-off');
+      var label=a.hot_pool?'HOT POOL':(a.alive?'ONLINE':'OFFLINE');
+      grid.innerHTML+='<div class="agent-card"><div class="name"><span class="dot '+(a.alive?'dot-g':'dot-r')+'"></span>'+name+'</div><span class="badge '+badge+'">'+label+'</span><div class="meta">'+(a.session?'tmux session':'no session')+'</div></div>';
+    });
+  }).catch(function(){});
+}
+
+// -- Bridge: Dispatches --
+function loadDispatches(){
+  apiJSON('/api/dispatches').then(function(data){
+    var log=document.getElementById('dispatch-log');
+    log.innerHTML='';
+    (data.dispatches||[]).slice(0,20).forEach(function(d){
+      log.innerHTML+='<div class="dispatch-row"><span class="agent-tag">'+esc(d.agent)+'</span><span class="task">'+esc((d.task||'').slice(0,80))+'</span><span class="status status-'+(d.status||'pending')+'">'+esc(d.status||'pending')+'</span><span class="time">'+timeAgo(d.dispatched_at)+'</span></div>';
+    });
+    if(!data.dispatches||!data.dispatches.length)log.innerHTML='<div style="color:var(--dim);padding:20px;text-align:center">No dispatches yet</div>';
+  }).catch(function(){});
+}
+
+// -- War Room: Dispatch --
+function populateAgentSelects(){
+  var all=['ARIA','BYTE','CJ','CORE','DEX','FLUX','GEMMA','IRIS','LEX','MAX','NOVA','SAGE','SOFIA','VOLT','APEX'];
+  ['dispatch-agent','output-agent'].forEach(function(id){
+    var sel=document.getElementById(id);
+    sel.innerHTML='';
+    all.forEach(function(a){sel.innerHTML+='<option value="'+a+'">'+a+'</option>'});
+  });
+}
+
+document.getElementById('dispatch-btn').addEventListener('click',function(){
+  var agent=document.getElementById('dispatch-agent').value;
+  var task=document.getElementById('dispatch-task').value.trim();
+  if(!task)return;
+  var res=document.getElementById('dispatch-result');
+  res.innerHTML='<span style="color:var(--gold)">Dispatching to '+agent+'...</span>';
+  apiJSON('/api/dispatch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent:agent,task:task})})
+  .then(function(d){
+    res.innerHTML='<span style="color:var(--green)">'+esc(d.status)+' -- '+esc(d.agent)+': '+esc(d.task)+'</span>';
+    document.getElementById('dispatch-task').value='';
+    loadDispatches();
+  })
+  .catch(function(e){res.innerHTML='<span style="color:var(--red)">Failed: '+esc(e.message)+'</span>'});
+});
+
+document.getElementById('poll-btn').addEventListener('click',function(){
+  var agent=document.getElementById('output-agent').value;
+  var out=document.getElementById('agent-output');
+  out.textContent='Polling '+agent+'...';
+  apiJSON('/api/output/'+agent)
+  .then(function(d){out.textContent=d.output||'(no output)';})
+  .catch(function(e){out.textContent='Error: '+e.message;});
+});
+
+// -- Terminal --
+var termLoaded=false;
+function loadTerminal(){
+  if(termLoaded)return;
+  termLoaded=true;
+  document.getElementById('terminal-frame').src='/joao/terminal';
+}
+
+// -- Arena --
+var arenaLoaded=false;
+function loadArena(){
+  if(arenaLoaded)return;
+  arenaLoaded=true;
+  document.getElementById('arena-frame').src='/arena';
+}
+
+// -- Brain --
+var brainMsgs=document.getElementById('brain-messages');
+var brainInput=document.getElementById('brain-input');
+var brainSend=document.getElementById('brain-send');
+
+function addBrainMsg(role,text){
+  var el=document.createElement('div');
+  el.className='brain-msg '+role;
+  el.textContent=text;
+  brainMsgs.appendChild(el);
+  brainMsgs.scrollTop=brainMsgs.scrollHeight;
+  return el;
+}
+
+function sendBrain(){
+  var text=brainInput.value.trim();
+  if(!text)return;
+  brainInput.value='';
+  brainMessages.push({role:'user',content:text});
+  addBrainMsg('user',text);
+  var el=addBrainMsg('assistant','');
+  var full='';
+
+  var sep='/api/brain'.indexOf('?')>=0?'&':'?';
+  fetch(BASE+'/api/brain'+sep+'token='+encodeURIComponent(token),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({messages:brainMessages,session_id:brainSessionId})
+  }).then(function(resp){
+    var reader=resp.body.getReader();
+    var decoder=new TextDecoder();
+    var buf='';
+    function read(){
+      reader.read().then(function(result){
+        if(result.done){brainMessages.push({role:'assistant',content:full});return;}
+        buf+=decoder.decode(result.value,{stream:true});
+        var lines=buf.split('\n');
+        buf=lines.pop();
+        lines.forEach(function(line){
+          if(line.startsWith('data: ')){
+            try{
+              var d=JSON.parse(line.slice(6));
+              if(d.type==='token'){full+=d.text;el.textContent=full;}
+              if(d.type==='done'){el.textContent=d.full_text;full=d.full_text;}
+              if(d.type==='error'){el.textContent='Error: '+d.message;el.style.color='var(--red)';}
+            }catch(e){}
+          }
+        });
+        brainMsgs.scrollTop=brainMsgs.scrollHeight;
+        read();
+      });
+    }
+    read();
+  }).catch(function(e){el.textContent='Error: '+e.message;el.style.color='var(--red)';});
+}
+
+brainSend.addEventListener('click',sendBrain);
+brainInput.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendBrain();}});
+
+// -- Memory --
+function loadMemory(){
+  apiJSON('/api/memory').then(function(data){
+    renderMemoryList('pinned-memories',data.pinned||[]);
+    renderMemoryList('recent-memories',data.recent||[]);
+  }).catch(function(){});
+}
+
+function renderMemoryList(containerId,items){
+  var c=document.getElementById(containerId);
+  c.innerHTML='';
+  if(!items.length){c.innerHTML='<div style="color:var(--dim);padding:8px;font-size:11px">No memories</div>';return;}
+  items.forEach(function(m){
+    var tags=(m.tags||[]).map(function(t){return'<span class="tag">'+esc(t)+'</span>'}).join('');
+    c.innerHTML+='<div class="memory-item"><button class="pin-btn'+(m.pinned?' pinned':'')+'" data-id="'+m.id+'">'+(m.pinned?'[pinned]':'[pin]')+'</button><div class="source">'+esc(m.source||'unknown')+'</div><div class="content">'+esc((m.content||'').slice(0,300))+'</div><div class="tags">'+tags+'</div></div>';
+  });
+  c.querySelectorAll('.pin-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      apiJSON('/api/memory/'+btn.dataset.id+'/pin',{method:'PATCH'}).then(function(){loadMemory();});
+    });
+  });
+}
+
+document.getElementById('memory-feed-btn').addEventListener('click',function(){
+  var content=document.getElementById('memory-content').value.trim();
+  if(!content)return;
+  apiJSON('/api/memory/feed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:'hub_manual',content:content,tags:['manual']})})
+  .then(function(){document.getElementById('memory-content').value='';loadMemory();})
+  .catch(function(e){alert('Failed: '+e.message)});
+});
+
+// -- Pulse --
+function loadPulse(){
+  apiJSON('/api/system').then(function(d){
+    var m=document.getElementById('pulse-metrics');
+    function bar(pct,color){return'<div class="metric-bar"><div class="fill" style="width:'+pct+'%;background:'+color+'"></div></div>';}
+    m.innerHTML='<div class="card metric-card"><div class="value" style="color:var(--cyan)">'+d.cpu_percent+'%</div><div class="label">CPU</div>'+bar(d.cpu_percent,'var(--cyan)')+'</div>'
+      +'<div class="card metric-card"><div class="value" style="color:var(--purple)">'+d.memory.percent+'%</div><div class="label">Memory ('+d.memory.used_gb+'/'+d.memory.total_gb+' GB)</div>'+bar(d.memory.percent,'var(--purple)')+'</div>'
+      +'<div class="card metric-card"><div class="value" style="color:var(--green)">'+d.disk.percent+'%</div><div class="label">Disk ('+d.disk.used_gb+'/'+d.disk.total_gb+' GB)</div>'+bar(d.disk.percent,'var(--green)')+'</div>';
+
+    var svc=document.getElementById('pulse-services');
+    svc.innerHTML='';
+    Object.keys(d.services||{}).forEach(function(name){
+      var st=d.services[name];
+      var color=st==='active'||st==='running'?'var(--green)':'var(--red)';
+      svc.innerHTML+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)"><span class="dot" style="background:'+color+'"></span><span style="min-width:120px">'+esc(name)+'</span><span style="color:'+color+'">'+esc(st)+'</span></div>';
+    });
+
+    // Uptime in topbar
+    var days=Math.floor(d.uptime_seconds/86400);
+    var hrs=Math.floor((d.uptime_seconds%86400)/3600);
+    document.getElementById('st-svc').textContent='up '+days+'d '+hrs+'h';
+  }).catch(function(){});
+}
+
+function loadSystem(){
+  apiJSON('/api/system').then(function(d){
+    document.getElementById('st-cpu').textContent=d.cpu_percent;
+    document.getElementById('st-mem').textContent=d.memory.percent;
+    document.getElementById('st-disk').textContent=d.disk.percent;
+  }).catch(function(){});
+}
+
+})();
+</script>
+</body>
+</html>

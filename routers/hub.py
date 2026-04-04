@@ -611,3 +611,161 @@ async def service_restart(service: str, request: Request, token: str = Query(def
         return {"status": "timeout", "service": service}
     except Exception as e:
         return {"status": "error", "service": service, "error": str(e)}
+
+
+# -- GET /api/agent-output/{agent} ----------------------------------------
+
+@router.get("/agent-output/{agent}")
+async def agent_output(agent: str, request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    agent = agent.upper()
+    if agent not in ALL_AGENTS:
+        raise HTTPException(status_code=422, detail=f"Unknown agent: {agent}")
+
+    lines = []
+    source = "none"
+
+    # Try output files first
+    try:
+        result = subprocess.run(
+            ["bash", "-c", f"ls -t /tmp/council/outputs/{agent}_*.md 2>/dev/null | head -1"],
+            capture_output=True, text=True, timeout=3,
+        )
+        output_file = result.stdout.strip()
+        if output_file:
+            tail = subprocess.run(
+                ["tail", "-30", output_file],
+                capture_output=True, text=True, timeout=3,
+            )
+            if tail.returncode == 0 and tail.stdout.strip():
+                lines = tail.stdout.strip().split("\n")
+                source = "file"
+    except Exception as e:
+        logger.warning("agent-output file read failed for %s: %s", agent, e)
+
+    # Also try tmux pane capture
+    tmux_lines = []
+    try:
+        result = subprocess.run(
+            ["tmux", "capture-pane", "-t", agent, "-p"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            tmux_lines = [l for l in result.stdout.strip().split("\n") if l.strip()][-20:]
+            if not lines:
+                lines = tmux_lines
+                source = "tmux"
+    except Exception as e:
+        logger.debug("tmux capture for %s unavailable: %s", agent, e)
+
+    return {
+        "agent": agent,
+        "source": source,
+        "lines": lines,
+        "tmux_lines": tmux_lines,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# -- GET /api/credits ------------------------------------------------------
+
+@router.get("/credits")
+async def credits(request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    balance = None
+    key_label = "JOAO-Primary"
+    note = None
+
+    # Try reading CREDIT_BALANCE from env
+    env_balance = os.environ.get("CREDIT_BALANCE")
+    if env_balance:
+        try:
+            balance = float(env_balance)
+        except ValueError:
+            pass
+
+    # Try session count from Supabase for estimation
+    session_count = 0
+    try:
+        rows = _safe_table_op("joao_sessions", "select", columns="id", limit=1000)
+        session_count = len(rows) if rows else 0
+    except Exception:
+        pass
+
+    if balance is None:
+        note = "manual update required"
+
+    return {
+        "balance": balance,
+        "key_label": key_label,
+        "session_count": session_count,
+        "note": note,
+        "updated": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# -- GET /api/services -----------------------------------------------------
+
+@router.get("/services")
+async def services(request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    svc_list = [
+        {"name": "cloudflared", "check": "systemctl is-active cloudflared", "url": "joao.theartofthepossible.io", "port": 443},
+        {"name": "joao-spine", "check": "pgrep -f 'uvicorn.*7778'", "url": "localhost:7778", "port": 7778},
+        {"name": "scout-monitor", "check": "systemctl is-active scout-monitor", "url": None, "port": None},
+        {"name": "dispatch-listener", "check": "pgrep -f '8100'", "url": "localhost:8100", "port": 8100},
+    ]
+
+    results = []
+    for svc in svc_list:
+        try:
+            proc = subprocess.run(
+                ["bash", "-c", svc["check"]],
+                capture_output=True, text=True, timeout=5,
+            )
+            status = "alive" if proc.returncode == 0 else "dead"
+        except Exception:
+            status = "unknown"
+
+        results.append({
+            "name": svc["name"],
+            "status": status,
+            "url": svc["url"],
+            "port": svc["port"],
+        })
+
+    return {"services": results, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+# -- GET /api/projects -----------------------------------------------------
+
+import httpx as _httpx
+
+@router.get("/projects")
+async def projects(request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    project_list = [
+        {"name": "dopamine.watch", "category": "STREAMING", "url": "https://app.dopamine.watch", "tagline": "Feel-First streaming prescription"},
+        {"name": "Dr. Data", "category": "ENTERPRISE", "url": "https://drdata.theartofthepossible.io", "tagline": "AI Tableau to Power BI migration"},
+        {"name": "FocusFlow", "category": "PRODUCTIVITY", "url": "https://focusflow.theartofthepossible.io", "tagline": "ADHD summarizer, 6 output formats"},
+        {"name": "Arena", "category": "AI RESEARCH", "url": "https://joao.theartofthepossible.io/arena", "tagline": "7-brain parallel AI debate"},
+        {"name": "JOAO Hub", "category": "LIVING OS", "url": "https://joao.theartofthepossible.io/hub", "tagline": "AI exocortex, 16-agent Council"},
+        {"name": "dopamine.chat", "category": "MESSAGING", "url": "https://dopamine.chat", "tagline": "Privacy-first, no shame mechanics"},
+    ]
+
+    results = []
+    async with _httpx.AsyncClient(timeout=3.0, verify=False) as client:
+        for proj in project_list:
+            status = "unknown"
+            try:
+                resp = await client.head(proj["url"])
+                status = "alive" if resp.status_code < 500 else "dead"
+            except Exception:
+                status = "dead"
+            results.append({**proj, "status": status})
+
+    return {"projects": results, "timestamp": datetime.now(timezone.utc).isoformat()}
