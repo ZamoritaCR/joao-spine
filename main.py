@@ -227,8 +227,8 @@ from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from mcp.server.sse import SseServerTransport
 
-import mcp as _mcp_mod
-_mcp_version = tuple(int(x) for x in getattr(_mcp_mod, "__version__", "0.0.0").split(".")[:2])
+from importlib.metadata import version as _pkg_version
+_mcp_version = tuple(int(x) for x in _pkg_version("mcp").split(".")[:2])
 
 def _make_mcp_sse_app(mcp_server, mount_prefix: str) -> Starlette:
     """Build SSE Starlette app that advertises the full path including mount prefix."""
