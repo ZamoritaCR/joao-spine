@@ -219,13 +219,24 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 # We create the SSE transports manually so the advertised messages endpoint
 # includes the mount prefix (e.g. /mcp/messages/ instead of /messages/).
 # Without this, clients POST to the wrong path and get 404.
+#
+# NOTE: mcp >= ~1.8 auto-prepends the ASGI root_path to the endpoint path,
+# so we only pass "/messages/" to avoid double-prefixing (e.g. /mcp/mcp/messages/).
+# Older mcp versions (< 1.8) need the full path including mount prefix.
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from mcp.server.sse import SseServerTransport
 
+import mcp as _mcp_mod
+_mcp_version = tuple(int(x) for x in getattr(_mcp_mod, "__version__", "0.0.0").split(".")[:2])
+
 def _make_mcp_sse_app(mcp_server, mount_prefix: str) -> Starlette:
     """Build SSE Starlette app that advertises the full path including mount prefix."""
-    sse = SseServerTransport(f"{mount_prefix}/messages/")
+    # mcp >= 1.8 auto-prepends root_path; older versions need the full prefix
+    if _mcp_version >= (1, 8):
+        sse = SseServerTransport("/messages/")
+    else:
+        sse = SseServerTransport(f"{mount_prefix}/messages/")
 
     async def handle_sse(request):
         async with sse.connect_sse(
