@@ -68,6 +68,7 @@ from routers.greengeeks import router as greengeeks_router
 from routers.telegram_webhook import router as telegram_webhook_router
 from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
+from routers.cockpit import router as cockpit_router
 
 # Dr. Data V2
 import sys as _sys
@@ -150,6 +151,7 @@ app.include_router(greengeeks_router)
 app.include_router(telegram_webhook_router)
 app.include_router(arena_router)
 app.include_router(drdata_router)
+app.include_router(cockpit_router)
 app.mount("/os", os_autonomy_app)
 
 

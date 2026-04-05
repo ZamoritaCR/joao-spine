@@ -166,6 +166,49 @@ async def _process_message(text: str, chat_id: int | str) -> None:
         await _send_reply(chat_id, reply)
         return
 
+    # Cockpit commands
+    _COCKPIT_CMDS = {
+        "/focus": "focus", "/chill": "chill", "/hyperfocus": "hyperfocus",
+        "/lowenergy": "low_energy", "/sleep": "sleep", "/morning": "morning",
+        "/lights on": "lights_on", "/lights off": "lights_off",
+    }
+    text_lower = text.lower().strip()
+    cockpit_scene = _COCKPIT_CMDS.get(cmd) or _COCKPIT_CMDS.get(text_lower)
+    if cockpit_scene:
+        try:
+            from services.home_assistant import cockpit as ha, SCENES
+            method = getattr(ha, SCENES[cockpit_scene])
+            result = await method()
+            if result.get("status") == "offline":
+                reply = "Pi is offline. Check power at 192.168.0.31."
+            else:
+                reply = f"{cockpit_scene.replace('_', ' ').title()} mode activated."
+        except Exception as e:
+            reply = f"Scene failed: {e}"
+        await _send_reply(chat_id, reply)
+        return
+
+    if cmd == "/cockpit":
+        try:
+            from services.home_assistant import cockpit as ha
+            ping = await ha.ping()
+            online = ping.get("status") == "online"
+            dev_count = 0
+            if online:
+                states = await ha.get_states()
+                dev_count = len(states) if isinstance(states, list) else 0
+            reply = (
+                f"COCKPIT STATUS\n"
+                f"Pi: {ping.get('status', 'offline')}\n"
+                f"Devices: {dev_count} entities\n"
+                f"HA: {ping.get('version', 'unavailable')}\n"
+                f"Last scene: {ha.last_scene}"
+            )
+        except Exception as e:
+            reply = f"Cockpit status error: {e}"
+        await _send_reply(chat_id, reply)
+        return
+
     # Pass to Claude Haiku
     try:
         client = _haiku_client()
