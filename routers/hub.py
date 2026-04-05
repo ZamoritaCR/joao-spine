@@ -634,6 +634,20 @@ async def service_restart(service: str, request: Request, token: str = Query(def
         return {"status": "error", "service": service, "error": str(e)}
 
 
+# -- GET /api/build-log ---------------------------------------------------
+
+@router.get("/build-log")
+async def build_log(request: Request, token: str = Query(default=""), limit: int = 50):
+    _check_hub_auth(request, token)
+
+    rows = _safe_table_op("build_log", "select",
+        order="created_at",
+        desc=True,
+        limit=min(limit, 200),
+    )
+    return {"entries": rows}
+
+
 # -- GET /api/agent-output/{agent} ----------------------------------------
 
 @router.get("/agent-output/{agent}")
