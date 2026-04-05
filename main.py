@@ -83,7 +83,14 @@ async def lifespan(app: FastAPI):
     scout_service.start_scheduler()
     logger.info("SCOUT scheduler started in lifespan")
     await terminal_manager.start()
-    yield
+
+    # Start streamable-HTTP session managers (their lifespans don't auto-run
+    # when mounted as sub-apps under FastAPI).
+    async with mcp.session_manager.run():
+        async with taop_mcp.session_manager.run():
+            logger.info("MCP streamable-HTTP session managers started")
+            yield
+
     await terminal_manager.stop()
     scout_service.stop_scheduler()
     logger.info("joao-spine shutting down — signaling SSE connections to close")
@@ -276,9 +283,14 @@ app.mount("/taop/mcp", _make_mcp_sse_app(taop_mcp, "/taop/mcp"))
 # ── Streamable HTTP MCP mounts ──────────────────────────────────────────
 # Streamable HTTP uses regular POST/GET (no long-lived SSE connections),
 # so it works through Cloudflare tunnels and proxies that buffer/drop SSE.
-# Claude Desktop should use these endpoints instead of /sse.
-app.mount("/mcp-http", mcp.streamable_http_app())
-app.mount("/taop/mcp-http", taop_mcp.streamable_http_app())
+# Claude Desktop / Claude.ai should use these endpoints instead of /sse.
+#
+# NOTE: FastAPI doesn't propagate lifespan to mounted sub-apps, so we
+# create the apps here and start their session managers in our lifespan.
+_mcp_http_app = mcp.streamable_http_app()
+_taop_mcp_http_app = taop_mcp.streamable_http_app()
+app.mount("/mcp-http", _mcp_http_app)
+app.mount("/taop/mcp-http", _taop_mcp_http_app)
 
 
 if __name__ == "__main__":

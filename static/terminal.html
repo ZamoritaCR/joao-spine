@@ -217,12 +217,12 @@
     }
   });
 
-  // Keepalive ping (15s to stay well within server/proxy timeouts)
+  // Keepalive ping (10s to stay well within Cloudflare tunnel timeouts)
   setInterval(() => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ping' }));
     }
-  }, 15000);
+  }, 10000);
 
   // Boot
   connect();

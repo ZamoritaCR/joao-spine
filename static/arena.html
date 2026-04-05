@@ -333,10 +333,10 @@ function loadBrains() {
         claude: {name:'CLAUDE',color:'#00e5ff',tag:'THE BRAIN',has_tools:true,models:['claude-sonnet-4-20250514','claude-opus-4-20250514'],default_model:'claude-sonnet-4-20250514',trainable:false},
         gpt: {name:'GPT',color:'#00ff88',tag:'THE GENERALIST',has_tools:true,models:['gpt-4o','gpt-4.1'],default_model:'gpt-4o',trainable:false},
         gemini: {name:'GEMINI',color:'#4488ff',tag:'GOOGLE ORACLE',has_tools:false,models:['gemini-2.5-flash','gemini-3.1-pro-preview','gemini-3-flash-preview'],default_model:'gemini-2.5-flash',trainable:false},
-        deepseek: {name:'DEEPSEEK',color:'#b388ff',tag:'REASONING BEAST',has_tools:false,models:['deepseek/deepseek-r1:free'],default_model:'deepseek/deepseek-r1:free',trainable:true},
-        llama: {name:'LLAMA',color:'#ff9800',tag:'OPEN WARRIOR',has_tools:false,models:['llama-3.3-70b-versatile'],default_model:'llama-3.3-70b-versatile',trainable:true},
+        deepseek: {name:'DEEPSEEK',color:'#b388ff',tag:'REASONING BEAST',has_tools:false,models:['moonshotai/kimi-k2-instruct','moonshotai/kimi-k2-instruct-0905'],default_model:'moonshotai/kimi-k2-instruct',trainable:true},
+        llama: {name:'LLAMA',color:'#ff9800',tag:'OPEN WARRIOR',has_tools:false,models:['llama-3.3-70b-versatile','meta-llama/llama-4-scout-17b-16e-instruct'],default_model:'llama-3.3-70b-versatile',trainable:true},
         mistral: {name:'MISTRAL',color:'#ff4466',tag:'EU FRONTIER',has_tools:false,models:['mistral-large-latest','mistral-small-latest'],default_model:'mistral-large-latest',trainable:true},
-        qwen: {name:'QWEN',color:'#00bcd4',tag:'MATH KING',has_tools:false,models:['qwen/qwen3-32b'],default_model:'qwen/qwen3-32b',trainable:true},
+        qwen: {name:'QWEN',color:'#00bcd4',tag:'MATH KING',has_tools:false,models:['Qwen/Qwen3-235B-A22B-Instruct-2507-tput','Qwen/Qwen2.5-7B-Instruct-Turbo'],default_model:'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',trainable:true},
       };
       buildBrainBar();
       buildModelSelectors();

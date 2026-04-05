@@ -37,7 +37,7 @@ router = APIRouter(prefix="/arena", tags=["arena"])
 # In-memory conversation history per session
 _sessions: dict[str, dict[str, Any]] = {}
 MAX_SESSIONS = 50
-MAX_TOOL_ROUNDS = 3  # Cap tool rounds to keep arena responses fast
+MAX_TOOL_ROUNDS = 25  # Effectively unlimited for normal use
 
 # In-memory execution log per session (recent entries, capped)
 _exec_log: dict[str, deque] = {}
@@ -46,6 +46,24 @@ _MAX_LOG_ENTRIES = 200
 # Rate limit tracking -- initialized for all brains
 _rate_tracker: dict[str, dict] = {}
 _RATE_WINDOW = 3600  # 1 hour window
+
+# Groq concurrency limiter -- prevents simultaneous requests from all triggering 429
+_groq_semaphore = asyncio.Semaphore(1)
+
+# Groq key rotation -- round-robin across available keys
+_groq_key_index = 0
+
+def _get_groq_key() -> str:
+    global _groq_key_index
+    keys = [k for k in [
+        os.environ.get("GROQ_API_KEY", ""),
+        os.environ.get("GROQ_API_KEY_2", ""),
+    ] if k]
+    if not keys:
+        return ""
+    key = keys[_groq_key_index % len(keys)]
+    _groq_key_index += 1
+    return key
 
 
 def _track_rate(brain: str) -> str | None:
@@ -649,7 +667,7 @@ async def _call_claude(
             payload["mcp_servers"] = MCP_SERVERS
             headers["anthropic-beta"] = "mcp-client-2025-04-04"
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
@@ -665,13 +683,22 @@ async def _call_claude(
             }
 
         if resp.status_code != 200:
-            if use_mcp and ("MCP" in resp.text or "mcp" in resp.text or "503" in resp.text):
-                logger.warning("Claude MCP error (status %d), retrying without MCP: %s", resp.status_code, resp.text[:300])
+            resp_text = resp.text
+            # MCP beta header can trigger version negotiation failures or 503s.
+            # Retry without MCP on any MCP-related or version error.
+            mcp_retriable = use_mcp and (
+                "MCP" in resp_text or "mcp" in resp_text
+                or "503" in resp_text
+                or "not a valid version" in resp_text
+                or "anthropic-version" in resp_text
+            )
+            if mcp_retriable:
+                logger.warning("Claude MCP/version error (status %d), retrying without MCP: %s", resp.status_code, resp_text[:300])
                 use_mcp = False
                 continue
-            logger.error("Claude API error %d: %s", resp.status_code, resp.text[:500])
+            logger.error("Claude API error %d: %s", resp.status_code, resp_text[:500])
             return {
-                "text": f"[ERROR] Claude API returned {resp.status_code}: {resp.text[:300]}",
+                "text": f"[ERROR] Claude API returned {resp.status_code}: {resp_text[:300]}",
                 "tool_calls": tool_log,
                 "rate_warning": rate_warning,
             }
@@ -772,7 +799,7 @@ async def _call_gpt(
             "tools": GPT_TOOLS,
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -862,6 +889,12 @@ async def _call_gemini(
         "system_instruction": {"parts": [{"text": system_prompt}]},
         "contents": contents,
         "generationConfig": {"maxOutputTokens": 8192},
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ],
     }
 
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -997,18 +1030,33 @@ async def _call_groq(
     model: str,
     session_id: str = "",
 ) -> dict[str, Any]:
-    result = await _call_openai_compatible(
-        messages, system_prompt, model, session_id,
-        endpoint="https://api.groq.com/openai/v1/chat/completions",
-        api_key=os.environ.get("GROQ_API_KEY", ""),
-        brain_name="groq",
-    )
+    # Serialize Groq calls to prevent concurrent 429s, rotate API keys
+    async with _groq_semaphore:
+        groq_key = _get_groq_key()
+        for attempt in range(3):
+            result = await _call_openai_compatible(
+                messages, system_prompt, model, session_id,
+                endpoint="https://api.groq.com/openai/v1/chat/completions",
+                api_key=groq_key,
+                brain_name="groq",
+            )
+            if not result.get("rate_limited"):
+                break
+            # Try the other key on rate limit
+            groq_key = _get_groq_key()
+            delay = 2 ** (attempt + 1)  # 2s, 4s, 8s
+            logger.warning("Groq rate limited for %s, retry %d in %ds (rotating key)", model, attempt + 1, delay)
+            await asyncio.sleep(delay)
+
     # Fallback to OpenRouter on rate limit or error
     if result.get("rate_limited") or "[ERROR]" in result.get("text", ""):
-        logger.warning("Groq failed for %s, trying OpenRouter fallback", model)
+        logger.warning("Groq failed for %s after retries, trying OpenRouter fallback", model)
         or_model_map = {
             "llama-3.3-70b-versatile": "meta-llama/llama-3.3-70b-instruct:free",
+            "meta-llama/llama-4-scout-17b-16e-instruct": "meta-llama/llama-3.3-70b-instruct:free",
             "qwen/qwen3-32b": "qwen/qwen3-next-80b-a3b-instruct:free",
+            "moonshotai/kimi-k2-instruct": "qwen/qwen3-next-80b-a3b-instruct:free",
+            "moonshotai/kimi-k2-instruct-0905": "qwen/qwen3-next-80b-a3b-instruct:free",
         }
         or_model = or_model_map.get(model)
         if or_model:
@@ -1042,6 +1090,38 @@ async def _call_open_model(
                 fallback["fallback_used"] = True
                 fallback["fallback_provider"] = "groq"
                 return fallback
+    return result
+
+
+# == Together AI (Qwen) ====================================================
+
+async def _call_together(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    for attempt in range(3):
+        result = await _call_openai_compatible(
+            messages, system_prompt, model, session_id,
+            endpoint="https://api.together.xyz/v1/chat/completions",
+            api_key=os.environ.get("TOGETHER_API_KEY", ""),
+            brain_name="together",
+        )
+        if not result.get("rate_limited"):
+            break
+        delay = 2 ** (attempt + 1)
+        logger.warning("Together rate limited for %s, retry %d in %ds", model, attempt + 1, delay)
+        await asyncio.sleep(delay)
+
+    # Fallback to Groq on rate limit or error
+    if result.get("rate_limited") or "[ERROR]" in result.get("text", ""):
+        logger.warning("Together failed for %s, trying Groq fallback", model)
+        fallback = await _call_groq(messages, system_prompt, "qwen/qwen3-32b", session_id)
+        if "[ERROR]" not in fallback.get("text", "") and not fallback.get("rate_limited"):
+            fallback["fallback_used"] = True
+            fallback["fallback_provider"] = "groq"
+            return fallback
     return result
 
 
@@ -1081,14 +1161,21 @@ async def _call_mistral(
     model: str,
     session_id: str = "",
 ) -> dict[str, Any]:
-    result = await _call_openai_compatible(
-        messages, system_prompt, model, session_id,
-        endpoint="https://api.mistral.ai/v1/chat/completions",
-        api_key=os.environ.get("MISTRAL_API_KEY", ""),
-        brain_name="mistral",
-    )
+    for attempt in range(3):
+        result = await _call_openai_compatible(
+            messages, system_prompt, model, session_id,
+            endpoint="https://api.mistral.ai/v1/chat/completions",
+            api_key=os.environ.get("MISTRAL_API_KEY", ""),
+            brain_name="mistral",
+        )
+        if not result.get("rate_limited"):
+            break
+        delay = 2 ** (attempt + 1)
+        logger.warning("Mistral rate limited, retry %d in %ds", attempt + 1, delay)
+        await asyncio.sleep(delay)
+
     if result.get("rate_limited"):
-        logger.warning("Mistral rate limited, trying OpenRouter fallback")
+        logger.warning("Mistral rate limited after retries, trying OpenRouter fallback")
         fallback = await _call_openrouter(messages, system_prompt, "mistralai/mistral-large-latest", session_id)
         fallback["fallback_used"] = True
         fallback["fallback_provider"] = "openrouter"
@@ -1155,18 +1242,18 @@ BRAINS = {
     },
     "deepseek": {
         "name": "DEEPSEEK", "color": "#b388ff", "tag": "REASONING BEAST",
-        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model=""),
+        "caller": lambda m, s, model, sid: _call_groq(m, s, model, sid),
         "has_tools": False,
-        "models": ["deepseek/deepseek-r1-distill-qwen-32b", "deepseek/deepseek-chat-v3.1"],
-        "default_model": "deepseek/deepseek-r1-distill-qwen-32b",
+        "models": ["moonshotai/kimi-k2-instruct", "moonshotai/kimi-k2-instruct-0905"],
+        "default_model": "moonshotai/kimi-k2-instruct",
         "trainable": True,
     },
     "llama": {
         "name": "LLAMA", "color": "#ff9800", "tag": "OPEN WARRIOR",
-        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model="llama-3.3-70b-versatile"),
+        "caller": lambda m, s, model, sid: _call_groq(m, s, model, sid),
         "has_tools": False,
-        "models": ["meta-llama/llama-3.3-70b-instruct:free"],
-        "default_model": "meta-llama/llama-3.3-70b-instruct:free",
+        "models": ["llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct"],
+        "default_model": "llama-3.3-70b-versatile",
         "trainable": True,
     },
     "mistral": {
@@ -1178,10 +1265,10 @@ BRAINS = {
     },
     "qwen": {
         "name": "QWEN", "color": "#00bcd4", "tag": "MATH KING",
-        "caller": lambda m, s, model, sid: _call_open_model(m, s, model, sid, groq_model="qwen/qwen3-32b"),
+        "caller": lambda m, s, model, sid: _call_together(m, s, model, sid),
         "has_tools": False,
-        "models": ["qwen/qwen3-next-80b-a3b-instruct:free", "qwen/qwen3.6-plus:free"],
-        "default_model": "qwen/qwen3-next-80b-a3b-instruct:free",
+        "models": ["Qwen/Qwen3-235B-A22B-Instruct-2507-tput", "Qwen/Qwen2.5-7B-Instruct-Turbo"],
+        "default_model": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
         "trainable": True,
     },
 }
@@ -1267,10 +1354,13 @@ async def arena_chat(req: ChatRequest):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_input": req.message[:5000],
         "system_prompt": system_prompt[:2000],
-        # Store all brain responses as JSON
+        # Store all brain responses -- top 3 in legacy columns, all in JSON
         "claude_response": results.get("claude", {}).get("text", "")[:10000],
         "gpt_response": results.get("gpt", {}).get("text", "")[:10000],
         "gemini_response": results.get("gemini", {}).get("text", "")[:10000],
+        "all_responses": json.dumps({
+            k: v.get("text", "")[:10000] for k, v in results.items()
+        }),
     }
     _sb_insert("arena_conversations", log_row)
 
@@ -1369,6 +1459,9 @@ async def arena_chat_stream(req: ChatRequest):
             "claude_response": results_store.get("claude", {}).get("text", "")[:10000],
             "gpt_response": results_store.get("gpt", {}).get("text", "")[:10000],
             "gemini_response": results_store.get("gemini", {}).get("text", "")[:10000],
+            "all_responses": json.dumps({
+                k: v.get("text", "")[:10000] for k, v in results_store.items()
+            }),
         }
         _sb_insert("arena_conversations", log_row)
 
@@ -1464,13 +1557,15 @@ async def arena_prefer(req: PreferenceRequest):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_input": req.user_input[:2000],
         "preferred_model": req.preferred_model,
-        # Store top 3 for backward compat with existing table
+        # Store top 3 in legacy columns, all brains in JSON columns
         "claude_response": req.responses.get("claude", "")[:5000],
         "gpt_response": req.responses.get("gpt", "")[:5000],
         "gemini_response": req.responses.get("gemini", "")[:5000],
         "debate_claude": req.debates.get("claude", "")[:5000] or None,
         "debate_gpt": req.debates.get("gpt", "")[:5000] or None,
         "debate_gemini": req.debates.get("gemini", "")[:5000] or None,
+        "all_responses": json.dumps({k: v[:5000] for k, v in req.responses.items()}),
+        "all_debates": json.dumps({k: v[:5000] for k, v in req.debates.items()}),
     }
 
     try:

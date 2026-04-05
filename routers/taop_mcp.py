@@ -19,13 +19,18 @@ from tools.memory import joao_memory_read, joao_memory_write
 logger = logging.getLogger(__name__)
 
 _RAILWAY_HOST = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
-_allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+_allowed_hosts = [
+    "127.0.0.1:*", "localhost:*", "[::1]:*", "192.168.0.*:*",
+    "100.93.94.121:*",                        # Tailscale
+    "joao.theartofthepossible.io",             # Cloudflare tunnel
+    "taop-mcp.theartofthepossible.io",         # MCP-dedicated tunnel
+]
 if _RAILWAY_HOST:
     _allowed_hosts.append(_RAILWAY_HOST)
 
 taop_mcp = FastMCP(
     "taop-council",
-    
+    transport_security={"allowed_hosts": _allowed_hosts},
 )
 
 

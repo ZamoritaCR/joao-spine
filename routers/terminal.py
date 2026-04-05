@@ -8,6 +8,7 @@ import json
 import logging
 import os
 
+import anyio
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from terminal_manager import terminal_manager
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["terminal"])
 
 PTY_READ_INTERVAL = 0.02  # 50Hz poll
+SERVER_PING_INTERVAL = 15  # Server-side keepalive ping every 15s
 
 
 def _check_token(token: str | None) -> None:
@@ -108,7 +110,7 @@ async def terminal_ws(
         while True:
             try:
                 raw = await ws.receive_text()
-            except WebSocketDisconnect:
+            except (WebSocketDisconnect, anyio.BrokenResourceError, anyio.ClosedResourceError, ConnectionError):
                 return
 
             try:
@@ -134,19 +136,42 @@ async def terminal_ws(
                 except Exception:
                     return
 
+    async def server_pinger():
+        """Send periodic pings from server side to keep Cloudflare tunnel alive."""
+        while True:
+            await asyncio.sleep(SERVER_PING_INTERVAL)
+            try:
+                await ws.send_json({"type": "pong"})
+            except Exception:
+                return
+
     reader_task = asyncio.create_task(pty_reader())
     writer_task = asyncio.create_task(ws_reader())
+    pinger_task = asyncio.create_task(server_pinger())
 
     try:
         done, pending = await asyncio.wait(
-            [reader_task, writer_task],
+            [reader_task, writer_task, pinger_task],
             return_when=asyncio.FIRST_COMPLETED,
         )
         for task in pending:
             task.cancel()
-    except Exception:
+    except (
+        anyio.BrokenResourceError,
+        anyio.ClosedResourceError,
+        WebSocketDisconnect,
+        ConnectionError,
+        Exception,
+    ):
         reader_task.cancel()
         writer_task.cancel()
+        pinger_task.cancel()
+    finally:
+        # Ensure WebSocket is closed cleanly so starlette doesn't raise
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
     logger.info("Terminal WebSocket disconnected: session=%s", session_id)
 
