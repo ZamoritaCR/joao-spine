@@ -21,6 +21,9 @@ IDLE_TIMEOUT = 30 * 60  # 30 minutes
 CLEANUP_INTERVAL = 60  # check every 60s
 
 
+DISCONNECT_GRACE = 60  # seconds to keep PTY alive after WS disconnect
+
+
 @dataclass
 class TerminalSession:
     session_id: str
@@ -29,6 +32,8 @@ class TerminalSession:
     last_active: float = field(default_factory=time.time)
     cols: int = 80
     rows: int = 24
+    ws_connected: bool = True
+    disconnected_at: float = 0.0
 
     def touch(self) -> None:
         self.last_active = time.time()
@@ -98,11 +103,32 @@ class TerminalManager:
 
     def get_session(self, session_id: str) -> TerminalSession | None:
         session = self._sessions.get(session_id)
-        if session and not session.pty.isalive():
-            logger.info("Session %s pty is dead, cleaning up", session_id)
-            self.kill_session(session_id)
+        if not session:
             return None
+        if not session.pty.isalive():
+            # Only clean up if past grace period
+            if session.disconnected_at and (time.time() - session.disconnected_at > DISCONNECT_GRACE):
+                logger.info("Session %s pty is dead and past grace period, cleaning up", session_id)
+                self.kill_session(session_id)
+                return None
+            elif not session.disconnected_at:
+                logger.info("Session %s pty is dead, cleaning up", session_id)
+                self.kill_session(session_id)
+                return None
+        # Mark as reconnected
+        if not session.ws_connected:
+            session.ws_connected = True
+            session.disconnected_at = 0.0
+            logger.info("Session %s reconnected", session_id)
         return session
+
+    def mark_disconnected(self, session_id: str) -> None:
+        """Mark a session as WS-disconnected. Starts the grace period."""
+        session = self._sessions.get(session_id)
+        if session:
+            session.ws_connected = False
+            session.disconnected_at = time.time()
+            logger.info("Session %s WS disconnected, grace period started (%ds)", session_id, DISCONNECT_GRACE)
 
     def kill_session(self, session_id: str) -> bool:
         session = self._sessions.pop(session_id, None)
@@ -130,14 +156,18 @@ class TerminalManager:
         return True
 
     def read_output(self, session: TerminalSession, max_bytes: int = 4096) -> bytes:
-        """Non-blocking read from pty. Returns empty bytes if nothing available."""
+        """Non-blocking read from pty. Returns empty bytes if nothing available.
+
+        Catches EAGAIN, EWOULDBLOCK, and EIO -- EIO is common when the PTY
+        child has a brief I/O hiccup and must NOT crash the read loop.
+        """
         try:
             data = os.read(session.pty.fd, max_bytes)
             session.append_scrollback(data)
             session.touch()
             return data
         except OSError as e:
-            if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+            if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK, errno.EIO):
                 return b""
             raise
 
@@ -162,13 +192,24 @@ class TerminalManager:
         while True:
             await asyncio.sleep(CLEANUP_INTERVAL)
             now = time.time()
-            stale = [
-                sid
-                for sid, s in self._sessions.items()
-                if (now - s.last_active > IDLE_TIMEOUT) or not s.pty.isalive()
-            ]
+            stale = []
+            for sid, s in self._sessions.items():
+                # Idle timeout (no activity for 30+ min)
+                if now - s.last_active > IDLE_TIMEOUT:
+                    stale.append(sid)
+                # Dead PTY past grace period
+                elif not s.pty.isalive():
+                    if not s.ws_connected and s.disconnected_at and (now - s.disconnected_at > DISCONNECT_GRACE):
+                        stale.append(sid)
+                    elif s.ws_connected:
+                        # PTY died while WS was connected -- give grace period
+                        s.ws_connected = False
+                        s.disconnected_at = now
+                # Disconnected WS past grace period (PTY still alive but nobody connected)
+                elif not s.ws_connected and s.disconnected_at and (now - s.disconnected_at > DISCONNECT_GRACE):
+                    stale.append(sid)
             for sid in stale:
-                logger.info("Cleaning up idle/dead session: %s", sid)
+                logger.info("Cleaning up stale session: %s", sid)
                 self.kill_session(sid)
 
 

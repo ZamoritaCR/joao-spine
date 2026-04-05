@@ -86,24 +86,28 @@ async def terminal_ws(
     async def pty_reader():
         """Read pty output and send to WebSocket."""
         while True:
-            if not session.pty.isalive():
-                try:
-                    exit_code = session.pty.exitstatus or 0
-                    await ws.send_json({"type": "exit", "code": exit_code})
-                except Exception:
-                    pass
-                return
-            data = terminal_manager.read_output(session)
-            if data:
-                try:
-                    await ws.send_json({
-                        "type": "output",
-                        "data": data.decode("utf-8", errors="replace"),
-                    })
-                except Exception:
+            try:
+                if not session.pty.isalive():
+                    try:
+                        exit_code = session.pty.exitstatus or 0
+                        await ws.send_json({"type": "exit", "code": exit_code})
+                    except Exception:
+                        pass
                     return
-            else:
-                await asyncio.sleep(PTY_READ_INTERVAL)
+                data = terminal_manager.read_output(session)
+                if data:
+                    try:
+                        await ws.send_json({
+                            "type": "output",
+                            "data": data.decode("utf-8", errors="replace"),
+                        })
+                    except Exception:
+                        return
+                else:
+                    await asyncio.sleep(PTY_READ_INTERVAL)
+            except OSError:
+                # PTY I/O error -- wait and retry instead of crashing
+                await asyncio.sleep(0.1)
 
     async def ws_reader():
         """Read WebSocket input and write to pty."""
@@ -173,7 +177,9 @@ async def terminal_ws(
         except Exception:
             pass
 
-    logger.info("Terminal WebSocket disconnected: session=%s", session_id)
+    # Mark session as disconnected -- don't kill the PTY, allow reconnect
+    terminal_manager.mark_disconnected(session_id)
+    logger.info("Terminal WebSocket disconnected: session=%s (PTY preserved for reconnect)", session_id)
 
 
 @router.get("/api/terminal/sessions")

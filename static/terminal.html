@@ -47,7 +47,12 @@
   }
 
   #header .status.connected { color: #10b981; }
+  #header .status.reconnecting { color: #fbbf24; }
   #header .status.error { color: #ef4444; }
+
+  #header .dot.reconnecting {
+    background: #fbbf24; box-shadow: 0 0 6px #fbbf24;
+  }
 
   #terminal-container {
     flex: 1;
@@ -120,18 +125,21 @@
   // WebSocket connection
   const params = new URLSearchParams(window.location.search);
   const token = params.get('token') || '__TERMINAL_TOKEN__';
-  const sessionId = params.get('session') || 'default';
+  // Persist session_id in localStorage so page refresh reconnects to same PTY
+  const sessionId = params.get('session') || localStorage.getItem('terminal_session_id') || 'default';
+  localStorage.setItem('terminal_session_id', sessionId);
 
   let ws = null;
   let reconnectTimer = null;
-  const RECONNECT_DELAY = 3000;
+  const RECONNECT_DELAY = 2000;
 
   function setStatus(text, state) {
     statusEl.textContent = text;
     statusEl.className = 'status ' + (state || '');
-    if (state === 'connected') {
-      connDot.classList.remove('disconnected');
-    } else {
+    connDot.classList.remove('disconnected', 'reconnecting');
+    if (state === 'reconnecting') {
+      connDot.classList.add('reconnecting');
+    } else if (state !== 'connected') {
       connDot.classList.add('disconnected');
     }
   }
@@ -186,7 +194,7 @@
         term.write('\r\n\x1b[31m[Unauthorized -- check terminal token]\x1b[0m\r\n');
         return;
       }
-      setStatus('disconnected -- reconnecting...', 'error');
+      setStatus('reconnecting...', 'reconnecting');
       scheduleReconnect();
     };
 
