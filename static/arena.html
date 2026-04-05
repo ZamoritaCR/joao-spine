@@ -199,6 +199,38 @@ body::before{
 #empty-state .vs{font-family:'Syne';font-size:48px;font-weight:800;background:linear-gradient(135deg,var(--cyan),var(--blue),var(--green),var(--purple),var(--orange));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 #empty-state .intel{font-size:10px;color:var(--orange);text-transform:uppercase;letter-spacing:2px;margin-top:8px}
 
+/* Moderator card -- full width, distinct styling */
+.moderator-container{margin-top:16px;position:relative}
+.moderator-card{
+  background:linear-gradient(135deg,rgba(251,191,36,.06) 0%,var(--surface) 40%,rgba(255,68,102,.04) 100%);
+  border:1px solid var(--gold);border-radius:12px;padding:20px;position:relative;overflow:hidden;
+  box-shadow:0 0 30px rgba(251,191,36,.08);
+}
+.moderator-card::before{content:'';position:absolute;top:0;left:0;bottom:0;width:4px;background:linear-gradient(to bottom,var(--gold),var(--red))}
+.moderator-card .mod-header{
+  font-family:'Syne';font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:3px;
+  margin-bottom:12px;display:flex;align-items:center;gap:10px;color:var(--gold);
+}
+.moderator-card .mod-header .mod-model{font-size:9px;color:var(--dim);font-weight:400;letter-spacing:0;text-transform:none}
+.moderator-card .mod-header .mod-badge{
+  font-size:8px;background:rgba(251,191,36,.15);border:1px solid rgba(251,191,36,.3);
+  border-radius:4px;padding:2px 8px;letter-spacing:1px;color:var(--gold);
+}
+.moderator-card .mod-body{font-size:13px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word;color:var(--text);max-height:600px;overflow-y:auto}
+.moderator-card .mod-body::-webkit-scrollbar{width:3px}
+.moderator-card .mod-body::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+.moderator-thinking{
+  display:flex;align-items:center;gap:8px;padding:16px 20px;
+  background:var(--surface);border:1px dashed var(--gold);border-radius:10px;
+  color:var(--gold);font-size:11px;text-transform:uppercase;letter-spacing:2px;
+}
+.moderator-thinking .mod-dots span{
+  display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--gold);
+  animation:pulse 1.2s ease-in-out infinite;margin:0 2px;
+}
+.moderator-thinking .mod-dots span:nth-child(2){animation-delay:.2s}
+.moderator-thinking .mod-dots span:nth-child(3){animation-delay:.4s}
+
 @media(max-width:768px){
   .response-row{grid-template-columns:1fr !important}
   .debate-row{grid-template-columns:1fr}
@@ -700,6 +732,39 @@ function send() {
           try {
             var resp = JSON.parse(payload);
             var key = resp.brain;
+
+            // Handle moderator response separately
+            if (key === '__moderator__') {
+              var modThinking = pair.querySelector('.moderator-thinking');
+              if (modThinking) modThinking.remove();
+
+              var modContainer = document.createElement('div');
+              modContainer.className = 'moderator-container';
+
+              var modCard = document.createElement('div');
+              modCard.className = 'moderator-card';
+
+              var statusBadge = resp.status === 'success' ? 'SYNTHESIS COMPLETE' : 'ERROR';
+              modCard.innerHTML =
+                '<div class="mod-header">' +
+                  '<span>OPUS MODERATOR</span>' +
+                  '<span class="mod-badge">' + statusBadge + '</span>' +
+                  '<span class="mod-model">' + esc(resp.model || '') + '</span>' +
+                '</div>' +
+                '<div class="mod-body">' + esc(resp.text || '[No moderator response]') + '</div>';
+
+              modContainer.appendChild(modCard);
+              // Insert before the action row if it exists, otherwise at end of pair
+              var actionRow = pair.querySelector('.action-row');
+              if (actionRow) {
+                pair.insertBefore(modContainer, actionRow);
+              } else {
+                pair.appendChild(modContainer);
+              }
+              chatArea.scrollTop = chatArea.scrollHeight;
+              continue;
+            }
+
             var card = cards[key];
             var brain = brainRegistry[key];
             if (!card || !brain) continue;
@@ -722,6 +787,18 @@ function send() {
             renderToolCalls(resp.tool_calls, card);
             renderRateWarning(resp.rate_warning, card);
             addToolCallsToExecLog(resp.tool_calls, key);
+
+            brainsFinished++;
+            // Show moderator thinking indicator after all brains done
+            if (brainsFinished === currentActive.length && !pair.querySelector('.moderator-thinking')) {
+              var modThinking = document.createElement('div');
+              modThinking.className = 'moderator-thinking';
+              modThinking.innerHTML =
+                '<div class="mod-dots"><span></span><span></span><span></span></div>' +
+                ' OPUS MODERATOR -- SYNTHESIZING ' + brainsFinished + ' BRAIN RESPONSES...';
+              pair.appendChild(modThinking);
+            }
+
             chatArea.scrollTop = chatArea.scrollHeight;
           } catch(e) {}
         }

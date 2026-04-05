@@ -1775,6 +1775,38 @@ async def arena_chat_stream(req: ChatRequest):
             }
             yield f"data: {json.dumps(payload)}\n\n"
 
+        # Run Opus Moderator after all brains complete
+        try:
+            brain_texts = {k: results_store[k].get("text", "") for k in results_store}
+            moderator_result = await _call_opus_moderator(
+                debate_responses=brain_texts,
+                original_prompt=req.message,
+            )
+            mod_payload = {
+                "brain": "__moderator__",
+                "text": moderator_result.get("moderator", ""),
+                "model": moderator_result.get("model", OPUS_MODEL),
+                "status": moderator_result.get("status", "error"),
+                "tool_calls": [],
+                "rate_warning": None,
+                "fallback_used": False,
+                "fallback_provider": None,
+            }
+            yield f"data: {json.dumps(mod_payload)}\n\n"
+        except Exception as e:
+            logger.error("Moderator stream error: %s", e)
+            mod_payload = {
+                "brain": "__moderator__",
+                "text": f"[ERROR] Moderator failed: {e}",
+                "model": OPUS_MODEL,
+                "status": "error",
+                "tool_calls": [],
+                "rate_warning": None,
+                "fallback_used": False,
+                "fallback_provider": None,
+            }
+            yield f"data: {json.dumps(mod_payload)}\n\n"
+
         # Log to supabase
         log_row = {
             "id": conv_id,
