@@ -69,6 +69,12 @@ from routers.telegram_webhook import router as telegram_webhook_router
 from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
 
+# Dr. Data V2
+import sys as _sys
+if "/home/zamoritacr/taop-repos/dr-data" not in _sys.path:
+    _sys.path.insert(0, "/home/zamoritacr/taop-repos/dr-data")
+from api.drdata_router import router as drdata_router
+
 logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -143,6 +149,7 @@ app.include_router(ftp_router)
 app.include_router(greengeeks_router)
 app.include_router(telegram_webhook_router)
 app.include_router(arena_router)
+app.include_router(drdata_router)
 app.mount("/os", os_autonomy_app)
 
 
