@@ -209,6 +209,12 @@ async def arena_ui():
     return HTMLResponse((_STATIC_DIR / "arena.html").read_text())
 
 
+# MrDP — neurodivergent companion
+@app.get("/mrdp", include_in_schema=False)
+async def mrdp_ui():
+    return FileResponse(_STATIC_DIR / "mrdp.html", media_type="text/html")
+
+
 # Service worker — served from /sw.js (root) so its default scope covers /
 @app.get("/sw.js", include_in_schema=False)
 async def service_worker():
@@ -266,6 +272,13 @@ app.mount("/mcp", _make_mcp_sse_app(mcp, "/mcp"))
 
 # TAOP MCP mount at /taop/mcp
 app.mount("/taop/mcp", _make_mcp_sse_app(taop_mcp, "/taop/mcp"))
+
+# ── Streamable HTTP MCP mounts ──────────────────────────────────────────
+# Streamable HTTP uses regular POST/GET (no long-lived SSE connections),
+# so it works through Cloudflare tunnels and proxies that buffer/drop SSE.
+# Claude Desktop should use these endpoints instead of /sse.
+app.mount("/mcp-http", mcp.streamable_http_app())
+app.mount("/taop/mcp-http", taop_mcp.streamable_http_app())
 
 
 if __name__ == "__main__":

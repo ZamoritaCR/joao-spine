@@ -16,6 +16,7 @@ import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import anthropic
@@ -463,50 +464,69 @@ async def memory_pin(memory_id: str, request: Request, token: str = Query(defaul
 class BrainRequest(BaseModel):
     messages: list[dict]
     session_id: str = "default"
+    mode: str = "joao"
+
+
+# Load MrDP system prompt once at import, reload on each request for dev convenience
+_MRDP_PROMPT_PATH = Path(__file__).parent.parent / "mrdp_system_prompt.md"
+
+
+def _load_mrdp_prompt() -> str:
+    try:
+        return _MRDP_PROMPT_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return "You are MrDP, a neurodivergent life companion built from neuroscience."
 
 
 @router.post("/brain")
 async def brain(req: BrainRequest, request: Request, token: str = Query(default="")):
     _check_hub_auth(request, token)
 
-    # Inject context from memory
-    context_parts = []
+    is_mrdp = req.mode == "mrdp"
 
-    # Get pinned memories
-    pinned = _safe_table_op("joao_memory", "select",
-        columns="content,source",
-        is_={"pinned": "true"},
-        order="created_at",
-        desc=True,
-        limit=10,
-    )
-    if pinned:
-        context_parts.append("PINNED MEMORIES:\n" + "\n".join(
-            f"- [{m['source']}] {m['content'][:200]}" for m in pinned
-        ))
+    if is_mrdp:
+        system_prompt = _load_mrdp_prompt()
+        model = "claude-opus-4-6"
+    else:
+        # Inject context from memory
+        context_parts = []
 
-    # Get recent dispatches
-    recent_dispatches = _safe_table_op("hub_dispatches", "select",
-        columns="agent,task,status,dispatched_at",
-        order="dispatched_at",
-        desc=True,
-        limit=5,
-    )
-    if recent_dispatches:
-        context_parts.append("RECENT DISPATCHES:\n" + "\n".join(
-            f"- {d['agent']}: {d['task'][:100]} [{d['status']}]" for d in recent_dispatches
-        ))
+        # Get pinned memories
+        pinned = _safe_table_op("joao_memory", "select",
+            columns="content,source",
+            is_={"pinned": "true"},
+            order="created_at",
+            desc=True,
+            limit=10,
+        )
+        if pinned:
+            context_parts.append("PINNED MEMORIES:\n" + "\n".join(
+                f"- [{m['source']}] {m['content'][:200]}" for m in pinned
+            ))
 
-    system_prompt = JOAO_SYSTEM_PROMPT
-    if context_parts:
-        system_prompt += "\n\nCURRENT CONTEXT:\n" + "\n\n".join(context_parts)
+        # Get recent dispatches
+        recent_dispatches = _safe_table_op("hub_dispatches", "select",
+            columns="agent,task,status,dispatched_at",
+            order="dispatched_at",
+            desc=True,
+            limit=5,
+        )
+        if recent_dispatches:
+            context_parts.append("RECENT DISPATCHES:\n" + "\n".join(
+                f"- {d['agent']}: {d['task'][:100]} [{d['status']}]" for d in recent_dispatches
+            ))
+
+        system_prompt = JOAO_SYSTEM_PROMPT
+        if context_parts:
+            system_prompt += "\n\nCURRENT CONTEXT:\n" + "\n\n".join(context_parts)
+        model = "claude-sonnet-4-20250514"
 
     async def stream():
         client = anthropic.Anthropic()
         full_response = ""
         try:
             with client.messages.stream(
-                model="claude-sonnet-4-20250514",
+                model=model,
                 max_tokens=2048,
                 system=system_prompt,
                 messages=req.messages,
@@ -518,11 +538,12 @@ async def brain(req: BrainRequest, request: Request, token: str = Query(default=
             yield f"data: {json.dumps({'type': 'done', 'full_text': full_response})}\n\n"
 
             # Save to joao_memory
+            source_tag = "mrdp_chat" if is_mrdp else "brain_chat"
             _safe_table_op("joao_memory", "insert", data={
-                "source": "brain_chat",
-                "content": f"User: {req.messages[-1].get('content', '')[:300]}\nJOAO: {full_response[:500]}",
+                "source": source_tag,
+                "content": f"User: {req.messages[-1].get('content', '')[:300]}\n{'MrDP' if is_mrdp else 'JOAO'}: {full_response[:500]}",
                 "summary": full_response[:200],
-                "tags": ["brain", "chat"],
+                "tags": [source_tag, "chat"],
             })
 
             # Save session

@@ -1687,13 +1687,24 @@ async def chat_proxy(req: ChatRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
-    context_text, session_log_text = await _load_context()
+    # MrDP mode: neurodivergent companion, no tools, opus model
+    is_mrdp = getattr(req, "mode", "joao") == "mrdp"
 
-    system_prompt = context_text or "You are JOÃO, a persistent AI companion."
-    if session_log_text:
-        system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
+    if is_mrdp:
+        _mrdp_prompt_path = Path(__file__).parent.parent / "mrdp_system_prompt.md"
+        try:
+            system_prompt = _mrdp_prompt_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            system_prompt = "You are MrDP, a neurodivergent life companion built from neuroscience."
+    else:
+        context_text, session_log_text = await _load_context()
 
-    system_prompt += (
+        system_prompt = context_text or "You are JOÃO, a persistent AI companion."
+        if session_log_text:
+            system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
+
+    if not is_mrdp:
+        system_prompt += (
         "\n\n---\n\n## Your Tools (MANDATORY -- USE THEM)\n\n"
         "### Council Tools\n"
         "- council_status: Check which agents are online\n"
@@ -1738,7 +1749,7 @@ async def chat_proxy(req: ChatRequest):
         "- You are running on the ROG Strix server (192.168.0.55). Home dir: /home/zamoritacr\n"
         "- Key paths: ~/joao-spine/ (spine), ~/joao-interface/ (interface), ~/council/ (agents), "
         "~/projects/ (projects), ~/taop-site/ (hub), ~/logs/ (all logs)\n"
-    )
+        )
 
     if req.messages:
         last_msg = req.messages[-1]
@@ -1748,8 +1759,8 @@ async def chat_proxy(req: ChatRequest):
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
     client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0)
-    # Always use Sonnet for tool reliability — Haiku skips tool calls
-    model = "claude-sonnet-4-6"
+    # MrDP uses Opus for depth; JOAO uses Sonnet for tool reliability
+    model = "claude-opus-4-6" if is_mrdp else "claude-sonnet-4-6"
 
     async def event_stream():
         import asyncio
@@ -1761,7 +1772,7 @@ async def chat_proxy(req: ChatRequest):
         try:
             for _round in range(max_tool_rounds):
                 logger.info("Chat round %d starting (messages=%d)", _round, len(messages))
-                response = await client.messages.create(
+                create_kwargs = dict(
                     model=model,
                     max_tokens=4096,
                     system=[
@@ -1771,9 +1782,11 @@ async def chat_proxy(req: ChatRequest):
                             "cache_control": {"type": "ephemeral"},
                         }
                     ],
-                    tools=COUNCIL_TOOLS,
                     messages=messages,
                 )
+                if not is_mrdp:
+                    create_kwargs["tools"] = COUNCIL_TOOLS
+                response = await client.messages.create(**create_kwargs)
 
                 # Separate text blocks and tool_use blocks
                 has_tool_use = False

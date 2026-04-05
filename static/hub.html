@@ -380,14 +380,21 @@ input:focus, textarea:focus, select:focus { border-color: var(--tg); }
 
       <!-- BRAIN -->
       <div class="room" id="room-brain">
-        <div class="room-title" style="color:var(--purple)">&#x25C9; BRAIN -- JOAO</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="room-title" style="color:var(--purple);margin-bottom:0" id="brainTitle">&#x25C9; BRAIN -- JOAO</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--font-head);letter-spacing:1px">
+            <span id="modeJoao" style="color:var(--purple);cursor:pointer;padding:4px 8px;border:1px solid transparent;border-radius:3px" onclick="setBrainMode('joao')">JOAO</span>
+            <span style="color:#334">|</span>
+            <span id="modeMrdp" style="color:#556;cursor:pointer;padding:4px 8px;border:1px solid transparent;border-radius:3px" onclick="setBrainMode('mrdp')">MrDP</span>
+          </div>
+        </div>
         <div style="flex:1;overflow-y:auto;margin-bottom:8px" id="brainChat">
           <div class="card" style="margin-bottom:8px;color:var(--purple);font-size:11px">JOAO online. Awaiting context load...</div>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end">
           <textarea id="brainInput" rows="2" style="flex:1" placeholder="Talk to JOAO..." onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();brainSend()}"></textarea>
           <button class="btn btn-purple" onclick="brainSend()">SEND</button>
-          <button class="btn btn-gold" onclick="brainDispatchModal()">DISPATCH</button>
+          <button class="btn btn-gold" onclick="brainDispatchModal()" id="brainDispatchBtn">DISPATCH</button>
         </div>
       </div>
 
@@ -516,6 +523,7 @@ let deckFilter = 'all';
 let selectedWarAgent = null;
 let warPollId = null;
 let brainMessages = [];
+let brainMode = localStorage.getItem('brainMode') || 'joao';
 let memoryData = { pinned: [], recent: [] };
 let logPaused = false;
 let logSSE = null;
@@ -954,6 +962,25 @@ function renderProjects() {
 }
 
 // BRAIN
+function setBrainMode(mode) {
+  brainMode = mode;
+  localStorage.setItem('brainMode', mode);
+  brainMessages = [];
+  document.getElementById('brainChat').innerHTML = '';
+  var isMrdp = mode === 'mrdp';
+  document.getElementById('modeJoao').style.color = isMrdp ? '#556' : 'var(--purple)';
+  document.getElementById('modeJoao').style.borderColor = isMrdp ? 'transparent' : 'var(--purple)';
+  document.getElementById('modeMrdp').style.color = isMrdp ? 'var(--cyan)' : '#556';
+  document.getElementById('modeMrdp').style.borderColor = isMrdp ? 'var(--cyan)' : 'transparent';
+  document.getElementById('brainTitle').innerHTML = isMrdp ? '&#x25C9; BRAIN -- MrDP' : '&#x25C9; BRAIN -- JOAO';
+  document.getElementById('brainTitle').style.color = isMrdp ? 'var(--cyan)' : 'var(--purple)';
+  document.getElementById('brainInput').placeholder = isMrdp ? 'Talk to MrDP...' : 'Talk to JOAO...';
+  document.getElementById('brainDispatchBtn').style.display = isMrdp ? 'none' : '';
+  var statusMsg = isMrdp ? 'MrDP online. Built from neuroscience.' : 'JOAO online. Awaiting context load...';
+  var statusColor = isMrdp ? 'var(--cyan)' : 'var(--purple)';
+  document.getElementById('brainChat').innerHTML = '<div class="card" style="margin-bottom:8px;color:' + statusColor + ';font-size:11px">' + statusMsg + '</div>';
+}
+
 function brainSend() {
   var input = document.getElementById('brainInput');
   var text = input.value.trim();
@@ -967,7 +994,7 @@ function brainSend() {
 
   api('/api/brain', {
     method: 'POST',
-    body: JSON.stringify({ messages: brainMessages }),
+    body: JSON.stringify({ messages: brainMessages, mode: brainMode }),
   }).then(function(resp) {
     var reader = resp.body.getReader();
     var decoder = new TextDecoder();
@@ -1299,6 +1326,7 @@ function timeAgo(ts) {
 
 // Boot
 function boot() {
+  setBrainMode(brainMode);
   populateDropdowns();
   fetchAgents().then(function() {
     renderDeck();
