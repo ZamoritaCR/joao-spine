@@ -19,7 +19,7 @@ import os
 
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -202,13 +202,6 @@ async def chat_ui():
     return FileResponse(_STATIC_DIR / "chat.html", media_type="text/html")
 
 
-# Dr. Data V2 app
-@app.get("/drdata-v2", include_in_schema=False)
-@app.get("/drdata-v2/", include_in_schema=False)
-async def drdata_v2_app():
-    return FileResponse("/home/zamoritacr/taop/drdata-v2/index.html", media_type="text/html")
-
-
 # JOAO Voice UI — joao.theartofthepossible.io
 @app.get("/joao/voice", include_in_schema=False)
 async def voice_ui():
@@ -309,6 +302,18 @@ _mcp_http_app = mcp.streamable_http_app()
 _taop_mcp_http_app = taop_mcp.streamable_http_app()
 app.mount("/mcp-http", _mcp_http_app)
 app.mount("/taop/mcp-http", _taop_mcp_http_app)
+
+
+# Dr. Data V2 frontend — served from spine via Cloudflare tunnel
+_DRDATA_V2_HTML = Path.home() / "taop" / "drdata-v2" / "index.html"
+
+
+@app.get("/drdata", include_in_schema=False)
+@app.get("/drdata/", include_in_schema=False)
+async def drdata_v2_frontend():
+    if _DRDATA_V2_HTML.exists():
+        return FileResponse(_DRDATA_V2_HTML, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Dr. Data V2 frontend not deployed")
 
 
 if __name__ == "__main__":
