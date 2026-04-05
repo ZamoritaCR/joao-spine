@@ -291,6 +291,21 @@ async def council_dispatch(req: CouncilDispatchRequest):
     except Exception:
         logger.warning("Failed to log dispatch to Supabase", exc_info=True)
 
+    # Build log -- AI workforce activity tracking
+    try:
+        _ollama_agents = {"GEMMA", "LEX", "NOVA", "IRIS", "VOLT", "FLUX", "SAGE", "APEX"}
+        sb = supabase_client.get_client()
+        sb.table("build_log").insert({
+            "agent": req.agent,
+            "task_summary": req.task[:120],
+            "model_used": "ollama" if req.agent.upper() in _ollama_agents else "claude",
+            "tokens_used": 0,
+            "qa_result": "PENDING",
+            "dispatch_id": result.get("session", ""),
+        }).execute()
+    except Exception as e:
+        logger.warning("build_log write failed: %s", e)
+
     return CouncilDispatchResponse(
         status="dispatched",
         agent=req.agent,
