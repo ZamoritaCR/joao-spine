@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -33,6 +34,121 @@ from services.supabase_client import get_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/arena", tags=["arena"])
+
+
+# == JOAO Context Loader ===================================================
+
+_JOAO_CONTEXT: str = ""
+_JOAO_CONTEXT_LAST_REFRESH: float = 0.0
+_JOAO_CONTEXT_REFRESH_INTERVAL = 300  # 5 minutes
+
+_JOAO_MASTER_CONTEXT_PATH = Path("/home/zamoritacr/joao-spine/JOAO_MASTER_CONTEXT.md")
+_JOAO_CONTEXT_MAX_CHARS = 24000  # ~6000 tokens
+
+JOAO_CONTEXT_TEMPLATE = """\
+=== TAOP SYSTEM CONTEXT ===
+You are operating inside the JOAO AI Hub -- the command center of The Art of the Possible (TAOP).
+Founder: Johan Zamora (neurodivergent, ADHD, Costa Rican entrepreneur, Denver CO).
+Company: TAOP -- neurodivergent-first AI and product company.
+
+ACTIVE PRODUCTS:
+- dopamine.watch: neurodivergent focus companion
+- Dr. Data: Tableau -> Power BI migration tool (Streamlit, port 8502)
+- FocusFlow: AI-powered audio/video/document summarizer (Whisper + Claude)
+- JOAO: AI operating system and council (16 autonomous agents)
+- dopamine.chat: neurodivergent-first chat platform (Next.js)
+- dopamine.invest: autonomous investment system (Monster MCP + Alpaca, spec phase)
+
+INFRASTRUCTURE:
+- ROG Strix server (Ubuntu 24.04) -- primary build server
+- 16 Council agents: BYTE(code), ARIA(design), DEX(deploy), MAX(research/read), CORE(always-on), SAGE(analysis), and 10 more
+- FastAPI spine at localhost:7778 / joao.theartofthepossible.io
+- Cloudflare tunnels, Supabase persistence, GreenGeeks static hosting
+
+COUNCIL STATUS (live):
+{council_status}
+
+JOAO MASTER CONTEXT (recent):
+{master_context}
+
+=== END SYSTEM CONTEXT ==="""
+
+_JOAO_CONTEXT_FALLBACK = """\
+=== TAOP SYSTEM CONTEXT ===
+You are operating inside the JOAO AI Hub -- the command center of The Art of the Possible (TAOP).
+Founder: Johan Zamora. Company: TAOP -- neurodivergent-first AI and product company.
+Products: Dr. Data, FocusFlow, JOAO (16 AI council agents), dopamine.watch, dopamine.chat.
+Infrastructure: ROG Strix server, FastAPI spine, Cloudflare tunnels, Supabase.
+=== END SYSTEM CONTEXT ==="""
+
+
+async def _fetch_council_status() -> str:
+    """Get live council agent status from the dispatch endpoint."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get("http://localhost:7778/taop/agents")
+            if resp.status_code == 200:
+                data = resp.json()
+                agents = data.get("agents", {})
+                lines = []
+                for name, info in sorted(agents.items()):
+                    claude = info.get("claude_running", False)
+                    pool = info.get("pool", "unknown")
+                    status = "ALIVE (Claude running)" if claude else "idle"
+                    lines.append(f"  {name} [{pool}]: {status}")
+                return "\n".join(lines) if lines else "No agents reported"
+            return f"Council status endpoint returned {resp.status_code}"
+    except Exception as e:
+        return f"Council status: unavailable ({e})"
+
+
+async def _load_joao_context() -> str:
+    """Load JOAO master context + live council status into a formatted string."""
+    try:
+        # Read master context file
+        if _JOAO_MASTER_CONTEXT_PATH.exists():
+            raw = _JOAO_MASTER_CONTEXT_PATH.read_text(encoding="utf-8", errors="replace")
+            master_context = raw[:_JOAO_CONTEXT_MAX_CHARS]
+        else:
+            master_context = "(JOAO_MASTER_CONTEXT.md not found)"
+
+        # Fetch live council status
+        council_status = await _fetch_council_status()
+
+        return JOAO_CONTEXT_TEMPLATE.format(
+            council_status=council_status,
+            master_context=master_context,
+        )
+    except Exception as e:
+        logger.warning("Failed to load JOAO context: %s", e)
+        return _JOAO_CONTEXT_FALLBACK
+
+
+async def _refresh_joao_context() -> None:
+    """Refresh the cached JOAO context if stale."""
+    global _JOAO_CONTEXT, _JOAO_CONTEXT_LAST_REFRESH
+    now = time.time()
+    if now - _JOAO_CONTEXT_LAST_REFRESH < _JOAO_CONTEXT_REFRESH_INTERVAL and _JOAO_CONTEXT:
+        return
+    _JOAO_CONTEXT = await _load_joao_context()
+    _JOAO_CONTEXT_LAST_REFRESH = now
+    logger.info("JOAO context refreshed (%d chars)", len(_JOAO_CONTEXT))
+
+
+async def _ensure_joao_context() -> str:
+    """Get the cached JOAO context, refreshing if needed."""
+    await _refresh_joao_context()
+    return _JOAO_CONTEXT or _JOAO_CONTEXT_FALLBACK
+
+
+async def _joao_context_refresh_loop() -> None:
+    """Background task to refresh JOAO context every 5 minutes."""
+    while True:
+        try:
+            await _refresh_joao_context()
+        except Exception as e:
+            logger.warning("JOAO context refresh loop error: %s", e)
+        await asyncio.sleep(_JOAO_CONTEXT_REFRESH_INTERVAL)
 
 # In-memory conversation history per session
 _sessions: dict[str, dict[str, Any]] = {}
@@ -613,9 +729,25 @@ GPT_TOOLS = [
 
 # == MCP Server Definitions for Claude API ==================================
 
-MCP_SERVERS = [
+MCP_SERVERS_FULL = [
     {"type": "url", "url": "https://pubmed.mcp.claude.com/mcp", "name": "pubmed"},
+    {"type": "url", "url": "https://joao.theartofthepossible.io/mcp-http/mcp", "name": "joao"},
+    {"type": "url", "url": "https://joao.theartofthepossible.io/taop/mcp-http/mcp", "name": "taop-council"},
+    {"type": "url", "url": "https://mcp.notion.com/mcp", "name": "notion"},
+    {"type": "url", "url": "https://gmail.mcp.claude.com/mcp", "name": "gmail"},
+    {"type": "url", "url": "https://mcp.linear.app/mcp", "name": "linear"},
+    {"type": "url", "url": "https://mcp.figma.com/mcp", "name": "figma"},
+    {"type": "url", "url": "https://mcp.vercel.com", "name": "vercel"},
+    {"type": "url", "url": "https://mcp.atlassian.com/v1/mcp", "name": "atlassian"},
 ]
+
+MCP_SERVERS_FALLBACK = [
+    {"type": "url", "url": "https://pubmed.mcp.claude.com/mcp", "name": "pubmed"},
+    {"type": "url", "url": "https://joao.theartofthepossible.io/mcp-http/mcp", "name": "joao"},
+]
+
+# Start with full list; _call_claude will fall back if MCP errors occur
+MCP_SERVERS = MCP_SERVERS_FULL
 
 MCP_TOOLSETS = [
     {"type": "mcp", "server_name": s["name"]}
@@ -644,15 +776,20 @@ async def _call_claude(
             "rate_warning": "Claude rate limit reached",
         }
 
+    # Prepend JOAO context to system prompt
+    joao_ctx = await _ensure_joao_context()
+    full_system = f"{joao_ctx}\n\n{system_prompt}"
+
     anthropic_messages = [{"role": m["role"], "content": m["content"]} for m in messages]
     tool_log: list[dict] = []
-    use_mcp = bool(MCP_SERVERS)
+    mcp_servers_to_use = MCP_SERVERS_FULL[:]
+    use_mcp = True
 
     for _round in range(MAX_TOOL_ROUNDS):
         payload: dict[str, Any] = {
             "model": model,
             "max_tokens": 16384,
-            "system": [{"type": "text", "text": system_prompt}],
+            "system": [{"type": "text", "text": full_system}],
             "messages": anthropic_messages,
             "tools": CLAUDE_TOOLS,
         }
@@ -664,7 +801,7 @@ async def _call_claude(
         }
 
         if use_mcp:
-            payload["mcp_servers"] = MCP_SERVERS
+            payload["mcp_servers"] = mcp_servers_to_use
             headers["anthropic-beta"] = "mcp-client-2025-04-04"
 
         async with httpx.AsyncClient(timeout=90.0) as client:
@@ -693,8 +830,13 @@ async def _call_claude(
                 or "anthropic-version" in resp_text
             )
             if mcp_retriable:
-                logger.warning("Claude MCP/version error (status %d), retrying without MCP: %s", resp.status_code, resp_text[:300])
-                use_mcp = False
+                # Try fallback MCP list first, then no MCP
+                if mcp_servers_to_use != MCP_SERVERS_FALLBACK:
+                    logger.warning("Claude MCP error (status %d), retrying with fallback MCP: %s", resp.status_code, resp_text[:300])
+                    mcp_servers_to_use = MCP_SERVERS_FALLBACK
+                else:
+                    logger.warning("Claude MCP fallback error (status %d), retrying without MCP: %s", resp.status_code, resp_text[:300])
+                    use_mcp = False
                 continue
             logger.error("Claude API error %d: %s", resp.status_code, resp_text[:500])
             return {
@@ -785,7 +927,11 @@ async def _call_gpt(
 
     _track_rate("gpt")
 
-    openai_messages = [{"role": "system", "content": system_prompt}]
+    # Prepend JOAO context to system prompt
+    joao_ctx = await _ensure_joao_context()
+    full_system = f"{joao_ctx}\n\n{system_prompt}"
+
+    openai_messages = [{"role": "system", "content": full_system}]
     for m in messages:
         openai_messages.append({"role": m["role"], "content": m["content"]})
 
@@ -880,13 +1026,17 @@ async def _call_gemini(
 
     _track_rate("gemini")
 
+    # Prepend JOAO context to system prompt
+    joao_ctx = await _ensure_joao_context()
+    full_system = f"{joao_ctx}\n\n{system_prompt}"
+
     contents = []
     for m in messages:
         role = "model" if m["role"] == "assistant" else "user"
         contents.append({"role": role, "parts": [{"text": m["content"]}]})
 
     payload = {
-        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "system_instruction": {"parts": [{"text": full_system}]},
         "contents": contents,
         "generationConfig": {"maxOutputTokens": 8192},
         "safetySettings": [
@@ -963,7 +1113,14 @@ async def _call_openai_compatible(
 
     _track_rate(brain_name)
 
-    openai_messages = [{"role": "system", "content": system_prompt}]
+    # Prepend JOAO context to system prompt (truncated for smaller-context providers)
+    joao_ctx = await _ensure_joao_context()
+    # Groq/Cerebras have tight limits -- use condensed context (first 4000 chars)
+    if brain_name in ("groq", "cerebras", "together"):
+        joao_ctx = joao_ctx[:4000]
+    full_system = f"{joao_ctx}\n\n{system_prompt}"
+
+    openai_messages = [{"role": "system", "content": full_system}]
     for m in messages:
         openai_messages.append({"role": m["role"], "content": m["content"]})
 
@@ -1006,7 +1163,6 @@ async def _call_openai_compatible(
         text = message.get("content") or "[No response]"
 
         # Strip <think>...</think> blocks from reasoning models (DeepSeek R1, Qwen QwQ)
-        import re
         text = re.sub(r"<think>[\s\S]*?</think>\s*", "", text).strip()
 
         return {
@@ -1216,6 +1372,156 @@ async def _call_openrouter(
     )
 
 
+# == Opus Moderator ========================================================
+
+OPUS_MODEL = "claude-opus-4-20250514"
+
+MODERATOR_SYSTEM = """\
+You are the ARENA MODERATOR -- an Opus-class AI running inside the JOAO Hub.
+Your role: synthesize the debate output from 7 AI brains into one superior, bulletproofed result.
+
+You are NOT a participant. You are a synthesis engine.
+
+Your process:
+1. Read all brain responses
+2. Extract what is STRONGEST from each -- the insight, approach, or code that holds up under scrutiny
+3. Identify where brains AGREE -- that is high-confidence signal
+4. Identify where brains DISAGREE -- that is where you must decide which argument is stronger
+5. Synthesize into ONE output that is better than any individual brain could produce
+
+Output format:
+- If the debate was about CODE: produce one working, clean code solution incorporating the best logic from all brains. Include a brief header explaining what you took from each brain.
+- If the debate was about STRATEGY/ANALYSIS: produce one clear strategic recommendation. Brief, dense, zero filler.
+- Always end with: COUNCIL DISPATCH READY: [yes/no] -- if yes, state exactly what Council agent should execute and what the task is.
+
+TAOP ETHOS: 100% quality. Auditable. No hallucinations. If you are uncertain, say so.\
+"""
+
+
+async def _call_opus_moderator(
+    debate_responses: dict[str, str],
+    original_prompt: str,
+) -> dict[str, Any]:
+    """Run Opus moderator to synthesize all brain responses into one output."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"moderator": "[ERROR] ANTHROPIC_API_KEY not set", "model": OPUS_MODEL, "status": "error"}
+
+    # Format brain responses
+    formatted = []
+    for brain_name, response_text in debate_responses.items():
+        formatted.append(f"--- {brain_name.upper()} ---\n{response_text}")
+    formatted_responses_string = "\n\n".join(formatted)
+
+    joao_ctx = await _ensure_joao_context()
+    full_system = f"{joao_ctx}\n\n{MODERATOR_SYSTEM}"
+
+    user_message = (
+        f"ORIGINAL PROMPT:\n{original_prompt}\n\n"
+        f"DEBATE RESPONSES FROM {len(debate_responses)} BRAINS:\n{formatted_responses_string}\n\n"
+        "Synthesize the above into one bulletproofed output following your moderator protocol."
+    )
+
+    # Try with MCP servers, fall back gracefully
+    mcp_configs = [MCP_SERVERS_FULL, MCP_SERVERS_FALLBACK, None]
+
+    for mcp_list in mcp_configs:
+        payload: dict[str, Any] = {
+            "model": OPUS_MODEL,
+            "max_tokens": 4096,
+            "system": [{"type": "text", "text": full_system}],
+            "messages": [{"role": "user", "content": user_message}],
+        }
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        if mcp_list:
+            payload["mcp_servers"] = mcp_list
+            headers["anthropic-beta"] = "mcp-client-2025-04-04"
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                )
+
+            if resp.status_code == 200:
+                data = resp.json()
+                text_parts = []
+                for block in data.get("content", []):
+                    if block.get("type") == "text":
+                        text_parts.append(block["text"])
+                return {
+                    "moderator": "\n".join(text_parts) or "[No moderator response]",
+                    "model": OPUS_MODEL,
+                    "status": "success",
+                }
+
+            resp_text = resp.text
+            # If MCP-related or server error with MCP enabled, try next config
+            if mcp_list and (
+                resp.status_code >= 500
+                or "MCP" in resp_text or "mcp" in resp_text
+                or "not a valid version" in resp_text
+            ):
+                logger.warning("Opus moderator error with MCP (status %d), trying next config: %s", resp.status_code, resp_text[:200])
+                continue
+
+            return {
+                "moderator": f"[ERROR] Opus API returned {resp.status_code}: {resp_text[:300]}",
+                "model": OPUS_MODEL,
+                "status": "error",
+            }
+
+        except httpx.TimeoutException:
+            return {"moderator": "[ERROR] Opus moderator timed out (120s)", "model": OPUS_MODEL, "status": "error"}
+        except Exception as e:
+            logger.error("Opus moderator failed: %s", e)
+            return {"moderator": f"[ERROR] Opus moderator failed: {e}", "model": OPUS_MODEL, "status": "error"}
+
+    return {"moderator": "[ERROR] All MCP configs failed for Opus moderator", "model": OPUS_MODEL, "status": "error"}
+
+
+# == Preflight Health Check ================================================
+
+async def _preflight_check() -> dict[str, str]:
+    """Hit each brain with a minimal 'respond with OK' to check connectivity."""
+    results: dict[str, str] = {}
+
+    async def _check_brain(key: str) -> tuple[str, str]:
+        brain = BRAINS[key]
+        caller = brain["caller"]
+        try:
+            resp = await asyncio.wait_for(
+                caller(
+                    [{"role": "user", "content": "Respond with exactly: OK"}],
+                    "You are a test. Respond only with OK.",
+                    brain["default_model"],
+                    "preflight",
+                ),
+                timeout=30,
+            )
+            text = resp.get("text", "")
+            if "[ERROR]" in text or "[RATE LIMITED]" in text or "[TIMEOUT]" in text:
+                return key, f"error: {text[:100]}"
+            return key, "ok"
+        except Exception as e:
+            return key, f"error: {e}"
+
+    checks = await asyncio.gather(*[_check_brain(k) for k in BRAINS], return_exceptions=True)
+    for item in checks:
+        if isinstance(item, Exception):
+            continue
+        results[item[0]] = item[1]
+    return results
+
+
 # == Brain Registry ========================================================
 
 BRAINS = {
@@ -1365,7 +1671,7 @@ async def arena_chat(req: ChatRequest):
     _sb_insert("arena_conversations", log_row)
 
     # Build response
-    response = {
+    response: dict[str, Any] = {
         "session_id": req.session_id,
         "conversation_id": conv_id,
         "active_brains": active,
@@ -1382,6 +1688,26 @@ async def arena_chat(req: ChatRequest):
             "rate_warning": r.get("rate_warning"),
             "fallback_used": r.get("fallback_used", False),
             "fallback_provider": r.get("fallback_provider"),
+        }
+
+    # Run Opus Moderator after all brains complete
+    try:
+        brain_texts = {k: results[k].get("text", "") for k in active}
+        moderator_result = await _call_opus_moderator(
+            debate_responses=brain_texts,
+            original_prompt=req.message,
+        )
+        response["moderator"] = {
+            "response": moderator_result["moderator"],
+            "model": moderator_result["model"],
+            "status": moderator_result["status"],
+        }
+    except Exception as e:
+        logger.error("Opus moderator crashed: %s", e)
+        response["moderator"] = {
+            "response": f"[ERROR] Moderator failed: {e}",
+            "model": OPUS_MODEL,
+            "status": "error",
         }
 
     return response
@@ -1587,6 +1913,52 @@ async def arena_log(session_id: str = Query(...)):
     """Return the execution log for a session."""
     entries = list(_exec_log.get(session_id, []))
     return {"session_id": session_id, "entries": entries}
+
+
+# == GET /arena/health -- preflight check ===================================
+
+@router.get("/health")
+async def arena_health():
+    """Run preflight check against all brains and return status."""
+    results = await _preflight_check()
+    ok_count = sum(1 for v in results.values() if v == "ok")
+    return {
+        "status": "healthy" if ok_count == len(BRAINS) else "degraded",
+        "brains": results,
+        "ok_count": ok_count,
+        "total": len(BRAINS),
+    }
+
+
+# == Startup hook: initialize JOAO context + run preflight =================
+
+@router.on_event("startup")
+async def _arena_startup():
+    """Initialize JOAO context cache and start background refresh loop."""
+    logger.info("Arena startup: loading JOAO context...")
+    try:
+        await _refresh_joao_context()
+        logger.info("JOAO context loaded (%d chars)", len(_JOAO_CONTEXT))
+    except Exception as e:
+        logger.warning("JOAO context startup load failed: %s", e)
+
+    # Start background refresh loop
+    asyncio.create_task(_joao_context_refresh_loop())
+
+    # Run preflight in background (don't block startup)
+    async def _startup_preflight():
+        await asyncio.sleep(5)  # Give the spine a moment to fully start
+        try:
+            results = await _preflight_check()
+            ok = sum(1 for v in results.values() if v == "ok")
+            logger.info("Arena preflight: %d/%d brains OK", ok, len(results))
+            for brain, status in results.items():
+                if status != "ok":
+                    logger.warning("  %s: %s", brain, status)
+        except Exception as e:
+            logger.warning("Arena preflight failed: %s", e)
+
+    asyncio.create_task(_startup_preflight())
 
 
 # == GET /arena (serve HTML) ================================================
