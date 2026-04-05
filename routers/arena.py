@@ -821,21 +821,20 @@ async def _call_claude(
 
         if resp.status_code != 200:
             resp_text = resp.text
-            # MCP beta header can trigger version negotiation failures or 503s.
-            # Retry without MCP on any MCP-related or version error.
+            # Any 5xx OR MCP-related error while MCP is enabled -> retry with less MCP
             mcp_retriable = use_mcp and (
-                "MCP" in resp_text or "mcp" in resp_text
-                or "503" in resp_text
+                resp.status_code >= 500
+                or "MCP" in resp_text or "mcp" in resp_text
                 or "not a valid version" in resp_text
                 or "anthropic-version" in resp_text
             )
             if mcp_retriable:
                 # Try fallback MCP list first, then no MCP
                 if mcp_servers_to_use != MCP_SERVERS_FALLBACK:
-                    logger.warning("Claude MCP error (status %d), retrying with fallback MCP: %s", resp.status_code, resp_text[:300])
+                    logger.warning("Claude error with MCP (status %d), retrying with fallback MCP: %s", resp.status_code, resp_text[:300])
                     mcp_servers_to_use = MCP_SERVERS_FALLBACK
                 else:
-                    logger.warning("Claude MCP fallback error (status %d), retrying without MCP: %s", resp.status_code, resp_text[:300])
+                    logger.warning("Claude error with fallback MCP (status %d), retrying without MCP: %s", resp.status_code, resp_text[:300])
                     use_mcp = False
                 continue
             logger.error("Claude API error %d: %s", resp.status_code, resp_text[:500])
@@ -1115,9 +1114,13 @@ async def _call_openai_compatible(
 
     # Prepend JOAO context to system prompt (truncated for smaller-context providers)
     joao_ctx = await _ensure_joao_context()
-    # Groq/Cerebras have tight limits -- use condensed context (first 4000 chars)
+    # Groq/Cerebras/Together have tight payload limits -- use minimal context
     if brain_name in ("groq", "cerebras", "together"):
-        joao_ctx = joao_ctx[:4000]
+        joao_ctx = (
+            "You are an AI in JOAO Arena (The Art of the Possible). "
+            "Founder: Johan Zamora, Denver CO. Products: Dr. Data, FocusFlow, JOAO. "
+            "Rules: No emojis. Be direct. Facts over fluff."
+        )
     full_system = f"{joao_ctx}\n\n{system_prompt}"
 
     openai_messages = [{"role": "system", "content": full_system}]
@@ -1247,6 +1250,67 @@ async def _call_open_model(
                 fallback["fallback_provider"] = "groq"
                 return fallback
     return result
+
+
+# == DeepSeek (Together primary, Groq fallback) =============================
+
+_DEEPSEEK_TOGETHER_MODEL = "deepseek-ai/DeepSeek-V3"
+
+async def _call_deepseek(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    """Route DeepSeek through Together first (DeepSeek V3), Groq fallback (Kimi K2)."""
+    result = await _call_openai_compatible(
+        messages, system_prompt, _DEEPSEEK_TOGETHER_MODEL, session_id,
+        endpoint="https://api.together.xyz/v1/chat/completions",
+        api_key=os.environ.get("TOGETHER_API_KEY", ""),
+        brain_name="together",
+    )
+    if "[ERROR]" not in result.get("text", "") and not result.get("rate_limited"):
+        return result
+
+    # Fallback to Groq with Kimi K2
+    logger.warning("Together failed for DeepSeek, trying Groq fallback %s", model)
+    fallback = await _call_groq(messages, system_prompt, model, session_id)
+    if "[ERROR]" not in fallback.get("text", "") and not fallback.get("rate_limited"):
+        fallback["fallback_used"] = True
+        fallback["fallback_provider"] = "groq"
+        return fallback
+    return fallback
+
+
+# == Llama (Together primary, Groq fallback) ================================
+
+_LLAMA_TOGETHER_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+async def _call_llama(
+    messages: list[dict],
+    system_prompt: str,
+    model: str,
+    session_id: str = "",
+) -> dict[str, Any]:
+    """Route Llama through Together first (avoids Groq contention), Groq fallback."""
+    together_model = _LLAMA_TOGETHER_MODEL
+    result = await _call_openai_compatible(
+        messages, system_prompt, together_model, session_id,
+        endpoint="https://api.together.xyz/v1/chat/completions",
+        api_key=os.environ.get("TOGETHER_API_KEY", ""),
+        brain_name="together",
+    )
+    if "[ERROR]" not in result.get("text", "") and not result.get("rate_limited"):
+        return result
+
+    # Fallback to Groq
+    logger.warning("Together failed for Llama, trying Groq fallback %s", model)
+    fallback = await _call_groq(messages, system_prompt, model, session_id)
+    if "[ERROR]" not in fallback.get("text", "") and not fallback.get("rate_limited"):
+        fallback["fallback_used"] = True
+        fallback["fallback_provider"] = "groq"
+        return fallback
+    return fallback
 
 
 # == Together AI (Qwen) ====================================================
@@ -1548,16 +1612,14 @@ BRAINS = {
     },
     "deepseek": {
         "name": "DEEPSEEK", "color": "#b388ff", "tag": "REASONING BEAST",
-        "caller": lambda m, s, model, sid: _call_groq(m, s, model, sid),
-        "has_tools": False,
+        "caller": _call_deepseek, "has_tools": False,
         "models": ["moonshotai/kimi-k2-instruct", "moonshotai/kimi-k2-instruct-0905"],
         "default_model": "moonshotai/kimi-k2-instruct",
         "trainable": True,
     },
     "llama": {
         "name": "LLAMA", "color": "#ff9800", "tag": "OPEN WARRIOR",
-        "caller": lambda m, s, model, sid: _call_groq(m, s, model, sid),
-        "has_tools": False,
+        "caller": _call_llama, "has_tools": False,
         "models": ["llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct"],
         "default_model": "llama-3.3-70b-versatile",
         "trainable": True,

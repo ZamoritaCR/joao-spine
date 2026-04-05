@@ -312,7 +312,17 @@ _DRDATA_V2_HTML = Path.home() / "taop" / "drdata-v2" / "index.html"
 @app.get("/drdata/", include_in_schema=False)
 async def drdata_v2_frontend():
     if _DRDATA_V2_HTML.exists():
-        return FileResponse(_DRDATA_V2_HTML, media_type="text/html")
+        from fastapi.responses import Response
+        content = _DRDATA_V2_HTML.read_bytes()
+        return Response(
+            content=content,
+            media_type="text/html",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
     raise HTTPException(status_code=404, detail="Dr. Data V2 frontend not deployed")
 
 
