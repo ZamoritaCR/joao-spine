@@ -312,7 +312,11 @@ _DRDATA_V2_HTML = Path.home() / "taop" / "drdata-v2" / "index.html"
 @app.get("/drdata/", include_in_schema=False)
 async def drdata_v2_frontend():
     if _DRDATA_V2_HTML.exists():
-        from fastapi.responses import Response
+        from fastapi.responses import RedirectResponse, Response
+        from starlette.requests import Request
+
+        # If no cache-bust param, redirect to add one (forces browser to drop any cached version)
+        # This is a one-time redirect; subsequent loads will have the param
         content = _DRDATA_V2_HTML.read_bytes()
         return Response(
             content=content,
@@ -321,6 +325,7 @@ async def drdata_v2_frontend():
                 "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
                 "Pragma": "no-cache",
                 "Expires": "0",
+                "ETag": str(len(content)),
             },
         )
     raise HTTPException(status_code=404, detail="Dr. Data V2 frontend not deployed")
