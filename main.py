@@ -202,6 +202,13 @@ async def chat_ui():
     return FileResponse(_STATIC_DIR / "chat.html", media_type="text/html")
 
 
+# Dr. Data V2 app
+@app.get("/drdata-v2", include_in_schema=False)
+@app.get("/drdata-v2/", include_in_schema=False)
+async def drdata_v2_app():
+    return FileResponse("/home/zamoritacr/taop/drdata-v2/index.html", media_type="text/html")
+
+
 # JOAO Voice UI — joao.theartofthepossible.io
 @app.get("/joao/voice", include_in_schema=False)
 async def voice_ui():
@@ -250,6 +257,7 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 # so we only pass "/messages/" to avoid double-prefixing (e.g. /mcp/mcp/messages/).
 # Older mcp versions (< 1.8) need the full path including mount prefix.
 from starlette.applications import Starlette
+from starlette.responses import Response as StarletteResponse
 from starlette.routing import Mount, Route
 from mcp.server.sse import SseServerTransport
 
@@ -272,6 +280,9 @@ def _make_mcp_sse_app(mcp_server, mount_prefix: str) -> Starlette:
                 streams[0], streams[1],
                 mcp_server._mcp_server.create_initialization_options(),
             )
+        # Return a Response so Starlette doesn't try to call None as a response
+        # (the SSE response was already sent directly via request._send)
+        return StarletteResponse(status_code=200)
 
     return Starlette(
         debug=mcp_server.settings.debug,
