@@ -368,7 +368,7 @@ function loadBrains() {
         deepseek: {name:'DEEPSEEK',color:'#b388ff',tag:'REASONING BEAST',has_tools:false,models:['moonshotai/kimi-k2-instruct','moonshotai/kimi-k2-instruct-0905'],default_model:'moonshotai/kimi-k2-instruct',trainable:true},
         llama: {name:'LLAMA',color:'#ff9800',tag:'OPEN WARRIOR',has_tools:false,models:['llama-3.3-70b-versatile','meta-llama/llama-4-scout-17b-16e-instruct'],default_model:'llama-3.3-70b-versatile',trainable:true},
         mistral: {name:'MISTRAL',color:'#ff4466',tag:'EU FRONTIER',has_tools:false,models:['mistral-large-latest','mistral-small-latest'],default_model:'mistral-large-latest',trainable:true},
-        qwen: {name:'QWEN',color:'#00bcd4',tag:'MATH KING',has_tools:false,models:['Qwen/Qwen3-235B-A22B-Instruct-2507-tput','Qwen/Qwen2.5-7B-Instruct-Turbo'],default_model:'Qwen/Qwen3-235B-A22B-Instruct-2507-tput',trainable:true},
+        qwen: {name:'QWEN',color:'#00bcd4',tag:'MATH KING',has_tools:false,models:['Qwen/Qwen3.5-397B-A17B','Qwen/Qwen2.5-7B-Instruct-Turbo'],default_model:'Qwen/Qwen3.5-397B-A17B',trainable:true},
       };
       buildBrainBar();
       buildModelSelectors();
@@ -1019,6 +1019,208 @@ userInput.addEventListener('keydown', function(e) {
 
 userInput.focus();
 loadBrains();
+})();
+</script>
+
+<!-- Floating Opus Moderator Chat -->
+<style>
+#mod-fab{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  width:52px;height:52px;border-radius:50%;border:2px solid var(--gold);
+  background:linear-gradient(135deg,rgba(251,191,36,.15),var(--surface));
+  color:var(--gold);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 24px rgba(251,191,36,.2);transition:all .2s;letter-spacing:1px;
+}
+#mod-fab:hover{box-shadow:0 4px 32px rgba(251,191,36,.4);transform:scale(1.08)}
+#mod-fab.open{background:var(--surface);color:var(--dim);border-color:var(--border);box-shadow:none}
+
+#mod-panel{
+  position:fixed;bottom:88px;right:24px;z-index:999;
+  width:400px;max-height:520px;
+  background:var(--surface);border:1px solid var(--gold);border-radius:12px;
+  display:none;flex-direction:column;overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.5),0 0 30px rgba(251,191,36,.08);
+}
+#mod-panel.open{display:flex}
+
+#mod-panel-header{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  background:linear-gradient(90deg,rgba(251,191,36,.08),transparent);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+#mod-panel-header .title{
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  color:var(--gold);text-transform:uppercase;letter-spacing:2px;
+}
+#mod-panel-header .model-id{font-size:9px;color:var(--dim);margin-left:8px}
+#mod-panel-header .close-x{
+  background:none;border:none;color:var(--dim);font-size:16px;cursor:pointer;padding:0 4px;
+}
+#mod-panel-header .close-x:hover{color:var(--text)}
+
+#mod-messages{
+  flex:1;overflow-y:auto;padding:12px 14px;min-height:200px;max-height:360px;
+}
+#mod-messages::-webkit-scrollbar{width:3px}
+#mod-messages::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+
+.mod-msg{
+  margin-bottom:10px;padding:8px 12px;border-radius:8px;
+  font-size:12px;line-height:1.6;max-width:88%;white-space:pre-wrap;word-wrap:break-word;
+}
+.mod-msg.user{
+  background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.15);
+  color:var(--text);margin-left:auto;text-align:right;
+}
+.mod-msg.assistant{
+  background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.12);color:var(--text);
+}
+
+#mod-input-bar{
+  display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;
+  align-items:flex-end;
+}
+#mod-input-bar textarea{
+  flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;color:var(--text);font-family:'IBM Plex Mono',monospace;
+  font-size:12px;resize:none;min-height:36px;max-height:80px;line-height:1.4;outline:none;
+}
+#mod-input-bar textarea:focus{border-color:var(--gold)}
+#mod-input-bar textarea::placeholder{color:var(--dim)}
+#mod-send{
+  background:transparent;border:1px solid var(--gold);color:var(--gold);
+  border-radius:8px;padding:8px 14px;font-family:'Syne',sans-serif;font-size:11px;
+  font-weight:600;letter-spacing:1px;cursor:pointer;transition:all .15s;flex-shrink:0;
+}
+#mod-send:hover{background:rgba(251,191,36,.1)}
+#mod-send:disabled{opacity:.3;cursor:not-allowed}
+
+@media(max-width:768px){
+  #mod-panel{width:calc(100vw - 32px);right:16px;bottom:80px;max-height:60vh}
+  #mod-fab{bottom:16px;right:16px;width:46px;height:46px;font-size:10px}
+}
+</style>
+
+<button id="mod-fab" onclick="toggleModPanel()">OPUS</button>
+
+<div id="mod-panel">
+  <div id="mod-panel-header">
+    <div>
+      <span class="title">OPUS MODERATOR</span>
+      <span class="model-id">claude-opus-4</span>
+    </div>
+    <button class="close-x" onclick="toggleModPanel()">&times;</button>
+  </div>
+  <div id="mod-messages"></div>
+  <div id="mod-input-bar">
+    <textarea id="mod-input" rows="1" placeholder="Talk to Opus..." onkeydown="modHandleKey(event)"></textarea>
+    <button id="mod-send" onclick="modSend()">SEND</button>
+  </div>
+</div>
+
+<script>
+(function(){
+var modMessages = [];
+var modStreaming = false;
+var modPanel = document.getElementById('mod-panel');
+var modFab = document.getElementById('mod-fab');
+var modMsgContainer = document.getElementById('mod-messages');
+var modInput = document.getElementById('mod-input');
+var modSendBtn = document.getElementById('mod-send');
+
+window.toggleModPanel = function() {
+  var isOpen = modPanel.classList.toggle('open');
+  modFab.classList.toggle('open', isOpen);
+  modFab.textContent = isOpen ? 'X' : 'OPUS';
+  if (isOpen) {
+    modInput.focus();
+    if (modMessages.length === 0) {
+      modAddMsg('assistant', 'Opus Moderator online. I have full context on TAOP, the Arena, and the Council. What do you need?');
+    }
+  }
+};
+
+function modAddMsg(role, text) {
+  var div = document.createElement('div');
+  div.className = 'mod-msg ' + role;
+  div.textContent = text;
+  modMsgContainer.appendChild(div);
+  modMsgContainer.scrollTop = modMsgContainer.scrollHeight;
+  return div;
+}
+
+window.modSend = function() {
+  if (modStreaming) return;
+  var text = modInput.value.trim();
+  if (!text) return;
+  modInput.value = '';
+  modInput.style.height = 'auto';
+
+  modAddMsg('user', text);
+  modMessages.push({ role: 'user', content: text });
+
+  modStreaming = true;
+  modSendBtn.disabled = true;
+  var msgDiv = modAddMsg('assistant', '');
+  var fullText = '';
+
+  fetch('/arena/moderator/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: modMessages, session_id: 'mod-' + Date.now() })
+  }).then(function(resp) {
+    var reader = resp.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    function readChunk() {
+      return reader.read().then(function(result) {
+        if (result.done) { finish(); return; }
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (!line.startsWith('data: ')) continue;
+          var payload = line.slice(6);
+          if (payload === '[DONE]') { finish(); return; }
+          try {
+            var chunk = JSON.parse(payload);
+            if (typeof chunk === 'string') {
+              fullText += chunk;
+              msgDiv.textContent = fullText;
+              modMsgContainer.scrollTop = modMsgContainer.scrollHeight;
+            }
+          } catch(e) {}
+        }
+        return readChunk();
+      });
+    }
+
+    function finish() {
+      if (fullText) modMessages.push({ role: 'assistant', content: fullText });
+      modStreaming = false;
+      modSendBtn.disabled = false;
+      modInput.focus();
+    }
+
+    return readChunk();
+  }).catch(function(err) {
+    msgDiv.textContent = 'Connection error. Try again.';
+    msgDiv.style.color = '#c97b7b';
+    modStreaming = false;
+    modSendBtn.disabled = false;
+  });
+};
+
+window.modHandleKey = function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); modSend(); }
+  setTimeout(function() {
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 80) + 'px';
+  }, 0);
+};
 })();
 </script>
 </body>

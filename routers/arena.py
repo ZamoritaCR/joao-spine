@@ -1144,11 +1144,11 @@ async def _call_openai_compatible(
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(endpoint, headers=headers, json=payload)
 
-        if resp.status_code in (429, 413, 402):
+        if resp.status_code in (429, 413, 402, 503, 502):
             return {
-                "text": f"[RATE LIMITED] {brain_name} rate limit reached.",
+                "text": f"[RATE LIMITED] {brain_name} rate limit or service unavailable ({resp.status_code}).",
                 "tool_calls": [],
-                "rate_warning": f"Rate limit hit ({resp.status_code})",
+                "rate_warning": f"Rate limit/unavailable ({resp.status_code})",
                 "rate_limited": True,
             }
 
@@ -1635,8 +1635,8 @@ BRAINS = {
         "name": "QWEN", "color": "#00bcd4", "tag": "MATH KING",
         "caller": lambda m, s, model, sid: _call_together(m, s, model, sid),
         "has_tools": False,
-        "models": ["Qwen/Qwen3-235B-A22B-Instruct-2507-tput", "Qwen/Qwen2.5-7B-Instruct-Turbo"],
-        "default_model": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+        "models": ["Qwen/Qwen3.5-397B-A17B", "Qwen/Qwen2.5-7B-Instruct-Turbo"],
+        "default_model": "Qwen/Qwen3.5-397B-A17B",
         "trainable": True,
     },
 }
@@ -2053,6 +2053,113 @@ async def _arena_startup():
             logger.warning("Arena preflight failed: %s", e)
 
     asyncio.create_task(_startup_preflight())
+
+
+# == POST /arena/moderator/chat -- Direct Opus Moderator chat ===============
+
+MODERATOR_CHAT_SYSTEM = """\
+You are the OPUS MODERATOR inside the JOAO AI Arena.
+You are an Opus-class AI -- the most capable model in the Arena.
+
+You have deep knowledge of The Art of the Possible (TAOP), Johan Zamora's company, \
+and all its products and infrastructure. You can discuss strategy, architecture, \
+code, data modeling, neurodivergent design, and anything else.
+
+You are direct, dense, and zero-filler. You think like a principal architect \
+with 25 years in the field. You challenge weak ideas and reinforce strong ones.
+
+When asked about the Arena debate results, you can reference and analyze them.
+When asked to dispatch Council agents, recommend the right agent and task.
+
+Rules: No emojis. Be direct. Facts over fluff. Auditable. No hallucinations.\
+"""
+
+
+class ModeratorChatRequest(BaseModel):
+    messages: list[dict]
+    session_id: str = ""
+
+
+@router.post("/moderator/chat")
+async def arena_moderator_chat(req: ModeratorChatRequest):
+    """Direct streaming chat with the Opus Moderator."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return StreamingResponse(
+            iter(["data: [ERROR] ANTHROPIC_API_KEY not set\n\ndata: [DONE]\n\n"]),
+            media_type="text/event-stream",
+        )
+
+    joao_ctx = await _ensure_joao_context()
+    full_system = f"{joao_ctx}\n\n{MODERATOR_CHAT_SYSTEM}"
+
+    anthropic_messages = []
+    for m in req.messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if role in ("user", "assistant") and content:
+            anthropic_messages.append({"role": role, "content": content})
+
+    if not anthropic_messages:
+        return StreamingResponse(
+            iter(["data: [ERROR] No messages provided\n\ndata: [DONE]\n\n"]),
+            media_type="text/event-stream",
+        )
+
+    async def _stream():
+        payload = {
+            "model": OPUS_MODEL,
+            "max_tokens": 4096,
+            "stream": True,
+            "system": [{"type": "text", "text": full_system}],
+            "messages": anthropic_messages,
+        }
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json=payload,
+                ) as resp:
+                    if resp.status_code != 200:
+                        body = await resp.aread()
+                        yield f"data: {json.dumps('[ERROR] Opus API: ' + body.decode()[:200])}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        raw = line[6:]
+                        if raw == "[DONE]":
+                            break
+                        try:
+                            evt = json.loads(raw)
+                            evt_type = evt.get("type", "")
+                            if evt_type == "content_block_delta":
+                                delta = evt.get("delta", {})
+                                text = delta.get("text", "")
+                                if text:
+                                    yield f"data: {json.dumps(text)}\n\n"
+                        except json.JSONDecodeError:
+                            pass
+
+        except httpx.TimeoutException:
+            yield f"data: {json.dumps('[ERROR] Opus timed out')}\n\n"
+        except Exception as e:
+            logger.error("Moderator chat error: %s", e)
+            yield f"data: {json.dumps(f'[ERROR] {e}')}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
 
 
 # == GET /arena (serve HTML) ================================================
