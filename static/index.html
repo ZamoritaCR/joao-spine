@@ -201,25 +201,81 @@
       50%      { box-shadow: 0 0 0 5px rgba(200,60,60,0); }
     }
 
-    /* File staging bar */
+    /* File staging bar — multi-image */
     #file-staging {
       display: none;
-      align-items: center;
-      gap: 10px;
-      padding: 6px 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 10px;
       background: #111;
       border: 1px solid #222;
       border-radius: 8px;
       margin-bottom: 8px;
       font-size: 12px;
       font-weight: 300;
+      align-items: flex-end;
     }
 
     #file-staging.visible { display: flex; }
-    #file-staging img { max-width: 48px; max-height: 36px; border-radius: 4px; }
-    #file-staging .staged-name { flex: 1; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #file-staging .staged-remove { background: none; border: none; color: #555; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; }
-    #file-staging .staged-remove:hover { color: #e55; }
+
+    .staged-thumb {
+      position: relative;
+      display: inline-block;
+    }
+
+    .staged-thumb img {
+      max-width: 64px;
+      max-height: 48px;
+      border-radius: 4px;
+      display: block;
+      border: 1px solid #333;
+    }
+
+    .staged-thumb .thumb-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 16px;
+      height: 16px;
+      background: #333;
+      border: none;
+      border-radius: 50%;
+      color: #ccc;
+      font-size: 10px;
+      line-height: 16px;
+      text-align: center;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .staged-thumb .thumb-remove:hover { background: #c44; color: #fff; }
+
+    #staging-count {
+      color: #666;
+      font-size: 11px;
+      margin-left: auto;
+    }
+
+    #staging-clear-all {
+      background: none;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #666;
+      font-size: 11px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-family: 'Lexend', sans-serif;
+    }
+
+    #staging-clear-all:hover { border-color: #c44; color: #c44; }
+
+    /* Multi-image in chat messages */
+    .message .chat-images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
 
     /* Mobile 390px */
     @media (max-width: 390px) {
@@ -398,9 +454,9 @@
 
   <div id="input-area">
     <div id="file-staging">
-      <div id="staging-preview"></div>
-      <span class="staged-name" id="staged-name"></span>
-      <button class="staged-remove" id="staged-remove" type="button">x</button>
+      <div id="staging-thumbs"></div>
+      <span id="staging-count"></span>
+      <button id="staging-clear-all" type="button">Clear all</button>
     </div>
     <form id="chat-form">
       <button type="button" class="icon-btn" id="attach-btn" title="Attach image">
@@ -414,7 +470,7 @@
     </form>
   </div>
 
-  <input type="file" id="file-input" hidden accept="image/jpeg,image/png,image/gif,image/webp">
+  <input type="file" id="file-input" hidden accept="image/jpeg,image/png,image/gif,image/webp" multiple>
 
   <script>
     // ============================================================
@@ -490,14 +546,19 @@
       errorBanner.style.display = "none";
     }
 
-    function addMessage(role, text, imageDataUrl) {
+    function addMessage(role, text, imageDataUrls) {
       const div = document.createElement("div");
       div.className = `message ${role}`;
-      if (imageDataUrl) {
-        const img = document.createElement("img");
-        img.src = imageDataUrl;
-        img.className = "chat-image";
-        div.appendChild(img);
+      if (imageDataUrls && imageDataUrls.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "chat-images";
+        for (const src of imageDataUrls) {
+          const img = document.createElement("img");
+          img.src = src;
+          img.className = "chat-image";
+          wrap.appendChild(img);
+        }
+        div.appendChild(wrap);
       }
       if (text) {
         const span = document.createElement("span");
@@ -549,31 +610,36 @@
     async function handleSubmit(e) {
       e.preventDefault();
       const text = userInput.value.trim();
-      const img = stagedImage;
+      const images = stagedImages.slice(); // snapshot
 
-      if (!text && !img) return;
+      if (!text && !images.length) return;
 
       clearError();
       userInput.value = "";
       sendBtn.disabled = true;
 
-      // Clear staged image UI
-      if (img) {
-        stagedImage = null;
-        fileStaging.classList.remove("visible");
-        stagingPreview.innerHTML = "";
+      // Clear staged images UI
+      if (images.length) {
+        stagedImages = [];
+        renderStagingBar();
       }
 
       // Build display and API content
-      const displayText = text || (img ? "[screenshot]" : "");
-      addMessage("user", displayText, img ? img.dataUrl : null);
+      const displayText = text || (images.length ? `[${images.length} image(s)]` : "");
+      const displayUrls = images.map(i => i.dataUrl);
+      addMessage("user", displayText, displayUrls.length ? displayUrls : null);
 
       let apiContent;
-      if (img) {
-        apiContent = [
-          { type: "image", source: { type: "base64", media_type: img.mimeType, data: img.base64 } },
-          { type: "text", text: text || "Describe and interpret this image." }
-        ];
+      if (images.length) {
+        // Each image becomes its own content block, text block at end
+        apiContent = images.map(img => ({
+          type: "image",
+          source: { type: "base64", media_type: img.mimeType, data: img.base64 }
+        }));
+        apiContent.push({
+          type: "text",
+          text: text || "Analyze these images. Compare them, identify issues, and suggest fixes with code."
+        });
       } else {
         apiContent = text;
       }
@@ -583,12 +649,13 @@
       const storableMessages = conversationMessages.map(m => {
         if (Array.isArray(m.content)) {
           const textBlock = m.content.find(b => b.type === "text");
-          return { role: m.role, content: (textBlock ? textBlock.text : "[image]") + " [with image]" };
+          const imgCount = m.content.filter(b => b.type === "image").length;
+          return { role: m.role, content: (textBlock ? textBlock.text : "[images]") + ` [${imgCount} image(s) attached]` };
         }
         return m;
       });
       saveHistory(storableMessages);
-      logToTunnel("user", typeof apiContent === "string" ? apiContent : "[image message]");
+      logToTunnel("user", typeof apiContent === "string" ? apiContent : `[message with ${images.length} image(s)]`);
 
       showThinking();
 
@@ -692,7 +759,8 @@
         const storableMsgs = conversationMessages.map(m => {
           if (Array.isArray(m.content)) {
             const textBlock = m.content.find(b => b.type === "text");
-            return { role: m.role, content: (textBlock ? textBlock.text : "[image]") + " [with image]" };
+            const imgCount = m.content.filter(b => b.type === "image").length;
+            return { role: m.role, content: (textBlock ? textBlock.text : "[images]") + ` [${imgCount} image(s) attached]` };
           }
           return m;
         });
@@ -709,53 +777,83 @@
       userInput.focus();
     }
 
-    // ── File/Image staging (must be before handleSubmit) ─────────────────
+    // ── Multi-image staging ──────────────────────────────────────────────
 
-    const attachBtn    = document.getElementById("attach-btn");
-    const fileInput    = document.getElementById("file-input");
-    const fileStaging  = document.getElementById("file-staging");
-    const stagingPreview = document.getElementById("staging-preview");
-    const stagedNameEl = document.getElementById("staged-name");
-    const stagedRemove = document.getElementById("staged-remove");
+    const attachBtn      = document.getElementById("attach-btn");
+    const fileInput      = document.getElementById("file-input");
+    const fileStaging    = document.getElementById("file-staging");
+    const stagingThumbs  = document.getElementById("staging-thumbs");
+    const stagingCount   = document.getElementById("staging-count");
+    const stagingClearAll = document.getElementById("staging-clear-all");
 
-    let stagedImage = null; // {dataUrl, base64, mimeType, filename}
+    let stagedImages = []; // [{dataUrl, base64, mimeType, filename}, ...]
+    const MAX_IMAGES = 10;
+    const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB per image
+
+    function renderStagingBar() {
+      stagingThumbs.innerHTML = "";
+      if (!stagedImages.length) {
+        fileStaging.classList.remove("visible");
+        return;
+      }
+      fileStaging.classList.add("visible");
+      stagedImages.forEach((img, idx) => {
+        const thumb = document.createElement("div");
+        thumb.className = "staged-thumb";
+        thumb.innerHTML = `<img src="${img.dataUrl}" alt="${img.filename}"><button class="thumb-remove" data-idx="${idx}">x</button>`;
+        stagingThumbs.appendChild(thumb);
+      });
+      stagingCount.textContent = stagedImages.length + " image" + (stagedImages.length > 1 ? "s" : "");
+      // Wire up individual remove buttons
+      stagingThumbs.querySelectorAll(".thumb-remove").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const i = parseInt(e.target.dataset.idx);
+          stagedImages.splice(i, 1);
+          renderStagingBar();
+        });
+      });
+    }
+
+    function stageImageFile(file) {
+      if (!file.type.startsWith("image/")) {
+        showError("Only image files supported.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        showError("Image too large (max 20MB): " + file.name);
+        return;
+      }
+      if (stagedImages.length >= MAX_IMAGES) {
+        showError("Max " + MAX_IMAGES + " images per message.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const base64 = dataUrl.split(",")[1];
+        stagedImages.push({ dataUrl, base64, mimeType: file.type, filename: file.name });
+        renderStagingBar();
+        userInput.focus();
+      };
+      reader.readAsDataURL(file);
+    }
 
     chatForm.addEventListener("submit", handleSubmit);
 
     attachBtn.addEventListener("click", () => fileInput.click());
 
     fileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
+      const files = Array.from(e.target.files);
       fileInput.value = "";
-      if (!file) return;
-      if (!file.type.startsWith("image/")) {
-        showError("Only image files supported for vision upload.");
-        return;
-      }
-      if (file.size > 20 * 1024 * 1024) {
-        showError("Image too large (max 20MB).");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result;
-        const base64  = dataUrl.split(",")[1];
-        stagedImage = { dataUrl, base64, mimeType: file.type, filename: file.name };
-        stagingPreview.innerHTML = `<img src="${dataUrl}" alt="">`;
-        stagedNameEl.textContent = file.name;
-        fileStaging.classList.add("visible");
-        userInput.focus();
-      };
-      reader.readAsDataURL(file);
+      files.forEach(f => stageImageFile(f));
     });
 
-    stagedRemove.addEventListener("click", () => {
-      stagedImage = null;
-      fileStaging.classList.remove("visible");
-      stagingPreview.innerHTML = "";
+    stagingClearAll.addEventListener("click", () => {
+      stagedImages = [];
+      renderStagingBar();
     });
 
-    // ── Clipboard paste for screenshots ──────────────────────────────────
+    // ── Clipboard paste for screenshots (adds to staging queue) ──────────
     document.addEventListener("paste", (e) => {
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
@@ -763,20 +861,17 @@
         if (!item.type.startsWith("image/")) continue;
         e.preventDefault();
         const file = item.getAsFile();
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const dataUrl = reader.result;
-          const base64 = dataUrl.split(",")[1];
-          stagedImage = { dataUrl, base64, mimeType: file.type, filename: "screenshot.png" };
-          stagingPreview.innerHTML = `<img src="${dataUrl}" alt="">`;
-          stagedNameEl.textContent = "Pasted screenshot";
-          fileStaging.classList.add("visible");
-          userInput.focus();
-        };
-        reader.readAsDataURL(file);
-        break;
+        if (file) stageImageFile(file);
       }
+    });
+
+    // ── Drag and drop images ─────────────────────────────────────────────
+    const dropTarget = document.getElementById("input-area");
+    dropTarget.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+    dropTarget.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(f => { if (f.type.startsWith("image/")) stageImageFile(f); });
     });
 
     // ── Hold-to-record -> /joao/transcribe ────────────────────────────────
