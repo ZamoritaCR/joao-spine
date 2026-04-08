@@ -70,11 +70,14 @@ from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
 from routers.cockpit import router as cockpit_router
 
-# Dr. Data V2
+# Dr. Data V2 -- independent codebase (only available on ROG, not Railway)
 import sys as _sys
-if "/home/zamoritacr/taop-repos/dr-data" not in _sys.path:
-    _sys.path.insert(0, "/home/zamoritacr/taop-repos/dr-data")
-from api.drdata_router import router as drdata_router
+_DRDATA_V2_PATH = "/home/zamoritacr/taop/drdata-v2"
+_drdata_available = os.path.isdir(_DRDATA_V2_PATH)
+if _drdata_available:
+    if _DRDATA_V2_PATH not in _sys.path:
+        _sys.path.insert(0, _DRDATA_V2_PATH)
+    from api.drdata_router import router as drdata_router
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +113,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+# Serve Dr Data CSVs statically
+_csv_dir = "/home/zamoritacr/taop/drdata-v2/static/drdata-csv"
+if os.path.exists(_csv_dir):
+    app.mount("/drdata-csv", StaticFiles(directory=_csv_dir), name="drdata-csv")
+
 
 @app.get("/health")
 async def health():
@@ -150,7 +158,8 @@ app.include_router(ftp_router)
 app.include_router(greengeeks_router)
 app.include_router(telegram_webhook_router)
 app.include_router(arena_router)
-app.include_router(drdata_router)
+if _drdata_available:
+    app.include_router(drdata_router)
 app.include_router(cockpit_router)
 app.mount("/os", os_autonomy_app)
 
@@ -268,15 +277,29 @@ def _make_mcp_sse_app(mcp_server, mount_prefix: str) -> Starlette:
         sse = SseServerTransport(f"{mount_prefix}/messages/")
 
     async def handle_sse(request):
-        async with sse.connect_sse(
-            request.scope, request.receive, request._send,
-        ) as streams:
-            await mcp_server._mcp_server.run(
-                streams[0], streams[1],
-                mcp_server._mcp_server.create_initialization_options(),
-            )
-        # Return a Response so Starlette doesn't try to call None as a response
-        # (the SSE response was already sent directly via request._send)
+        try:
+            async with sse.connect_sse(
+                request.scope, request.receive, request._send,
+            ) as streams:
+                await mcp_server._mcp_server.run(
+                    streams[0], streams[1],
+                    mcp_server._mcp_server.create_initialization_options(),
+                )
+        finally:
+            # Clean up dead session from the transport's session dict so stale
+            # session_ids can never receive messages meant for a new connection.
+            sid_param = request.query_params.get("session_id", "")
+            if not sid_param:
+                # Session ID is in the path the server gave the client, but the
+                # transport stores it by UUID key.  Walk the dict and remove any
+                # writers whose underlying stream is closed.
+                closed = [
+                    k for k, w in list(sse._read_stream_writers.items())
+                    if getattr(w, "_closed", False)
+                ]
+                for k in closed:
+                    sse._read_stream_writers.pop(k, None)
+                    logger.debug("Reaped closed SSE session %s", k)
         return StarletteResponse(status_code=200)
 
     return Starlette(
