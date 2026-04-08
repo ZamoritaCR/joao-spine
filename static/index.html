@@ -92,6 +92,14 @@
       color: #d0e0d0;
     }
 
+    .message img.chat-image {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
     .thinking-indicator {
       align-self: flex-start;
       font-size: 13px;
@@ -482,10 +490,20 @@
       errorBanner.style.display = "none";
     }
 
-    function addMessage(role, text) {
+    function addMessage(role, text, imageDataUrl) {
       const div = document.createElement("div");
       div.className = `message ${role}`;
-      div.textContent = text;
+      if (imageDataUrl) {
+        const img = document.createElement("img");
+        img.src = imageDataUrl;
+        img.className = "chat-image";
+        div.appendChild(img);
+      }
+      if (text) {
+        const span = document.createElement("span");
+        span.textContent = text;
+        div.appendChild(span);
+      }
       chatEl.appendChild(div);
       chatEl.scrollTop = chatEl.scrollHeight;
       return div;
@@ -531,16 +549,46 @@
     async function handleSubmit(e) {
       e.preventDefault();
       const text = userInput.value.trim();
-      if (!text) return;
+      const img = stagedImage;
+
+      if (!text && !img) return;
 
       clearError();
       userInput.value = "";
       sendBtn.disabled = true;
 
-      addMessage("user", text);
-      conversationMessages.push({ role: "user", content: text });
-      saveHistory(conversationMessages);
-      logToTunnel("user", text);
+      // Clear staged image UI
+      if (img) {
+        stagedImage = null;
+        fileStaging.classList.remove("visible");
+        stagingPreview.innerHTML = "";
+      }
+
+      // Build display and API content
+      const displayText = text || (img ? "[screenshot]" : "");
+      addMessage("user", displayText, img ? img.dataUrl : null);
+
+      let apiContent;
+      if (img) {
+        apiContent = [
+          { type: "image", source: { type: "base64", media_type: img.mimeType, data: img.base64 } },
+          { type: "text", text: text || "Describe and interpret this image." }
+        ];
+      } else {
+        apiContent = text;
+      }
+
+      conversationMessages.push({ role: "user", content: apiContent });
+      // Store text-only version for localStorage (avoid base64 bloat)
+      const storableMessages = conversationMessages.map(m => {
+        if (Array.isArray(m.content)) {
+          const textBlock = m.content.find(b => b.type === "text");
+          return { role: m.role, content: (textBlock ? textBlock.text : "[image]") + " [with image]" };
+        }
+        return m;
+      });
+      saveHistory(storableMessages);
+      logToTunnel("user", typeof apiContent === "string" ? apiContent : "[image message]");
 
       showThinking();
 
@@ -640,7 +688,15 @@
         if (statusDiv) statusDiv.remove();
 
         conversationMessages.push({ role: "assistant", content: fullResponse });
-        saveHistory(conversationMessages);
+        // Strip base64 images from localStorage to avoid bloat
+        const storableMsgs = conversationMessages.map(m => {
+          if (Array.isArray(m.content)) {
+            const textBlock = m.content.find(b => b.type === "text");
+            return { role: m.role, content: (textBlock ? textBlock.text : "[image]") + " [with image]" };
+          }
+          return m;
+        });
+        saveHistory(storableMsgs);
         if (fullResponse) logToTunnel("assistant", fullResponse);
 
       } catch (err) {
@@ -653,9 +709,7 @@
       userInput.focus();
     }
 
-    chatForm.addEventListener("submit", handleSubmit);
-
-    // ── File upload -> /joao/vision ────────────────────────────────────────
+    // ── File/Image staging (must be before handleSubmit) ─────────────────
 
     const attachBtn    = document.getElementById("attach-btn");
     const fileInput    = document.getElementById("file-input");
@@ -665,6 +719,8 @@
     const stagedRemove = document.getElementById("staged-remove");
 
     let stagedImage = null; // {dataUrl, base64, mimeType, filename}
+
+    chatForm.addEventListener("submit", handleSubmit);
 
     attachBtn.addEventListener("click", () => fileInput.click());
 
@@ -699,55 +755,28 @@
       stagingPreview.innerHTML = "";
     });
 
-    async function sendImageToVision(image, prompt) {
-      const imageEl = addMessage("user", prompt || image.filename);
-      showThinking();
-      try {
-        const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/vision`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image_url: image.dataUrl,
-            prompt: prompt || "Describe this image and extract key information.",
-          }),
-        });
-        hideThinking();
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          addMessage("assistant", "Vision error: " + (err.detail || resp.status));
-          return;
-        }
-        const data = await resp.json();
-        const reply = [
-          data.title ? data.title : "",
-          data.summary || "",
-          data.tags && data.tags.length ? "Tags: " + data.tags.join(", ") : "",
-        ].filter(Boolean).join("\n\n");
-        addMessage("assistant", reply || "(No response)");
-      } catch (err) {
-        hideThinking();
-        showError("Vision request failed: " + err.message);
+    // ── Clipboard paste for screenshots ──────────────────────────────────
+    document.addEventListener("paste", (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const item of items) {
+        if (!item.type.startsWith("image/")) continue;
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result;
+          const base64 = dataUrl.split(",")[1];
+          stagedImage = { dataUrl, base64, mimeType: file.type, filename: "screenshot.png" };
+          stagingPreview.innerHTML = `<img src="${dataUrl}" alt="">`;
+          stagedNameEl.textContent = "Pasted screenshot";
+          fileStaging.classList.add("visible");
+          userInput.focus();
+        };
+        reader.readAsDataURL(file);
+        break;
       }
-    }
-
-    // Override submit to intercept staged image
-    const origHandleSubmit = chatForm.onsubmit;
-    chatForm.removeEventListener("submit", handleSubmit);
-    chatForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (stagedImage) {
-        const prompt = userInput.value.trim();
-        userInput.value = "";
-        const img = stagedImage;
-        stagedImage = null;
-        fileStaging.classList.remove("visible");
-        stagingPreview.innerHTML = "";
-        await sendImageToVision(img, prompt);
-        sendBtn.disabled = false;
-        userInput.focus();
-        return;
-      }
-      handleSubmit(e);
     });
 
     // ── Hold-to-record -> /joao/transcribe ────────────────────────────────
