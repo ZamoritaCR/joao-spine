@@ -69,9 +69,15 @@ from routers.telegram_webhook import router as telegram_webhook_router
 from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
 from routers.cockpit import router as cockpit_router
+from routers.superpowers import router as superpowers_router
+
+# Dr. Data (original) -- Tableau parser, DAX transpiler, direct mapper for superpowers
+import sys as _sys
+_DRDATA_PATH = "/home/zamoritacr/taop-repos/dr-data"
+if os.path.isdir(_DRDATA_PATH) and _DRDATA_PATH not in _sys.path:
+    _sys.path.insert(0, _DRDATA_PATH)
 
 # Dr. Data V2 -- independent codebase (only available on ROG, not Railway)
-import sys as _sys
 _DRDATA_V2_PATH = "/home/zamoritacr/taop/drdata-v2"
 _drdata_available = os.path.isdir(_DRDATA_V2_PATH)
 if _drdata_available:
@@ -161,6 +167,7 @@ app.include_router(arena_router)
 if _drdata_available:
     app.include_router(drdata_router)
 app.include_router(cockpit_router)
+app.include_router(superpowers_router)
 app.mount("/os", os_autonomy_app)
 
 
