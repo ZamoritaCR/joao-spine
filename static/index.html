@@ -304,6 +304,122 @@
     #chat-container::-webkit-scrollbar-track { background: transparent; }
     #chat-container::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
 
+    /* Superpowers bar */
+    #superpowers-bar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 24px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .sp-btn {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: 'Lexend', sans-serif;
+      font-size: 12px;
+      font-weight: 400;
+      color: #666;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .sp-btn:hover { border-color: #444; color: #aaa; background: #1a1a1a; }
+    .sp-btn.active { border-color: #3a6a3a; color: #8c8; background: #121e12; }
+
+    /* Superpower result cards */
+    .sp-result {
+      background: #111;
+      border: 1px solid #1e2e1e;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 88%;
+      align-self: flex-start;
+    }
+
+    .sp-result h3 {
+      font-size: 13px;
+      font-weight: 500;
+      color: #8c8;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .sp-result .sp-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid #1a1a1a;
+      color: #999;
+    }
+
+    .sp-result .sp-stat span:last-child { color: #ccc; font-weight: 400; }
+
+    .sp-result .sp-artifacts {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .sp-result .sp-artifact-link {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #8c8;
+      font-size: 11px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .sp-result .sp-artifact-link:hover { background: #222; border-color: #3a6a3a; }
+
+    .sp-track {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .sp-track-name { color: #ccc; }
+    .sp-track-artist { color: #666; font-size: 12px; }
+
+    .sp-rationale {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #0d1a0d;
+      border-left: 2px solid #3a6a3a;
+      border-radius: 0 6px 6px 0;
+      color: #aaa;
+      font-size: 12px;
+      font-style: italic;
+      line-height: 1.5;
+    }
+
+    .sp-progress {
+      color: #666;
+      font-size: 12px;
+      padding: 8px 0;
+    }
+
+    .sp-progress .spinner-inline {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #333;
+      border-top-color: #666;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
     #error-banner {
       display: none;
       padding: 12px 24px;
@@ -452,6 +568,11 @@
 
   <div id="chat-container"></div>
 
+  <div id="superpowers-bar">
+    <button class="sp-btn" id="sp-tableau" title="Upload Tableau workbook for Power BI migration">Tableau -> PBI</button>
+    <button class="sp-btn" id="sp-playlist" title="Generate a mood playlist">Mood Playlist</button>
+  </div>
+
   <div id="input-area">
     <div id="file-staging">
       <div id="staging-thumbs"></div>
@@ -470,7 +591,8 @@
     </form>
   </div>
 
-  <input type="file" id="file-input" hidden accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+  <input type="file" id="file-input" hidden accept="image/jpeg,image/png,image/gif,image/webp,.twb,.twbx" multiple>
+  <input type="file" id="twb-file-input" hidden accept=".twb,.twbx">
 
   <script>
     // ============================================================
@@ -939,6 +1061,241 @@
     holdMicBtn.addEventListener("pointerup",   () => stopHoldRecording());
     holdMicBtn.addEventListener("pointerleave",() => { if (holdRecording) stopHoldRecording(); });
     holdMicBtn.addEventListener("pointercancel",()=> { if (holdRecording) stopHoldRecording(); });
+
+    // ── SUPERPOWERS ─────────────────────────────────────────────────
+    const spTableauBtn  = document.getElementById("sp-tableau");
+    const spPlaylistBtn = document.getElementById("sp-playlist");
+    const twbFileInput  = document.getElementById("twb-file-input");
+
+    let superpowerMode = null; // null | "tableau" | "playlist"
+
+    function setSuperpowerMode(mode) {
+      superpowerMode = (superpowerMode === mode) ? null : mode;
+      spTableauBtn.classList.toggle("active", superpowerMode === "tableau");
+      spPlaylistBtn.classList.toggle("active", superpowerMode === "playlist");
+
+      if (superpowerMode === "tableau") {
+        userInput.placeholder = "Drop a .twb/.twbx here or click to upload...";
+        twbFileInput.click();
+      } else if (superpowerMode === "playlist") {
+        userInput.placeholder = "How are you feeling? (e.g. stressed -> focused)";
+        userInput.focus();
+      } else {
+        userInput.placeholder = "Message JOAO...";
+      }
+    }
+
+    spTableauBtn.addEventListener("click", () => setSuperpowerMode("tableau"));
+    spPlaylistBtn.addEventListener("click", () => setSuperpowerMode("playlist"));
+
+    // Tableau file upload handler
+    twbFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      twbFileInput.value = "";
+      if (!file) return;
+
+      const fname = file.name.toLowerCase();
+      if (!fname.endsWith(".twb") && !fname.endsWith(".twbx")) {
+        showError("Please upload a .twb or .twbx file");
+        return;
+      }
+
+      addMessage("user", "Migrate to Power BI: " + file.name);
+      const progressDiv = document.createElement("div");
+      progressDiv.className = "sp-result";
+      progressDiv.innerHTML = '<div class="sp-progress"><span class="spinner-inline"></span>Parsing Tableau workbook and generating migration artifacts...</div>';
+      chatEl.appendChild(progressDiv);
+      chatEl.scrollTop = chatEl.scrollHeight;
+
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("intent", "migrate to power bi");
+
+        const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/superpowers/tableau`, {
+          method: "POST",
+          body: fd,
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        progressDiv.remove();
+
+        // Render rich result card
+        const s = data.summary || {};
+        const artifactLinks = (data.artifacts || []).map(a =>
+          `<a class="sp-artifact-link" href="/joao/superpowers/artifacts/${data.job_id}/${a}" target="_blank">${a}</a>`
+        ).join("");
+
+        const resultDiv = document.createElement("div");
+        resultDiv.className = "sp-result";
+        resultDiv.innerHTML = `
+          <h3>TABLEAU -> POWER BI MIGRATION</h3>
+          <div class="sp-stat"><span>Workbook version</span><span>${s.workbook_version || "?"}</span></div>
+          <div class="sp-stat"><span>Datasources</span><span>${s.datasources || 0}</span></div>
+          <div class="sp-stat"><span>Worksheets</span><span>${s.worksheets || 0}</span></div>
+          <div class="sp-stat"><span>Dashboards</span><span>${s.dashboards || 0}</span></div>
+          <div class="sp-stat"><span>Calculated fields</span><span>${s.calculated_fields_total || 0}</span></div>
+          <div class="sp-stat"><span>DAX translated</span><span>${s.dax_translated_ok || 0} / ${s.calculated_fields_total || 0}</span></div>
+          <div class="sp-stat"><span>Needs manual review</span><span>${s.dax_needs_review || 0}</span></div>
+          <div class="sp-stat"><span>PBIP config</span><span>${s.has_pbip_config ? "Yes" : "No"}</span></div>
+          <div class="sp-artifacts">${artifactLinks}</div>
+        `;
+        chatEl.appendChild(resultDiv);
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        // Store in conversation
+        conversationMessages.push({
+          role: "assistant",
+          content: `Migration complete for ${file.name}. ${s.worksheets} worksheets, ${s.dashboards} dashboards, ${s.dax_translated_ok}/${s.calculated_fields_total} DAX translations. Artifacts: ${(data.artifacts || []).join(", ")}`
+        });
+        saveHistory(conversationMessages);
+
+      } catch (err) {
+        progressDiv.remove();
+        showError("Tableau migration failed: " + err.message);
+      }
+
+      superpowerMode = null;
+      spTableauBtn.classList.remove("active");
+      userInput.placeholder = "Message JOAO...";
+    });
+
+    // Intercept playlist commands in handleSubmit
+    const originalHandleSubmit = handleSubmit;
+    handleSubmit = async function(e) {
+      e.preventDefault();
+      const text = userInput.value.trim();
+
+      // Detect playlist intent
+      if (superpowerMode === "playlist" && text) {
+        userInput.value = "";
+        sendBtn.disabled = true;
+        addMessage("user", text);
+
+        const progressDiv = document.createElement("div");
+        progressDiv.className = "sp-result";
+        progressDiv.innerHTML = '<div class="sp-progress"><span class="spinner-inline"></span>Generating your playlist...</div>';
+        chatEl.appendChild(progressDiv);
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        // Parse "feeling -> desired" pattern
+        let current = "neutral", desired = "happy";
+        const arrowMatch = text.match(/(.+?)\s*(?:->|-->|to|=>)\s*(.+)/i);
+        if (arrowMatch) {
+          current = arrowMatch[1].trim();
+          desired = arrowMatch[2].trim();
+        } else {
+          // Try to use the whole text as desired feeling
+          const feelWords = ["stressed","sad","angry","anxious","tired","happy","chill","focused","energetic","pumped","peaceful","melancholy","romantic"];
+          const found = feelWords.find(w => text.toLowerCase().includes(w));
+          if (found) {
+            // If it's a negative feeling, they probably want the opposite
+            const negFeelings = {"stressed":"focused","sad":"happy","angry":"chill","anxious":"peaceful","tired":"energetic"};
+            if (negFeelings[found]) {
+              current = found;
+              desired = negFeelings[found];
+            } else {
+              desired = found;
+            }
+          } else {
+            desired = text;
+          }
+        }
+
+        try {
+          const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/superpowers/playlist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current_feeling: current, desired_feeling: desired }),
+          });
+
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          progressDiv.remove();
+
+          const tracks = (data.playlist?.tracks || []).map(t =>
+            `<div class="sp-track"><span class="sp-track-name">${t.name}</span><span class="sp-track-artist">${t.artist}</span></div>`
+          ).join("");
+
+          const resultDiv = document.createElement("div");
+          resultDiv.className = "sp-result";
+          resultDiv.innerHTML = `
+            <h3>MOOD PLAYLIST: ${current.toUpperCase()} -> ${desired.toUpperCase()}</h3>
+            ${tracks}
+            <div class="sp-stat" style="margin-top:8px"><span>Tracks</span><span>${data.playlist?.count || 0}</span></div>
+            <div class="sp-stat"><span>Duration</span><span>~${data.playlist?.estimated_duration_minutes || "?"} min</span></div>
+            <div class="sp-rationale">${data.rationale || ""}</div>
+          `;
+          chatEl.appendChild(resultDiv);
+          chatEl.scrollTop = chatEl.scrollHeight;
+
+          conversationMessages.push({
+            role: "assistant",
+            content: `Playlist: ${current} -> ${desired}. ${data.playlist?.count || 0} tracks. ${data.rationale || ""}`
+          });
+          saveHistory(conversationMessages);
+
+        } catch (err) {
+          progressDiv.remove();
+          showError("Playlist failed: " + err.message);
+        }
+
+        sendBtn.disabled = false;
+        superpowerMode = null;
+        spPlaylistBtn.classList.remove("active");
+        userInput.placeholder = "Message JOAO...";
+        userInput.focus();
+        return;
+      }
+
+      // Also detect TWB file in the regular attach flow
+      if (stagedImages.length === 0 && !text) return sendBtn.disabled = false;
+
+      // Default: pass to original handler
+      return originalHandleSubmit.call(this, e);
+    };
+
+    // Re-bind submit with superpower-aware version
+    chatForm.removeEventListener("submit", originalHandleSubmit);
+    chatForm.addEventListener("submit", handleSubmit);
+
+    // Allow drag-drop of TWB files too
+    dropTarget.addEventListener("drop", (e) => {
+      const files = Array.from(e.dataTransfer.files);
+      for (const f of files) {
+        const fname = f.name.toLowerCase();
+        if (fname.endsWith(".twb") || fname.endsWith(".twbx")) {
+          e.stopImmediatePropagation();
+          // Trigger Tableau upload
+          const dt = new DataTransfer();
+          dt.items.add(f);
+          twbFileInput.files = dt.files;
+          twbFileInput.dispatchEvent(new Event("change"));
+          return;
+        }
+      }
+    }, true); // capture phase to beat the image drop handler
+
+    // Also handle TWB files from the regular attach button
+    fileInput.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files);
+      for (const f of files) {
+        const fname = f.name.toLowerCase();
+        if (fname.endsWith(".twb") || fname.endsWith(".twbx")) {
+          const dt = new DataTransfer();
+          dt.items.add(f);
+          twbFileInput.files = dt.files;
+          twbFileInput.dispatchEvent(new Event("change"));
+          // Remove it from the file input so images still process
+          return;
+        }
+      }
+    }, true);
 
     // Boot
     loadContext();
