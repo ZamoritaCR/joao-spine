@@ -1,0 +1,59 @@
+
+In /home/zamoritacr/council/bin/council_health.sh line 40:
+    local child_pids child_name gpid gname
+                                ^--^ SC2034 (warning): gpid appears unused. Verify use (or export if used externally).
+
+
+In /home/zamoritacr/council/bin/council_watchdog.sh line 29:
+    set -a; source "$HOME/joao-spine/.env"; set +a
+                   ^---------------------^ SC1091 (info): Not following: ./joao-spine/.env was not specified as input (see shellcheck -x).
+
+
+In /home/zamoritacr/council/bin/council_watchdog.sh line 33:
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+       ^-------------^ SC2155 (warning): Declare and assign separately to avoid masking return values.
+
+
+In /home/zamoritacr/council/bin/launch_agent.sh line 45:
+    source "$HOME/taop-agents-env/bin/activate" 2>/dev/null || true
+           ^-- SC1091 (info): Not following: ./taop-agents-env/bin/activate was not specified as input (see shellcheck -x).
+
+
+In /home/zamoritacr/council/context_watcher.sh line 27:
+while read TIMESTAMP DIR FILE EVENT; do
+      ^--^ SC2162 (info): read without -r will mangle backslashes.
+
+
+In /home/zamoritacr/council/context_watcher.sh line 33:
+  echo "" >> "$MASTER_CONTEXT"
+  ^--------------------------^ SC2129 (style): Consider using { cmd1; cmd2; } >> file instead of individual redirects.
+
+
+In /home/zamoritacr/council/restart_agents.sh line 9:
+    set -a; source "$HOME/joao-spine/.env"; set +a
+                   ^---------------------^ SC1091 (info): Not following: ./joao-spine/.env was not specified as input (see shellcheck -x).
+
+
+In /home/zamoritacr/council/setup_agents.sh line 26:
+            session="council:${agent}"
+            ^-----^ SC2034 (warning): session appears unused. Verify use (or export if used externally).
+
+
+In /home/zamoritacr/council/setup_agents.sh line 43:
+        systemctl --user enable --now council-scout.service 2>/dev/null && \
+                                                                        ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In /home/zamoritacr/council/setup_agents.sh line 50:
+            systemctl --user enable --now "council-${lower}.service" 2>/dev/null && \
+                                                                                 ^-- SC2015 (info): Note that A && B || C is not if-then-else. C may run when A is true.
+
+
+In /home/zamoritacr/council_launch.sh line 12:
+    source "$HOME/joao-spine/.env"
+           ^---------------------^ SC1091 (info): Not following: ./joao-spine/.env was not specified as input (see shellcheck -x).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2034 -- gpid appears unused. Verify use (...
+  https://www.shellcheck.net/wiki/SC2155 -- Declare and assign separately to ...
+  https://www.shellcheck.net/wiki/SC1091 -- Not following: ./joao-spine/.env ...

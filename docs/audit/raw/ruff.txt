@@ -1,0 +1,200 @@
+F401 [*] `os` imported but unused
+ --> capability/artifact_store.py:6:8
+  |
+4 | """
+5 |
+6 | import os
+  |        ^^
+7 | import uuid
+8 | import json
+  |
+help: Remove unused import: `os`
+
+F401 [*] `json` imported but unused
+  --> capability/mood_playlist.py:10:8
+   |
+ 8 | """
+ 9 |
+10 | import json
+   |        ^^^^
+11 | from typing import Optional
+12 | from capability.music import (
+   |
+help: Remove unused import: `json`
+
+F401 [*] `capability.music.MOOD_SEEDS` imported but unused
+  --> capability/mood_playlist.py:17:5
+   |
+15 |     build_apple_music_url,
+16 |     build_local_payload,
+17 |     MOOD_SEEDS,
+   |     ^^^^^^^^^^
+18 | )
+19 | from capability.artifact_store import save_artifact
+   |
+help: Remove unused import: `capability.music.MOOD_SEEDS`
+
+F841 Local variable `language` is assigned to but never used
+  --> capability/mood_playlist.py:70:5
+   |
+68 |     """
+69 |     genre_pref = constraints.get("genre", "").lower()
+70 |     language = constraints.get("language", "any").lower()
+   |     ^^^^^^^^
+71 |     max_tracks = constraints.get("max_tracks", 15)
+   |
+help: Remove assignment to unused variable `language`
+
+F401 [*] `typing.Optional` imported but unused
+ --> capability/music.py:7:20
+  |
+6 | import os
+7 | from typing import Optional
+  |                    ^^^^^^^^
+8 |
+9 | # Genre/mood -> seed track mapping for playlist generation
+  |
+help: Remove unused import: `typing.Optional`
+
+F401 [*] `re` imported but unused
+ --> capability/registry.py:8:8
+  |
+6 | """
+7 |
+8 | import re
+  |        ^^
+9 | from typing import Optional
+  |
+help: Remove unused import: `re`
+
+F401 [*] `json` imported but unused
+  --> capability/tableau_to_powerbi.py:16:8
+   |
+14 | import sys
+15 | import os
+16 | import json
+   |        ^^^^
+17 | from pathlib import Path
+18 | from typing import Optional
+   |
+help: Remove unused import: `json`
+
+F401 [*] `pathlib.Path` imported but unused
+  --> capability/tableau_to_powerbi.py:17:21
+   |
+15 | import os
+16 | import json
+17 | from pathlib import Path
+   |                     ^^^^
+18 | from typing import Optional
+   |
+help: Remove unused import: `pathlib.Path`
+
+F841 Local variable `tables` is assigned to but never used
+   --> capability/tableau_to_powerbi.py:245:5
+    |
+243 |     """Generate step-by-step Power BI build instructions."""
+244 |     ds = tableau_spec.get("datasources", [])
+245 |     tables = model_mapping.get("tables", [])
+    |     ^^^^^^
+246 |     measures = model_mapping.get("measures", [])
+247 |     rels = model_mapping.get("relationships", [])
+    |
+help: Remove assignment to unused variable `tables`
+
+F841 Local variable `path` is assigned to but never used
+   --> capability/tableau_to_powerbi.py:406:9
+    |
+404 |     pbip_config = _run_direct_mapper(tableau_spec)
+405 |     if pbip_config and "error" not in pbip_config:
+406 |         path = save_artifact(job_id, "pbip_config.json", pbip_config)
+    |         ^^^^
+407 |         result["artifacts"].append("pbip_config.json")
+408 |     elif pbip_config and "error" in pbip_config:
+    |
+help: Remove assignment to unused variable `path`
+
+F401 [*] `textwrap` imported but unused
+  --> docs/taop-agents/cli.py:15:8
+   |
+13 | import sys
+14 | import os
+15 | import textwrap
+   |        ^^^^^^^^
+16 |
+17 | # Add parent dir to path
+   |
+help: Remove unused import: `textwrap`
+
+F401 [*] `core.engine.quick_ask` imported but unused
+  --> docs/taop-agents/cli.py:20:53
+   |
+18 | sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+19 |
+20 | from core.engine import dispatch, dispatch_to_team, quick_ask
+   |                                                     ^^^^^^^^^
+21 | from core.agents import list_agents, get_agent, AGENTS
+22 | from core.tasks import get_stats, get_queue, get_task, get_recent
+   |
+help: Remove unused import: `core.engine.quick_ask`
+
+F401 [*] `core.agents.AGENTS` imported but unused
+  --> docs/taop-agents/cli.py:21:49
+   |
+20 | from core.engine import dispatch, dispatch_to_team, quick_ask
+21 | from core.agents import list_agents, get_agent, AGENTS
+   |                                                 ^^^^^^
+22 | from core.tasks import get_stats, get_queue, get_task, get_recent
+   |
+help: Remove unused import: `core.agents.AGENTS`
+
+F401 [*] `time` imported but unused
+  --> docs/taop-agents/dashboard.py:8:8
+   |
+ 6 | import os
+ 7 | import sys
+ 8 | import time
+   |        ^^^^
+ 9 |
+10 | sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+   |
+help: Remove unused import: `time`
+
+F401 [*] `core.agents.find_best_agent` imported but unused
+  --> docs/taop-agents/dashboard.py:14:49
+   |
+12 | import streamlit as st
+13 | from core.engine import dispatch, dispatch_to_team
+14 | from core.agents import list_agents, get_agent, find_best_agent, AGENTS
+   |                                                 ^^^^^^^^^^^^^^^
+15 | from core.tasks import get_stats, get_queue, get_task, get_recent
+   |
+help: Remove unused import
+
+F401 [*] `core.agents.AGENTS` imported but unused
+  --> docs/taop-agents/dashboard.py:14:66
+   |
+12 | import streamlit as st
+13 | from core.engine import dispatch, dispatch_to_team
+14 | from core.agents import list_agents, get_agent, find_best_agent, AGENTS
+   |                                                                  ^^^^^^
+15 | from core.tasks import get_stats, get_queue, get_task, get_recent
+   |
+help: Remove unused import
+
+F401 [*] `core.tasks.get_recent` imported but unused
+  --> docs/taop-agents/dashboard.py:15:56
+   |
+13 | from core.engine import dispatch, dispatch_to_team
+14 | from core.agents import list_agents, get_agent, find_best_agent, AGENTS
+15 | from core.tasks import get_stats, get_queue, get_task, get_recent
+   |                                                        ^^^^^^^^^^
+16 |
+17 | # ── Page Config ─────────────────────────────────────────────
+   |
+help: Remove unused import: `core.tasks.get_recent`
+
+F541 [*] f-string without any placeholders
+   --> docs/taop-agents/dashboard.py:200:25
+    |
+198 |         pri = priority.split(" ")[0]

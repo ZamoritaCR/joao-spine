@@ -1,0 +1,300 @@
+[main]	INFO	profile include tests: None
+[main]	INFO	profile exclude tests: None
+[main]	INFO	cli include tests: None
+[main]	INFO	cli exclude tests: None
+[main]	INFO	running on Python 3.12.3
+Working... ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
+Run started:2026-04-10 12:43:57.330941+00:00
+
+Test results:
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: ./docs/taop-agents/tasks.py:68:17
+67	    values = list(fields.values()) + [task_id]
+68	    db.execute(f"UPDATE tasks SET {set_clause} WHERE id = ?", values)
+69	    db.commit()
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./exocortex/digest.py:6:0
+5	import os
+6	import subprocess
+7	from datetime import datetime, timezone, timedelta
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./exocortex/digest.py:28:17
+27	    try:
+28	        result = subprocess.run(
+29	            ["tmux", "list-sessions", "-F", "#{session_name}"],
+30	            capture_output=True, text=True, timeout=5,
+31	        )
+32	        sessions = [s.strip() for s in result.stdout.strip().split("\n") if s.strip()]
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./exocortex/digest.py:28:17
+27	    try:
+28	        result = subprocess.run(
+29	            ["tmux", "list-sessions", "-F", "#{session_name}"],
+30	            capture_output=True, text=True, timeout=5,
+31	        )
+32	        sessions = [s.strip() for s in result.stdout.strip().split("\n") if s.strip()]
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: ./joao_local_dispatch.py:8:0
+7	import re
+8	import subprocess
+9	import logging
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html
+   Location: ./joao_local_dispatch.py:84:19
+83	AGENT_WORKING_DIR = os.path.expanduser("~/joao-interface")
+84	COUNCIL_TASK_DIR = "/tmp/council/tasks"
+85	COUNCIL_OUTPUT_DIR = "/tmp/council/outputs"
+
+--------------------------------------------------
+>> Issue: [B108:hardcoded_tmp_directory] Probable insecure usage of temp file/directory.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-377 (https://cwe.mitre.org/data/definitions/377.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b108_hardcoded_tmp_directory.html
+   Location: ./joao_local_dispatch.py:85:21
+84	COUNCIL_TASK_DIR = "/tmp/council/tasks"
+85	COUNCIL_OUTPUT_DIR = "/tmp/council/outputs"
+86	COUNCIL_LAUNCHER = os.path.expanduser("~/council/bin/launch_agent.sh")
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:96:13
+95	    # Method 1: Get pane PID and check child processes
+96	    result = subprocess.run(
+97	        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_pid}"],
+98	        capture_output=True,
+99	        text=True,
+100	    )
+101	    if result.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:96:13
+95	    # Method 1: Get pane PID and check child processes
+96	    result = subprocess.run(
+97	        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_pid}"],
+98	        capture_output=True,
+99	        text=True,
+100	    )
+101	    if result.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:104:20
+103	        if pane_pid:
+104	            check = subprocess.run(
+105	                ["pgrep", "-P", pane_pid, "-f", "claude|node"],
+106	                capture_output=True,
+107	            )
+108	            if check.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:104:20
+103	        if pane_pid:
+104	            check = subprocess.run(
+105	                ["pgrep", "-P", pane_pid, "-f", "claude|node"],
+106	                capture_output=True,
+107	            )
+108	            if check.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:112:13
+111	    # Method 2: Check pane's foreground command via tmux
+112	    result = subprocess.run(
+113	        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_current_command}"],
+114	        capture_output=True,
+115	        text=True,
+116	    )
+117	    if result.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:112:13
+111	    # Method 2: Check pane's foreground command via tmux
+112	    result = subprocess.run(
+113	        ["tmux", "display-message", "-t", session_name, "-p", "#{pane_current_command}"],
+114	        capture_output=True,
+115	        text=True,
+116	    )
+117	    if result.returncode == 0:
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:154:13
+153	    """Check if a tmux session exists."""
+154	    result = subprocess.run(
+155	        ["tmux", "has-session", "-t", session_name],
+156	        capture_output=True,
+157	    )
+158	    return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:154:13
+153	    """Check if a tmux session exists."""
+154	    result = subprocess.run(
+155	        ["tmux", "has-session", "-t", session_name],
+156	        capture_output=True,
+157	    )
+158	    return result.returncode == 0
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:164:8
+163	    if not tmux_session_exists(session_name):
+164	        subprocess.run(
+165	            ["tmux", "new-session", "-d", "-s", session_name],
+166	            capture_output=True,
+167	        )
+168	        logger.info(f"Created tmux session: {session_name}")
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:164:8
+163	    if not tmux_session_exists(session_name):
+164	        subprocess.run(
+165	            ["tmux", "new-session", "-d", "-s", session_name],
+166	            capture_output=True,
+167	        )
+168	        logger.info(f"Created tmux session: {session_name}")
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:202:8
+201	    for _ in range(2):
+202	        subprocess.run(
+203	            ["tmux", "send-keys", "-t", session_name, "C-c"],
+204	            capture_output=True,
+205	        )
+206	        time.sleep(0.2)
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:202:8
+201	    for _ in range(2):
+202	        subprocess.run(
+203	            ["tmux", "send-keys", "-t", session_name, "C-c"],
+204	            capture_output=True,
+205	        )
+206	        time.sleep(0.2)
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:208:4
+207	    # Kill any leftover text in the line buffer
+208	    subprocess.run(
+209	        ["tmux", "send-keys", "-t", session_name, "C-u"],
+210	        capture_output=True,
+211	    )
+212	    # Small delay for the shell prompt to reappear clean
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:208:4
+207	    # Kill any leftover text in the line buffer
+208	    subprocess.run(
+209	        ["tmux", "send-keys", "-t", session_name, "C-u"],
+210	        capture_output=True,
+211	    )
+212	    # Small delay for the shell prompt to reappear clean
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: ./joao_local_dispatch.py:232:4
+231	    # Send the command text first (literal, no key interpretation)
+232	    subprocess.run(
+233	        ["tmux", "send-keys", "-t", session_name, "-l", safe_command],
+234	        capture_output=True,
+235	    )
+236	    # Wait for the terminal to finish processing the paste before sending Enter.
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: ./joao_local_dispatch.py:232:4
+231	    # Send the command text first (literal, no key interpretation)
+232	    subprocess.run(
+233	        ["tmux", "send-keys", "-t", session_name, "-l", safe_command],
+234	        capture_output=True,
+235	    )
+236	    # Wait for the terminal to finish processing the paste before sending Enter.
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
