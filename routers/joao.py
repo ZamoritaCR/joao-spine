@@ -7,7 +7,7 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -2242,3 +2242,209 @@ async def outputs_index():
         from services.content_intelligence import _update_outputs_index
         _update_outputs_index()
     return FileResponse(path=str(index_path), media_type="text/html")
+
+
+# ── DR DATA BROWSER TOOL ENDPOINTS ──────────────────────────────────────────
+
+@router.options("/claude-proxy")
+async def claude_proxy_options(request: Request):
+    from fastapi.responses import Response
+    return Response(status_code=200, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, anthropic-version",
+    })
+
+@router.post("/claude-proxy")
+async def claude_proxy(request: Request):
+    """Streaming Claude CORS proxy for Dr. Data browser tool."""
+    import httpx, os
+    from fastapi.responses import StreamingResponse
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
+    body_bytes = await request.body()
+    async def stream():
+        async with httpx.AsyncClient(timeout=180) as client:
+            async with client.stream(
+                "POST", "https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                content=body_bytes,
+            ) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache",
+    })
+
+@router.options("/drdata-config")
+async def drdata_config_options(request: Request):
+    from fastapi.responses import Response
+    return Response(status_code=200, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    })
+
+@router.get("/drdata-config")
+async def drdata_config():
+    """Config endpoint — health check for Dr. Data. Reports available brains."""
+    import os, httpx
+    claude_ok = bool(os.getenv("ANTHROPIC_API_KEY", ""))
+    gpt_ok = bool(os.getenv("OPENAI_API_KEY", ""))
+    ollama_ok = False
+    ollama_models = []
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get("http://localhost:11434/api/tags")
+            if resp.status_code == 200:
+                ollama_ok = True
+                ollama_models = [m["name"] for m in resp.json().get("models", [])]
+    except Exception:
+        pass
+    return {
+        "claude_available": claude_ok,
+        "gpt_available": gpt_ok,
+        "ollama_available": ollama_ok,
+        "ollama_models": ollama_models,
+        "claude_proxy": "https://joao.theartofthepossible.io/joao/claude-proxy",
+        "gpt_proxy": "https://joao.theartofthepossible.io/joao/gpt-proxy",
+        "ollama_proxy": "https://joao.theartofthepossible.io/joao/ollama-proxy",
+        "version": "3.0",
+    }
+
+
+# ------------------------------------------------------------------ #
+#  GPT-4o Proxy (server-side key — user pays nothing)                 #
+# ------------------------------------------------------------------ #
+
+@router.options("/gpt-proxy")
+async def gpt_proxy_options(request: Request):
+    from fastapi.responses import Response
+    return Response(status_code=200, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    })
+
+@router.post("/gpt-proxy")
+async def gpt_proxy(request: Request):
+    """Streaming GPT-4o CORS proxy for Dr. Data. Server-side OPENAI_API_KEY."""
+    import httpx, os
+    from fastapi.responses import StreamingResponse
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+    body_bytes = await request.body()
+    async def stream():
+        async with httpx.AsyncClient(timeout=180) as client:
+            async with client.stream(
+                "POST", "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                content=body_bytes,
+            ) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+    return StreamingResponse(stream(), media_type="text/event-stream", headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Cache-Control": "no-cache",
+    })
+
+
+# ------------------------------------------------------------------ #
+#  Ollama Proxy (localhost:11434 — free, no API key)                  #
+# ------------------------------------------------------------------ #
+
+@router.options("/ollama-proxy")
+async def ollama_proxy_options(request: Request):
+    from fastapi.responses import Response
+    return Response(status_code=200, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+    })
+
+@router.post("/ollama-proxy")
+async def ollama_proxy(request: Request):
+    """Ollama proxy — routes to localhost:11434/api/generate. Free, local."""
+    import httpx
+    from fastapi.responses import JSONResponse
+    body = await request.json()
+    model = body.get("model", "deepseek-coder-v2")
+    prompt = body.get("prompt", "")
+    stream_flag = body.get("stream", False)
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                "http://localhost:11434/api/generate",
+                json={"model": model, "prompt": prompt, "stream": stream_flag},
+            )
+            result = resp.json()
+        return JSONResponse(content=result, headers={
+            "Access-Control-Allow-Origin": "*",
+        })
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ollama error: {e}")
+
+
+# ------------------------------------------------------------------ #
+#  Dual-Brain Context — Claude + GPT with Supabase persistence        #
+# ------------------------------------------------------------------ #
+
+class BrainMessageRequest(BaseModel):
+    message: str
+    system: str = ""
+
+class BrainMemoryRequest(BaseModel):
+    key: str
+    value: str
+
+
+@router.post("/claude")
+async def brain_claude(payload: BrainMessageRequest):
+    """Send a message to Claude with persistent context and memory."""
+    from services.brain_manager import ask_claude
+    try:
+        reply = ask_claude(payload.message, payload.system)
+        return {"model": "claude", "reply": reply}
+    except Exception as e:
+        logger.error("Brain Claude error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/gpt")
+async def brain_gpt(payload: BrainMessageRequest):
+    """Send a message to GPT with persistent context and memory."""
+    from services.brain_manager import ask_gpt
+    try:
+        reply = ask_gpt(payload.message, payload.system)
+        return {"model": "gpt", "reply": reply}
+    except Exception as e:
+        logger.error("Brain GPT error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/memory")
+async def brain_memory_set(payload: BrainMemoryRequest):
+    """Upsert a key-value pair in brain_memory."""
+    from services.brain_manager import set_memory
+    try:
+        set_memory(payload.key, payload.value)
+        return {"status": "ok", "key": payload.key}
+    except Exception as e:
+        logger.error("Brain memory set error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/memory")
+async def brain_memory_get():
+    """Return all brain_memory as JSON."""
+    from services.brain_manager import get_memory
+    try:
+        return {"memory": get_memory()}
+    except Exception as e:
+        logger.error("Brain memory get error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
