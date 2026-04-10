@@ -70,6 +70,7 @@ from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
 from routers.cockpit import router as cockpit_router
 from routers.superpowers import router as superpowers_router
+from routers.exocortex import router as exocortex_router
 
 # Dr. Data (original) -- Tableau parser, DAX transpiler, direct mapper for superpowers
 import sys as _sys
@@ -168,6 +169,7 @@ if _drdata_available:
     app.include_router(drdata_router)
 app.include_router(cockpit_router)
 app.include_router(superpowers_router)
+app.include_router(exocortex_router)
 app.mount("/os", os_autonomy_app)
 
 
