@@ -72,6 +72,7 @@ from routers.cockpit import router as cockpit_router
 from routers.superpowers import router as superpowers_router
 from routers.exocortex import router as exocortex_router
 from routers.inspector import router as inspector_router
+from routers.ingest import router as ingest_router
 
 # Dr. Data (original) -- Tableau parser, DAX transpiler, direct mapper for superpowers
 import sys as _sys
@@ -143,9 +144,18 @@ async def joao_redirect():
 
 
 # CORS — allow frontend origins
+_ALLOWED_ORIGINS = [
+    "https://joao.theartofthepossible.io",
+    "https://dispatch.theartofthepossible.io",
+    "https://drdata.theartofthepossible.io",
+    "http://localhost:7778",
+    "http://localhost:8100",
+    "http://127.0.0.1:7778",
+    "http://192.168.0.55:7778",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in production
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -172,6 +182,7 @@ app.include_router(cockpit_router)
 app.include_router(superpowers_router)
 app.include_router(exocortex_router)
 app.include_router(inspector_router)
+app.include_router(ingest_router)
 app.mount("/os", os_autonomy_app)
 
 

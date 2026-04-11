@@ -24,8 +24,25 @@ def new_job_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
 
 
+def _safe_filename(filename: str) -> str:
+    """Sanitize filename: strip path components, reject traversal attempts."""
+    # Take only the final component (no directory traversal)
+    name = Path(filename).name
+    # Reject empty or hidden files
+    if not name or name.startswith("."):
+        name = "upload"
+    # Remove any remaining path separators
+    name = name.replace("/", "_").replace("\\", "_")
+    return name
+
+
 def save_upload(job_id: str, filename: str, content: bytes) -> str:
-    dest = _job_dir(job_id) / filename
+    safe_name = _safe_filename(filename)
+    job_d = _job_dir(job_id)
+    dest = (job_d / safe_name).resolve()
+    # Final check: resolved path must be inside job dir
+    if not str(dest).startswith(str(job_d.resolve())):
+        raise ValueError(f"Path traversal blocked: {filename}")
     dest.write_bytes(content)
     return str(dest)
 
@@ -42,9 +59,14 @@ def save_artifact(job_id: str, filename: str, data) -> str:
 
 
 def load_artifact(job_id: str, filename: str) -> Path:
-    p = _job_dir(job_id) / filename
+    safe_name = _safe_filename(filename)
+    job_d = _job_dir(job_id)
+    p = (job_d / safe_name).resolve()
+    # Path traversal guard
+    if not str(p).startswith(str(job_d.resolve())):
+        raise ValueError(f"Path traversal blocked: {filename}")
     if not p.exists():
-        raise FileNotFoundError(f"Artifact not found: {job_id}/{filename}")
+        raise FileNotFoundError(f"Artifact not found: {job_id}/{safe_name}")
     return p
 
 

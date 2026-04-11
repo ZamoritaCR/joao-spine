@@ -32,9 +32,15 @@ def _gen_id(prefix: str = "") -> str:
 
 
 def _append_jsonl(path: Path, record: dict):
-    """Append one JSON record to a JSONL file."""
+    """Append one JSON record to a JSONL file (flock for concurrent safety)."""
+    import fcntl
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, default=str) + "\n")
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.write(json.dumps(record, default=str) + "\n")
+            f.flush()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def _read_jsonl(path: Path, last_n: int = 0) -> list[dict]:
