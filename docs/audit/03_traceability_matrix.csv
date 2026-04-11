@@ -1,84 +1,82 @@
-REQ,Spec_Section,Claim,Status,Evidence_File,Evidence_Lines,Notes
-REQ-0001,1,Input classified routed executed,PROVEN,capability/registry.py,48-79,classify_intent + route endpoint + dispatch
-REQ-0002,1,Returns artifacts with provenance,PARTIAL,capability/artifact_store.py + exocortex/ledgers.py,33-41 + 91-127,Provenance not wired to superpowers
-REQ-0003,1,Every action auditable,PARTIAL,exocortex/ledgers.py,91-190,Ledger exists; not auto-called from superpowers
-REQ-0004,1,Every action reversible,PARTIAL,exocortex/receipts.py,72-76,Undo concept designed; executor not built
-REQ-0005,2,Five autonomy levels L0-L4,PARTIAL,exocortex/ledgers.py,267,Parser exists; enforcement middleware missing
-REQ-0006,2,Default L1,PROVEN,exocortex/ledgers.py,293,Default confirmed
-REQ-0007,2,L3 requires WRITE_LOCK,UNPROVEN,exocortex/ledgers.py,238-248,check_lock exists; never called in pipeline
-REQ-0008,2,L4 requires SHIP_LOCK,UNPROVEN,exocortex/ledgers.py,238-248,Same as REQ-0007
-REQ-0009,2,Locks have duration scope,PROVEN,exocortex/ledgers.py,220-235,Schema matches spec
-REQ-0010,2,Locks in provenance ledger,PROVEN,exocortex/ledgers.py,233-234,Dual-write JSONL + Supabase
-REQ-0011,2,Lock checked before L3/L4,UNPROVEN,exocortex/ledgers.py,238,Function exists not invoked
-REQ-0012,2,Autonomy flags any position,PROVEN,exocortex/ledgers.py,300,Regex .search() confirmed
-REQ-0013,2,Missing lock -> 403,UNPROVEN,N/A,N/A,No enforcement middleware
-REQ-0014,3.1,Capability contracts defined,PARTIAL,capability_registry.yaml + capability/registry.py,full + 13-45,YAML complete; Python has 3 of 10
-REQ-0015,3.2,10 capabilities registered,CONTRADICTED,capability/registry.py,13-45,Only 3 in code
-REQ-0016,3.3,Capability chains,UNPROVEN,N/A,N/A,Not implemented
-REQ-0017,3.4,File ext strongest signal,PROVEN,capability/registry.py,57-61,Checked before keywords
-REQ-0018,3.4,Keyword scoring,PROVEN,capability/registry.py,64-78,Length-weighted
-REQ-0019,3.4,Fallback to general,PROVEN,capability/registry.py,79,return general
-REQ-0020,4.1,Every exec produces provenance,PARTIAL,exocortex/ledgers.py,91-190,Exists not auto-wired
-REQ-0021,4.2,Supabase joao_provenance,PARTIAL,exocortex/ledgers.py,125,Table names differ (intents/outcomes)
-REQ-0022,4.2,Local JSONL append-only,PARTIAL,exocortex/ledgers.py,34-37,File names differ; pattern correct
-REQ-0023,4.2,Dual-write Supabase graceful fail,PROVEN,exocortex/ledgers.py,51-63 + 124-125,try/except on Supabase
-REQ-0024,4.3,Undo recipe in every entry,PARTIAL,exocortex/ledgers.py,167,undo_steps field exists
-REQ-0025,4.3,Five undo types,UNPROVEN,N/A,N/A,No executor
-REQ-0026,5.1,Context pack assembled,UNPROVEN,capability/artifact_store.py,58-66,Storage only; builder not built
-REQ-0027,5.2,Pack SHA-256 hashed,UNPROVEN,N/A,N/A,Not implemented
-REQ-0028,5.2,operating_rules from MEMORY,UNPROVEN,N/A,N/A,Not implemented
-REQ-0029,5.2,session_history 20 entries,UNPROVEN,N/A,N/A,Not wired
-REQ-0030,5.2,landmines populated,UNPROVEN,N/A,N/A,Not implemented
-REQ-0031,6.1,Git adapter with autonomy,UNPROVEN,N/A,N/A,Not built
-REQ-0032,6.2,Supabase adapter autonomy,UNPROVEN,N/A,N/A,Supabase used but not gated
-REQ-0033,6.3,Telegram adapter autonomy,PARTIAL,services/telegram.py + exocortex/digest.py,252-261,Works; no autonomy check
-REQ-0034,6.4,Cloudflared adapter,UNPROVEN,N/A,N/A,Not implemented
-REQ-0035,6.5,Ollama adapter autonomy,UNPROVEN,N/A,N/A,Ollama used; no adapter
-REQ-0036,6.6,File ingest to job dir,PROVEN,capability/artifact_store.py,17-30,Job dir enforced
-REQ-0037,6.7,Dr. Data adapter,PROVEN,capability/tableau_to_powerbi.py + main.py,78-89,Real integration
-REQ-0038,6.8,MrDP offline fallback,PROVEN,capability/music.py,37,Graceful fallback
-REQ-0039,7.1,7 brains with roles,PARTIAL,tmux sessions,N/A,Sessions exist; model assignments differ
-REQ-0040,7.2,Job JSON to artifacts dir,UNPROVEN,joao_local_dispatch.py,84,Uses /tmp/council/ not artifacts
-REQ-0041,7.2,Agent callback endpoint,UNPROVEN,N/A,N/A,No /joao/agent_callback
-REQ-0042,7.3,Multi-brain Ollama-first,PARTIAL,services/qa_pipeline.py + routers/qa.py,N/A,Uses paid APIs not Ollama
-REQ-0043,7.3,Multi-brain mandatory L3+,UNPROVEN,N/A,N/A,No enforcement
-REQ-0044,8.1,Secrets from env only,PROVEN,middleware/auth.py + music.py + ledgers.py,33+37+54,All via os.getenv
-REQ-0045,8.2,WU data never external,PARTIAL,capability_registry.yaml + ledgers.py,privacy flags + egress_summary,Tracking exists; enforcement missing
-REQ-0046,8.3,Outputs to job dir,PROVEN,capability/artifact_store.py,13+17-19,Hardcoded path
-REQ-0047,8.3,No write outside job at L2,UNPROVEN,N/A,N/A,No sandbox enforcement
-REQ-0048,8.3,L3 needs WRITE_LOCK scope,UNPROVEN,N/A,N/A,Not wired
-REQ-0049,9,GET /superpowers/capabilities,PROVEN,routers/superpowers.py,53-56,Working
-REQ-0050,9,POST /superpowers/route,PROVEN,routers/superpowers.py,46-50,Working
-REQ-0051,9,POST /superpowers/tableau,PROVEN,routers/superpowers.py,61-98,Working
-REQ-0052,9,POST /superpowers/playlist,PROVEN,routers/superpowers.py,103-128,Working
-REQ-0053,9,POST /superpowers/dispatch,PROVEN,routers/superpowers.py,133-165,Working
-REQ-0054,9,GET /superpowers/artifacts/{id},PROVEN,routers/superpowers.py,170-182,Working
-REQ-0055,9,GET /superpowers/artifacts/{id}/{file},PROVEN,routers/superpowers.py,185-199,Working
-REQ-0056,9,GET /superpowers/artifacts/{id}/bundle,PROVEN,routers/superpowers.py,202-209,Working
-REQ-0057,9,GET /superpowers/provenance/{run_id},UNPROVEN,N/A,N/A,Different path in exocortex
-REQ-0058,9,GET /superpowers/provenance?last=N,UNPROVEN,N/A,N/A,Different path
-REQ-0059,9,POST /superpowers/undo/{run_id},UNPROVEN,N/A,N/A,Not implemented
-REQ-0060,9,POST /superpowers/git/scan,UNPROVEN,N/A,N/A,Not implemented
-REQ-0061,9,POST /superpowers/git/write,UNPROVEN,N/A,N/A,Not implemented
-REQ-0062,9,POST /superpowers/git/ship,UNPROVEN,N/A,N/A,Not implemented
-REQ-0063,9,GET /superpowers/tunnel/status,UNPROVEN,N/A,N/A,Not implemented
-REQ-0064,9,POST /superpowers/context/build,UNPROVEN,N/A,N/A,Not implemented
-REQ-0065,10,Superpowers router mounted,PROVEN,main.py,159-176,Confirmed
-REQ-0066,10,tableau_to_powerbi with Dr. Data,PROVEN,capability/tableau_to_powerbi.py,full,Full integration
-REQ-0067,10,mood_playlist working,PROVEN,capability/mood_playlist.py + music.py,full,Working with fallbacks
-REQ-0068,10,Intent classifier working,PROVEN,capability/registry.py,48-79,Keyword + file ext
-REQ-0069,10,Artifact store working,PROVEN,capability/artifact_store.py,full,Job dirs upload download zip
-REQ-0070,10,UI wired,PROVEN,main.py,218,PWA serving
-REQ-0071,registry,6 tableau artifacts,PROVEN,capability/tableau_to_powerbi.py,full,All 6 confirmed
-REQ-0072,registry,playlist L1 timeout 15s,PARTIAL,routers/superpowers.py,103,No timeout enforcement
-REQ-0073,registry,git_scan L0,UNPROVEN,N/A,N/A,Not built
-REQ-0074,registry,git_write rejects no lock,UNPROVEN,N/A,N/A,Not built
-REQ-0075,registry,git_ship rejects no lock,UNPROVEN,N/A,N/A,Not built
-REQ-0076,registry,context_build sections,UNPROVEN,N/A,N/A,Not built
-REQ-0077,registry,smoke_tests defined,PROVEN,capability_registry.yaml,full,In YAML for all capabilities
-REQ-0078,go_live,12/12 smoke tests passing,UNPROVEN,N/A,N/A,No test results on disk
-REQ-0079,go_live,Spine live :7778 70+ routes,PROVEN,ps aux + main.py,N/A,Running with 16 routers
-REQ-0080,go_live,15 tmux sessions,PROVEN,tmux ls,N/A,All 15 present
-REQ-0081,go_live,Ollama 3 models,PROVEN,ps aux,N/A,Running
-REQ-0082,go_live,Supabase configured,PROVEN,.env,N/A,Keys set
-REQ-0083,go_live,Cloudflared active,PROVEN,ps aux + systemd,N/A,Running
+REQ,Section,Claim,Status,File(s),Lines,Notes
+REQ-0001,1,Input classify route execute artifacts provenance,PARTIAL,capability/registry.py routers/superpowers.py,registry:48-78 superpowers:46-51,Provenance not auto-recorded
+REQ-0002,1,Every action is auditable,PARTIAL,exocortex/ledgers.py services/supabase_client.py,ledgers:80-130,Modules exist; not wired to superpowers
+REQ-0003,1,Every action is reversible,PARTIAL,capability_registry.yaml,yaml:82 151 214 279 341,Undo strategies in YAML; no executor
+REQ-0004,2,Five autonomy levels L0-L4,PARTIAL,exocortex/ledgers.py,95 288-320,L0-L3 in code; L4 not handled
+REQ-0005,2,L0 capture log classify only,UNPROVEN,--,--,No middleware enforces L0
+REQ-0006,2,L2 write ONLY to sandbox dirs,UNPROVEN,capability/artifact_store.py,13-14 28-29,No enforcement; path traversal possible
+REQ-0007,2,L3 requires WRITE_LOCK,UNPROVEN,exocortex/ledgers.py routers/exocortex.py,ledgers:265-270 exocortex:265-267,Lock grant exists; check does not
+REQ-0008,2,L4 requires SHIP_LOCK,UNPROVEN,same as REQ-0007,same,SHIP_LOCK grantable but never checked
+REQ-0009,2,Default autonomy L1,PROVEN,exocortex/ledgers.py,95 293,Default L1 in record_intent and parse_flags
+REQ-0010,2,Locks stored in provenance ledger,PROVEN,exocortex/ledgers.py,225-260,grant_lock writes to locks.jsonl + Supabase
+REQ-0011,2,Lock checked before L3/L4,UNPROVEN,--,--,No middleware checks locks
+REQ-0012,2,Autonomy parsed from input,PROVEN,exocortex/ledgers.py,288-320,parse_flags extracts L0-L3 patterns
+REQ-0013,2,Missing lock -> request and wait,UNPROVEN,--,--,No 403 response on missing lock
+REQ-0014,3.1,Capabilities defined by contract schema,PARTIAL,capability/registry.py capability_registry.yaml,registry:13-44,Code uses simpler dict; YAML has full schema
+REQ-0015,3.2,10 capabilities registered,CONTRADICTED,capability/registry.py,13-44,Only 3 registered (tableau mood general)
+REQ-0016,3.3,Capability chains compose,UNPROVEN,--,--,No chain resolver
+REQ-0017,3.4,Router priority stack,PARTIAL,capability/registry.py,56-78,File ext + keyword; no explicit/chain/fallback
+REQ-0018,3.4,Tiebreaker logic,UNPROVEN,--,--,No tiebreaker code
+REQ-0019,3.1,Smoke tests per capability,PARTIAL,capability_registry.yaml,varies,Defined in YAML; no test runner
+REQ-0020,3.1,Undo strategy per capability,PARTIAL,capability_registry.yaml,varies,Defined; no executor
+REQ-0021,3.1,Default brain per capability,PROVEN,capability/registry.py,23 35 43,BYTE ARIA CJ assigned
+REQ-0022,4.1,Every execution produces provenance entry,UNPROVEN,routers/superpowers.py,61-98 103-128,No provenance call in superpowers
+REQ-0023,4.1,Provenance schema all fields,PARTIAL,exocortex/ledgers.py,80-130,Has core fields; missing spec-specific fields
+REQ-0024,4.2,Dual storage Supabase + JSONL,PROVEN,exocortex/ledgers.py,40-75,_dual_write confirmed
+REQ-0025,4.3,Five undo types implemented,UNPROVEN,--,--,No execution code for any undo type
+REQ-0026,4.2,Local fallback append-only JSONL,PROVEN,exocortex/ledgers.py,44-50,Files opened with mode a
+REQ-0027,5.1,Context pack schema all sections,UNPROVEN,--,--,No builder code
+REQ-0028,5.2,Pack hashed SHA-256 in provenance,UNPROVEN,--,--,No hash computation
+REQ-0029,5.2,operating_rules from MEMORY + CLAUDE.md,UNPROVEN,--,--,No file reading for rules
+REQ-0030,5.2,session_history last 20 entries,UNPROVEN,--,--,No history query
+REQ-0031,5.2,landmines hardcoded + CLAUDE.md,UNPROVEN,--,--,No landmine collection
+REQ-0032,6.1,Git adapter with autonomy,UNPROVEN,--,--,No git adapter module
+REQ-0033,6.2,Supabase adapter with autonomy,PARTIAL,services/supabase_client.py,1-139,Works; no autonomy checks
+REQ-0034,6.3,Telegram adapter with autonomy,PARTIAL,services/telegram.py,1-68,Works; no autonomy checks
+REQ-0035,6.4,Cloudflared adapter with autonomy,UNPROVEN,--,--,No adapter module
+REQ-0036,6.5,Ollama adapter with autonomy,PARTIAL,services/brain_manager.py,1-224,Works; no autonomy gating
+REQ-0037,6.6,File ingest adapter with autonomy,PARTIAL,routers/ingest.py,1-388,Works; no autonomy checks
+REQ-0038,6.7,Dr. Data adapter with autonomy,PARTIAL,capability/tableau_to_powerbi.py,1-427,Works; no autonomy enforcement
+REQ-0039,6.2,SUPABASE_SERVICE_ROLE_KEY never logged,PROVEN,services/supabase_client.py,15-20,env-only; confirmed by grep
+REQ-0040,6.8,Curated offline; Spotify degrades,PROVEN,capability/mood_playlist.py capability/music.py,playlist:40-100 music:50-140,Curated hardcoded; Spotify catches errors
+REQ-0041,7.1,7 brains with roles,PARTIAL,capability/registry.py joao_local_dispatch.py,registry:23 35 43,3 in registry; 16 agents in dispatch
+REQ-0042,7.2,Full dispatch lifecycle,PARTIAL,joao_local_dispatch.py services/dispatch.py,dispatch:120-200,Sends to tmux; no job JSON/callback/provenance
+REQ-0043,7.2,Job JSON at artifacts/job_BRAIN.json,UNPROVEN,--,--,No job file creation
+REQ-0044,7.2,Brain POSTs to /joao/agent_callback,UNPROVEN,--,--,No callback endpoint
+REQ-0045,7.3,Multi-brain mandatory for L3+,UNPROVEN,--,--,Not wired to dispatch
+REQ-0046,7.3,Ollama drafts first,UNPROVEN,services/qa_pipeline.py,50-100,Uses paid APIs not Ollama
+REQ-0047,8.1,All 5 secrets from env vars,PROVEN,various,various,All os.environ.get; zero hardcoded
+REQ-0048,8.2,WU data never to external APIs,UNPROVEN,--,--,No data classification
+REQ-0049,8.2,Provenance flags external API,UNPROVEN,--,--,No egress tracking
+REQ-0050,8.3,No write outside job dir at L2,UNPROVEN,capability/artifact_store.py,28,Path traversal not blocked
+REQ-0051,8.3,L3 writes require scoped WRITE_LOCK,UNPROVEN,--,--,No scope-check
+REQ-0052,8.1,SSH key never read,PROVEN,services/dispatch.py,60-80,Transport only; 0600 temp file
+REQ-0053,9,Endpoints under /joao/superpowers/,PROVEN,routers/superpowers.py,22,APIRouter prefix=/joao
+REQ-0054,9,GET /superpowers/capabilities,PROVEN,routers/superpowers.py,53-56,Returns capabilities list
+REQ-0055,9,POST /superpowers/route,PROVEN,routers/superpowers.py,46-50,Returns routing decision
+REQ-0056,9,POST /superpowers/tableau,PROVEN,routers/superpowers.py,61-98,Accepts TWB/TWBX; 6 artifacts
+REQ-0057,9,POST /superpowers/playlist,PROVEN,routers/superpowers.py,103-128,Returns playlist JSON
+REQ-0058,9,POST /superpowers/dispatch,PROVEN,routers/superpowers.py,133-165,Routes to capability
+REQ-0059,9,GET /superpowers/artifacts/{id},PROVEN,routers/superpowers.py,170-182,Lists artifacts
+REQ-0060,9,GET /superpowers/provenance/{run_id},UNPROVEN,--,--,Endpoint missing
+REQ-0061,9,POST /superpowers/undo/{run_id},UNPROVEN,--,--,Endpoint missing
+REQ-0062,9,POST /superpowers/git/scan,UNPROVEN,--,--,Endpoint missing
+REQ-0063,9,POST /superpowers/git/write,UNPROVEN,--,--,Endpoint missing
+REQ-0064,9,POST /superpowers/git/ship,UNPROVEN,--,--,Endpoint missing
+REQ-0065,9,GET /superpowers/tunnel/status,UNPROVEN,--,--,Endpoint missing
+REQ-0066,9,POST /superpowers/context/build,UNPROVEN,--,--,Endpoint missing
+REQ-0067,10,Superpowers router mounted,PROVEN,main.py routers/superpowers.py,,Router serving
+REQ-0068,10,tableau_to_powerbi real Dr. Data,PROVEN,capability/tableau_to_powerbi.py,,Imports Dr. Data modules
+REQ-0069,10,mood_playlist curated + Spotify,PROVEN,capability/mood_playlist.py capability/music.py,,Both adapters work
+REQ-0070,10,Registry with intent classification,PROVEN,capability/registry.py,48-78,Keyword + extension
+REQ-0071,10,Artifact store job-based,PROVEN,capability/artifact_store.py,,Per job_id storage
+REQ-0072,10,UI at /joao/app,PROVEN,main.py static/,,Static files served
+REQ-0082,registry,tableau 6 artifacts,PROVEN,capability/tableau_to_powerbi.py,,All 6 produced
+REQ-0083,registry,Smoke parse DigitalAds TWBX,PARTIAL,routers/superpowers.py,,Endpoint exists; no auto test
+REQ-0084,registry,Smoke reject non-TWB -> 400,PROVEN,routers/superpowers.py,76-77,Extension check
+REQ-0085,registry,Smoke stressed->focused playlist,PARTIAL,routers/superpowers.py,,Endpoint exists; no auto test
+REQ-0086,registry,Playlist undo noop,PROVEN,capability/mood_playlist.py,,No side effects
+REQ-0087,registry,Git scan status per repo,UNPROVEN,--,--,No endpoint
+REQ-0088,registry,Git write reject without WRITE_LOCK,UNPROVEN,--,--,No endpoint
+REQ-0089,registry,Git ship reject without SHIP_LOCK,UNPROVEN,--,--,No endpoint
+REQ-0090,registry,Tunnel name + hostnames,UNPROVEN,--,--,No endpoint

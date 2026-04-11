@@ -1,111 +1,118 @@
 # Phase 1: Static Analysis Summary
 
-**Date:** 2026-04-10
-**Codebase:** `/home/zamoritacr/joao-spine` (HEAD: `0934ee8`)
+**Date:** 2026-04-11 (v2)
+**Codebase:** `/home/zamoritacr/joao-spine` (HEAD: `a3e72ea`)
+**Tools run:** ruff, bandit, pip-audit, shellcheck, secrets grep
+**Tools unavailable:** mypy (not installed), gitleaks (not installed), openapi-spec-validator (not installed)
 
 ---
 
-## Tool Results Overview
+## Tool Results Summary
 
-| Tool | Target | Findings | Raw Output |
-|------|--------|----------|------------|
-| ruff | All .py files | 16 issues (F401 unused imports, F841 unused vars, F541 f-string) | `raw/ruff.txt` |
-| bandit | All .py files | 204 total: 3 High, 7 Medium, 194 Low | `raw/bandit.txt` |
-| shellcheck | Council .sh scripts | 12 issues (warnings + info) | `raw/shellcheck_council.txt` |
-| shellcheck | Spine scripts/ | 0 issues (clean) | `raw/shellcheck_spine.txt` |
-| pip-audit | requirements.txt | 0 known vulnerabilities | `raw/pip_audit.txt` |
-| secrets grep | All source files | 50 lines flagged (see below) | `raw/secrets_grep.txt` |
-
----
-
-## 1. Ruff (Python Linter)
-
-**16 issues total** -- all LOW severity (code quality, not security):
-
-- **F401 (unused imports):** 11 instances across `artifact_store.py`, `mood_playlist.py`, `music.py`, `registry.py`, `tableau_to_powerbi.py`, `docs/taop-agents/cli.py`, `docs/taop-agents/dashboard.py`
-- **F841 (unused variables):** 3 instances -- `language` in `mood_playlist.py:70`, `tables` in `tableau_to_powerbi.py:245`, `path` in `tableau_to_powerbi.py:406`
-- **F541 (f-string without placeholders):** 1 instance in `docs/taop-agents/dashboard.py:200`
-- **Impact:** None operational. Code cleanliness only.
+| Tool | Issues Found | Severity Breakdown |
+|------|-------------|-------------------|
+| ruff (Python lint) | 166 errors | 90 auto-fixable (F401), rest F841/E741/E402 |
+| bandit (security) | 100 issues | 3 High, 7 Medium, 90 Low |
+| pip-audit (deps) | 0 vulnerabilities | Clean |
+| shellcheck (shell) | 3 info-level | SC1091 (sourced files), SC2034 (unused var) |
+| secrets grep | 0 findings | No hardcoded keys/passwords in .py files |
 
 ---
 
-## 2. Bandit (Security Scanner)
+## Ruff Analysis (166 errors)
 
-### HIGH severity (3 issues)
+**Breakdown by rule:**
 
-All 3 are `B113: request_without_timeout` -- HTTP requests made without explicit timeout. These are in:
-- Various httpx/requests calls throughout the codebase
-- **Risk:** Potential for hung connections under network failure. Not exploitable but affects reliability.
+| Rule | Count | Description | Severity |
+|------|-------|-------------|----------|
+| F401 | ~90 | Unused imports | Low (cosmetic) |
+| F841 | ~15 | Assigned but unused variables | Low (dead code) |
+| F541 | ~5 | f-strings without placeholders | Low (cosmetic) |
+| E741 | ~3 | Ambiguous variable names (`l`) | Low (readability) |
+| E402 | ~5 | Module imports not at top of file | Low (style) |
 
-### MEDIUM severity (7 issues)
+**Assessment:** No functional issues. All are cosmetic/style. 90 are auto-fixable with `ruff --fix`.
 
-- **B608 (SQL injection):** 1 instance in `docs/taop-agents/tasks.py:68` -- f-string SQL construction. This is in a separate TAOP agents demo app, NOT in the live JOAO spine. Low real-world risk.
-- **B108 (hardcoded tmp):** 2 instances in `joao_local_dispatch.py:84-85` -- `/tmp/council/tasks` and `/tmp/council/outputs`. Known design choice for inter-process communication. Mitigated by single-user system.
-- **B110 (try-except-pass):** 4 instances -- silent exception swallowing. Risk: masks errors during debugging.
-
-### LOW severity (194 issues)
-
-Dominated by:
-- **B404/B607/B603 (subprocess usage):** ~180 instances -- all tmux/pgrep subprocess calls in `joao_local_dispatch.py`, `exocortex/digest.py`. These are legitimate system management calls, NOT user-input-driven. All use list-form arguments (no shell=True), which is the safe pattern.
-- **B110 (try-except-pass):** scattered silent exception handlers
-
-**Assessment:** No critical or exploitable vulnerabilities found in bandit scan. The subprocess usage pattern (list args, no shell=True) is correct. The SQL injection flag is in a non-production demo app.
+**Key files with issues:**
+- `capability/mood_playlist.py` -- unused imports (json, MOOD_SEEDS), unused variable `language`
+- `capability/tableau_to_powerbi.py` -- unused imports (json, Path), unused vars (`tables`, `path`)
+- `services/qa_pipeline.py` -- unused imports (io, datetime), ambiguous var name `l`
+- `terminal_manager.py` -- unused imports (struct, termios)
 
 ---
 
-## 3. ShellCheck (Shell Scripts)
+## Bandit Security Analysis (100 issues)
 
-**12 issues** in council scripts, all LOW:
+### High Severity (3)
 
-| File | Issue | Severity |
-|------|-------|----------|
-| `council_health.sh:40` | SC2034: `gpid` unused variable | Warning |
-| `council_watchdog.sh:29` | SC1091: Not following sourced .env | Info |
-| `council_watchdog.sh:33` | SC2155: Declare/assign separately | Warning |
-| `launch_agent.sh:45` | SC1091: Not following sourced activate | Info |
-| `context_watcher.sh:27` | SC2162: read without -r | Info |
-| `context_watcher.sh:33` | SC2129: Consider grouped redirects | Style |
-| `restart_agents.sh:9` | SC1091: Not following sourced .env | Info |
-| `setup_agents.sh:26` | SC2034: `session` unused | Warning |
-| `setup_agents.sh:43,50` | SC2015: A&&B||C is not if-then-else | Info |
-| `council_launch.sh:12` | SC1091: Not following sourced .env | Info |
+| ID | File | Issue | Assessment |
+|----|------|-------|------------|
+| B608 | `docs/taop-agents/tasks.py:68` | Possible SQL injection (f-string in UPDATE) | **REAL RISK** -- but in docs/ subproject, not live spine |
+| B603 | Various | subprocess calls without shell=True | **FALSE POSITIVE** -- intentional for tmux/pgrep |
+| B607 | Various | Partial executable path in subprocess | **ACCEPTABLE** -- tmux/pgrep are standard system tools |
 
-**Assessment:** No functional bugs. Mostly style and info-level notices.
+### Medium Severity (7)
 
----
+| ID | Files | Issue | Assessment |
+|----|-------|-------|------------|
+| B108 | `joao_local_dispatch.py:84-85` | Hardcoded /tmp paths | **ACCEPTABLE** -- `/tmp/council/tasks/` is intentional temp staging |
+| B113 | Various | Requests without timeout | **POTENTIAL ISSUE** -- network calls could hang |
+| B110 | `tools/chat.py:61` | try/except/pass | **MINOR** -- bare except swallows errors silently |
 
-## 4. pip-audit (Dependency Vulnerabilities)
+### Low Severity (90)
 
-**Result: No known vulnerabilities found.**
-
-All dependencies in `requirements.txt` are at versions without known CVEs.
+Primarily B404 (import subprocess), B603/B607 (subprocess calls). All are expected patterns for a system that orchestrates tmux sessions and local processes.
 
 ---
 
-## 5. Secrets Scan (grep-based)
+## Dependency Audit (pip-audit)
 
-**Methodology:** Searched for `password|secret|token|api_key|apikey|private_key` in all source files, excluding .env files and environment variable reads.
+```
+No known vulnerabilities found
+```
 
-**Findings:**
-
-- **No hardcoded secrets found in Python source.** All credentials use `os.getenv()` or `os.environ.get()` patterns.
-- **Dispatch secret reference:** `joao_local_dispatch.py:24` has a comment referencing "shared secret" but the actual value comes from env var.
-- **API key references** in `capability/music.py`, `tools/chat.py`, `middleware/auth.py` -- all read from environment, never hardcoded.
-- **JOAO_DISPATCH_SECRET** found hardcoded in systemd service file `/home/zamoritacr/.config/systemd/user/joao-dispatch.service` -- this is expected (systemd environment injection). Value REDACTED in this report.
-- **Telegram bot token** reference in `exocortex/digest.py:261` -- reads from env var, not hardcoded.
-
-**Assessment:** Secret management follows proper patterns. No credentials committed to source code.
+All Python dependencies are at versions with no known CVEs as of 2026-04-11.
 
 ---
 
-## Overall Static Analysis Verdict
+## Shell Script Analysis (shellcheck)
 
-| Category | Status |
-|----------|--------|
-| Critical vulnerabilities | NONE |
-| Hardcoded secrets | NONE |
-| Dependency CVEs | NONE |
-| SQL injection risk | LOW (demo app only, not prod) |
-| Code quality | GOOD (minor unused imports) |
-| Shell scripts | CLEAN (style-only issues) |
-| Subprocess safety | GOOD (list args, no shell=True) |
+**Files checked:**
+- `/home/zamoritacr/joao-spine/start_local_dispatch.sh` -- **CLEAN**
+- `/home/zamoritacr/joao-spine/scripts/inspect_focusflow.sh` -- **CLEAN**
+- `/home/zamoritacr/taop-repos/joao-spine/scripts/boom.sh` -- 3 info-level findings:
+  - SC1091: `source .env` not followed (expected -- dynamic path)
+  - SC1091: `source activate` not followed (expected -- venv)
+  - SC2034: Loop variable `i` unused (cosmetic -- used for delay counting)
+
+---
+
+## Secrets Scan
+
+Grep for `sk-`, `password\s*=\s*['"]`, API keys in .py files (excluding .venv):
+
+**Result: 0 hardcoded secrets found.**
+
+All credentials sourced from environment variables via `os.environ.get()` or `os.getenv()`.
+
+---
+
+## Missing Tool Coverage
+
+| Tool | Status | Impact |
+|------|--------|--------|
+| mypy | Not installed | No type-checking coverage; Python is untyped |
+| gitleaks | Not installed | No git history secret scanning |
+| openapi-spec-validator | Not installed | `openapi_council.yaml` not validated |
+| npm audit | N/A | No Node.js dependencies |
+
+---
+
+## Raw Outputs
+
+Raw tool outputs are available at:
+- `docs/audit/raw/ruff.txt`
+- `docs/audit/raw/bandit.txt`
+- `docs/audit/raw/pip_audit.txt`
+- `docs/audit/raw/shellcheck.txt`
+- `docs/audit/raw/secrets_grep.txt`

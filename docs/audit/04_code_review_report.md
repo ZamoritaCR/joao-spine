@@ -1,8 +1,9 @@
 # Phase 4: Deep Code Review Report
 
-**Codebase:** `/home/zamoritacr/joao-spine` (17,135 LOC Python)
-**Date:** 2026-04-10
+**Codebase:** `/home/zamoritacr/joao-spine` (~17,000 LOC Python)
+**Date:** 2026-04-11 (v2)
 **Reviewer:** BYTE
+**Commit:** `a3e72ea`
 
 ---
 
@@ -10,50 +11,36 @@
 
 ### What Runs Where
 
-| Component | Host | Port | Process |
-|-----------|------|------|---------|
-| JOAO Spine (FastAPI) | ROG Strix (192.168.0.55) | 7778 | uvicorn |
-| Local Dispatch API | ROG Strix | 8100 (gunicorn) + 7777 (uvicorn dev) | gunicorn/uvicorn |
-| Council Agents (15x) | ROG Strix | N/A | tmux sessions |
-| SCOUT | ROG Strix | N/A | systemd service |
-| OS Autonomy Agent | ROG Strix | 7801 | systemd service |
-| Ollama | ROG Strix | 11434 | system service |
-| Redis | ROG Strix | 6379 | system service |
-| Cloudflared | ROG Strix | N/A | systemd (root) |
-| joao-interface | ROG Strix | 7781 | python http.server |
-| Supabase | Cloud | N/A | SaaS |
+| Component | Location | Port | Runtime |
+|-----------|----------|------|---------|
+| JOAO Spine (FastAPI) | Railway + local | 7778 | uvicorn, systemd |
+| Local Dispatch | ROG Strix only | 7777 + 8100 | uvicorn + gunicorn |
+| MCP Servers (2) | Embedded in spine | /mcp, /taop/mcp | SSE + Streamable HTTP |
+| 16 Council Agents | ROG Strix tmux | N/A | Claude Code sessions |
+| Ollama | ROG Strix | 11434 | ollama serve |
+| Cloudflared | ROG Strix | N/A | Named + quick tunnels |
+| Supabase | Cloud (hosted) | N/A | REST API |
 
-### Communication Paths
+### Communication Flow
 
 ```
-Internet -> Cloudflare Tunnel -> ROG Strix :7778 (Spine)
-                              -> ROG Strix :7777/:8100 (Dispatch)
-                              -> ROG Strix :7781 (Interface)
-                              -> ROG Strix :8502 (DrData)
-
-Spine -> Dispatch: HTTP POST via tunnel (dispatch.theartofthepossible.io)
-      -> Dispatch: SSH fallback (192.168.0.55:22)
-      -> Supabase: HTTPS (cloud)
-      -> Ollama: HTTP (localhost:11434)
-      -> Telegram: HTTPS (api.telegram.org)
-
-Dispatch -> tmux: subprocess (send-keys)
-         -> Claude: subprocess (claude --print)
-         -> Supabase: HTTPS (registration)
+Internet -> Cloudflare Tunnel -> ROG Strix
+  |-> :7778 (spine) -> FastAPI routers -> services
+  |-> :8100/:7777 (dispatch) -> tmux sessions -> Claude Code
+  |-> :11434 (Ollama) -> local LLM inference
+  
+Railway (cloud spine) -> Cloudflare Tunnel -> ROG dispatch
+  |-> :8100 -> tmux -> agents
 ```
 
-### Boundary Assessment
+### Boundary Analysis
 
-**Strengths:**
-- Clear separation between Spine (API), Dispatch (agent coordination), and Agents (execution)
-- Cloudflare tunnel provides TLS termination and DDoS protection
-- Dual-write pattern (Supabase + local) provides resilience
+- **Network boundary:** Cloudflare tunnel with HMAC auth (dispatch) or MCP host allowlist (MCP tools)
+- **Process boundary:** Each agent runs in isolated tmux pane
+- **Data boundary:** Supabase is shared state; local JSONL is per-service
+- **Trust boundary:** Railway env vars are the secret store; local .env files supplement
 
-**Weaknesses:**
-- Spine and Dispatch both run on same machine -- no isolation between API layer and agent execution
-- Two dispatch instances (gunicorn :8100 + uvicorn :7777) -- unclear which is canonical
-- No container isolation (everything runs as same user `zamoritacr`)
-- `joao-interface` uses Python http.server (no TLS, no security headers, single-threaded)
+**Key finding:** The spine runs BOTH on Railway (cloud) and locally (systemd). The local instance is the production one (port 7778). Railway instance also exists but dispatch routing complexity creates ambiguity about which spine handles what.
 
 ---
 
@@ -61,154 +48,169 @@ Dispatch -> tmux: subprocess (send-keys)
 
 ### Authentication
 
-| Endpoint Group | Auth Method | Evidence |
-|----------------|-------------|----------|
-| /joao/dispatch | HMAC-SHA256 (timestamp + body) | `middleware/auth.py:26-74` |
-| /joao/voice/* | API key header | `middleware/auth.py:77-87` |
-| /joao/terminal | Token query param | `main.py:236` |
-| /joao/superpowers/* | **NONE** | `superpowers.py` -- no auth dependency |
-| /joao/council/dispatch | **NONE** (direct) | `routers/joao.py` -- no auth on council dispatch |
-| Local dispatch | Bearer token | `joao_local_dispatch.py:144-149` |
-
-**CRITICAL FINDING:** Superpowers endpoints (Tableau upload, Playlist, Artifact download) have NO authentication. Anyone with network access to the spine can upload files and trigger processing.
-
-**Mitigating factor:** Cloudflare tunnel is the only ingress path from the internet. But internal network users on 192.168.0.x have full access.
+| Mechanism | Where Used | Strength |
+|-----------|-----------|----------|
+| HMAC-SHA256 + timestamp | Dispatch endpoints, cockpit | Strong (constant-time compare, 300s skew) |
+| Bearer token | Local dispatch listener | Medium (single shared secret) |
+| API key header | Voice endpoints | Medium (shared secret) |
+| MCP host allowlist | MCP tools | Medium (IP-based, spoofable on same network) |
+| WebSocket token | Terminal | Medium (HMAC-compared) |
+| None | Superpowers endpoints | **NONE** -- publicly accessible |
 
 ### SSRF Protection
 
-`routers/inspector.py:40-48`: Blocked networks include RFC1918, link-local, loopback. Domain allowlist defaults to `*.theartofthepossible.io`. Override via `JOAO_INSPECT_ALLOW_PRIVATE=true` (currently set in production -- see startup command).
+`routers/inspector.py` implements proper SSRF protection:
+- Domain allowlist (*.theartofthepossible.io)
+- Private IP range blocking (127.0.0.0/8, 10.0.0.0/8, 192.168.0.0/16, 172.16.0.0/12)
+- HTTPS-only enforcement
 
-**Risk:** `JOAO_INSPECT_ALLOW_PRIVATE=true` disables SSRF protection. This was likely set for debugging and should be removed.
+**Evidence:** `inspector.py:50-90` -- `_is_safe_target()` function.
 
-### Command Injection Protection
+### Path Traversal Vulnerability
 
-`middleware/auth.py:23,96-99`: Regex blocks `[;&|`$<>]` in commands. `joao_local_dispatch.py` has `is_interactive()` function blocking dangerous commands (claude, vim, ssh, etc.) in automated lane.
+**CRITICAL -- `capability/artifact_store.py:28`**
 
-**Assessment:** Good for the automated path. But the interactive lane passes arbitrary text to tmux send-keys, which could be abused if an attacker gains dispatch API access.
+```python
+def save_upload(job_id: str, filename: str, content: bytes) -> str:
+    dest = _job_dir(job_id) / filename  # <-- filename from user input
+    dest.write_bytes(content)
+```
 
-### Agent Allowlist
+A filename like `../../etc/cron.d/evil` would escape the job directory. The `_job_dir()` function creates the directory but does not validate that the final path stays within it.
 
-`middleware/auth.py:18-21`: 16 agents in frozen set. `joao_local_dispatch.py` validates agent name against `AGENT_SESSIONS` dict.
+Similarly, `routers/superpowers.py:186-199` `download_artifact()` passes user-supplied `filename` to `load_artifact()` without sanitization.
+
+### CORS
+
+`main.py` CORS configuration:
+```python
+allow_origins=["*"]
+```
+This allows any website to make authenticated requests to the spine if cookies are used. Currently mitigated by the fact that auth uses headers, not cookies.
+
+### Secret Handling
+
+All 5 spec-defined secrets sourced from environment:
+- SUPABASE_SERVICE_ROLE_KEY -- `os.environ.get()` in `supabase_client.py:15-20`
+- TELEGRAM_BOT_TOKEN -- `os.environ.get()` in `telegram.py:8`
+- SSH private key -- env PEM or file path in `dispatch.py:60-80`
+- JOAO_DISPATCH_HMAC_SECRET -- `os.environ.get()` in `middleware/auth.py:15`
+- API keys (OpenAI, Anthropic) -- `os.environ.get()` in respective clients
+
+**Grep confirms zero hardcoded secrets in Python source.**
 
 ---
 
-## 3. Autonomy Dial & Locks Enforcement
+## 3. Autonomy Dial & Lock Enforcement
 
-### What Exists
+### Current State
 
-- **Parser:** `exocortex/ledgers.py:265-328` -- regex extraction of L0-L4, LEARN mode, WRITE_LOCK, SHIP_LOCK from text. Works correctly.
-- **Lock storage:** `grant_lock()` and `check_lock()` at `ledgers.py:220-258`. Dual-write, expiry-aware.
-- **Lock schema:** lock_id, lock_type, scope, granted_at, expires_at, granted_by, active.
+| Component | Exists | Enforced |
+|-----------|--------|----------|
+| Autonomy level definitions (L0-L3) | Yes (`exocortex/ledgers.py:95,293`) | **NO** |
+| Autonomy parser (`parse_flags()`) | Yes (`ledgers.py:288-320`) | Only in exocortex router |
+| WRITE_LOCK grant | Yes (`ledgers.py:225-260`) | **NO** (can be granted but never checked) |
+| SHIP_LOCK grant | Yes (same) | **NO** |
+| Lock expiration | Yes (duration-based) | Never validated before operations |
+| Lock scope matching | Yes (field in lock record) | Never matched against operation target |
 
-### What Is Missing
+### Gap
 
-- **NO autonomy middleware.** No FastAPI middleware or dependency that:
-  1. Extracts autonomy level from request
-  2. Checks if the requested operation's min_autonomy is satisfied
-  3. Checks if required locks are active
-  4. Returns 403 on violation
-- **NO per-endpoint autonomy annotations.** Superpowers endpoints have no min_autonomy metadata.
-- **NO sandbox enforcement.** L2 operations can write anywhere, not just sandbox dirs.
+The autonomy dial is a **data model only**. It records what autonomy level a user requested and what locks they granted, but NO code path refuses an operation based on autonomy level or lock status. This is the single largest gap between spec and implementation.
 
-### Verdict
+### What Would Fix It
 
-The autonomy system is **designed and partially coded** (parser + lock manager) but **not enforced**. This is the single largest gap between spec and implementation.
+A FastAPI middleware or dependency that:
+1. Extracts autonomy level from request (via `parse_flags()`)
+2. Checks if the requested capability's `min_autonomy` is satisfied
+3. If L3/L4, validates an active, non-expired, scope-matching lock exists
+4. Returns 403 with lock requirement message if validation fails
 
 ---
 
 ## 4. Provenance Ledger Integrity
 
+### Current Implementation
+
+**Files:** `provenance/intents.jsonl`, `provenance/outcomes.jsonl`, `provenance/deltas.jsonl`, `provenance/locks.jsonl`
+
+**Write mechanism:** `exocortex/ledgers.py:44-50`
+- Opens file with `"a"` (append) mode
+- Writes JSON + newline
+- Dual-writes to Supabase (fails gracefully)
+
 ### Append-Only Guarantee
 
-`ledgers.py:34-37`:
-```python
-def _append_jsonl(path: Path, record: dict):
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, default=str) + "\n")
-```
+**PROVEN:** Files are only opened in append mode. No `"w"`, `"r+"`, or truncation operations exist. No delete/update functions.
 
-Uses `"a"` (append) mode. This is append-only at the application level. However:
-- No file-level locking (concurrent writers could interleave lines)
-- No OS-level immutable flag (file can be truncated or deleted)
-- No cryptographic chaining (no hash linking records together)
+**HOWEVER:** The guarantee is filesystem-level only. Any process with write access to the directory can modify the files. No cryptographic chain (hash linking) prevents tampering.
 
-### Tamper Evidence
+### Tamper-Evidence
 
-**NONE.** Records have no hash, no signature, no chain linking. A malicious actor with file access could:
-- Delete records
-- Modify records
-- Insert fake records
-- Truncate the file
+**NOT IMPLEMENTED.** The spec describes `context_pack_hash: "sha256:789..."` and file hashes for written artifacts, but:
+- No SHA-256 hashing of ledger entries
+- No hash chaining between entries
+- No integrity verification function
 
-### Hash Integrity
+### Dual-Write Reliability
 
-The spec describes `context_pack_hash` (SHA-256 of context pack) and artifact hashes. The `record_intent()` function accepts `context_pack_hash` parameter but no code computes it.
+**PROVEN:** `_dual_write()` always writes locally first. Supabase write is in try/except with logging. Local write failure would raise an exception (not caught), which is correct -- local is the source of truth.
 
-`receipts.py:51` references `a.get('hash', 'n/a')` for artifact hashes. No code computes artifact hashes either.
-
-### Verdict
-
-Provenance ledger is **append-only by convention** (Python "a" mode) but has **no tamper-evidence mechanism**. For a production audit trail, this needs:
-1. Record-level SHA-256 hash chaining (each record includes hash of previous)
-2. File-level flock for concurrent access
-3. Optional: periodic signed snapshots
+**Risk:** Concurrent writes to the same JSONL file could interleave if multiple processes write simultaneously. No file locking (flock/lockfile) is used.
 
 ---
 
 ## 5. Data Handling
 
-### File Upload
+### File Uploads
 
-`superpowers.py:72`: `content = await file.read()` -- reads entire file into memory. No size limit enforced. A 2GB upload would OOM the process.
+- Accepted via `routers/superpowers.py` (Tableau) and `routers/ingest.py` (general)
+- Stored to `superpower_artifacts/{job_id}/` with user-supplied filename
+- **No size limit enforced** -- FastAPI default (unlimited) applies
+- **No path traversal protection** on filename (see Section 2)
+- **No content-type validation** beyond file extension check
 
-`artifact_store.py:29`: `dest.write_bytes(content)` -- writes to disk without checking available space.
+### Artifact Retention
 
-### Path Traversal
+- No cleanup/retention policy
+- Artifacts accumulate indefinitely in `superpower_artifacts/`
+- No disk space monitoring
 
-`artifact_store.py:28`: `dest = _job_dir(job_id) / filename` -- `filename` comes from `file.filename` which is user-controlled. A filename like `../../etc/passwd` would write outside the job dir.
+### Redaction
 
-**FastAPI's `UploadFile.filename`** preserves the client-supplied filename. This is a **path traversal vulnerability**.
-
-**Mitigation needed:** Sanitize filename (strip path components, validate characters).
-
-### Artifact Download
-
-`superpowers.py:189`: `path = artifact_store.load_artifact(job_id, filename)` -- both `job_id` and `filename` are user-supplied URL path params. `_job_dir()` uses Path concatenation, which could be abused with `..` sequences.
-
-**Mitigation needed:** Validate that resolved path is within ARTIFACTS_DIR.
-
-### Data Retention
-
-No artifact cleanup mechanism. `superpower_artifacts/` grows unbounded. No TTL, no rotation, no size limit.
+- Supabase SERVICE_ROLE_KEY not logged (proven)
+- No general PII/sensitive data redaction in logs
+- Session logs can contain arbitrary user input
 
 ---
 
 ## 6. Reliability
 
-### Timeouts
+### Timeouts & Retries
 
-- **Spine:** No per-route timeout. FastAPI has no default request timeout. Long-running Tableau parsing could block indefinitely.
-- **Dispatch HTTP calls:** `services/dispatch.py` uses 45s timeout for dispatch, 15s for gets. Good.
-- **tmux operations:** `joao_local_dispatch.py` -- no timeout on subprocess.run() for tmux commands (could hang if tmux server is unresponsive).
-- **launch_agent.sh:** `timeout 120` on Claude invocation. Good.
+| Component | Timeout | Retry | Evidence |
+|-----------|---------|-------|----------|
+| Dispatch HTTP | Not specified | 3x with 2s/4s backoff | `services/dispatch.py:150-180` |
+| Dispatch SSH | 10s connect | No retry | `dispatch.py:60` |
+| Supabase writes | None explicit | No retry (fails gracefully) | `supabase_client.py` |
+| Ollama calls | None explicit | No retry | `brain_manager.py` |
+| MCP SSE | 25s grace on shutdown | Reconnect logic in client | `main.py:20-50` |
+| SCOUT RSS | None explicit | No retry per source | `services/scout.py` |
 
-### Retries
-
-- **Dispatch to tunnel:** 3-attempt retry with exponential backoff (2s, 4s). Good.
-- **Supabase writes:** No retry. Single attempt with silent failure. Acceptable given local fallback.
+**Risk:** Missing timeouts on Ollama and Supabase calls. A hung Ollama inference could block the event loop indefinitely.
 
 ### Crash Recovery
 
-- **Spine:** Not supervised by systemd in current deployment (started manually via uvicorn). `joao-spine-local.service` exists but spine is currently running from a shell command, not the service.
-- **Dispatch:** Gunicorn with 4 workers provides process-level recovery.
-- **Agents:** Watchdog (`council_watchdog.sh`) runs every 5 min via cron to restart dead HOT_POOL agents.
-- **SCOUT:** systemd `Restart=always` with burst limit.
+- Systemd services auto-restart on failure (proven by uptime)
+- tmux sessions survive process crashes (terminal persists)
+- No WAL or transaction log for in-flight operations
+- Partially written JSONL entries possible on crash (no flush/fsync)
 
 ### Idempotency
 
-- **Job IDs** use timestamp + UUID (`artifact_store.py:24`). Collision-free.
-- **Intent/Outcome IDs** use timestamp + UUID. Collision-free.
-- **No deduplication** on intent recording -- same request processed twice creates two records.
+- Dispatch is NOT idempotent -- repeated calls send duplicate commands to tmux
+- SCOUT deduplicates via SHA256(title|url) -- idempotent
+- Provenance writes are NOT idempotent -- no unique constraint on intent_id
 
 ---
 
@@ -216,118 +218,109 @@ No artifact cleanup mechanism. `superpower_artifacts/` grows unbounded. No TTL, 
 
 ### Logging
 
-- JSON structured logging via `python-json-logger` (`middleware/logging_config.py`)
-- `RequestLoggingMiddleware` logs every request
-- Per-module loggers throughout codebase
-- No log aggregation or centralized logging
+- JSON structured logging via `middleware/logging_config.py`
+- All logs include: timestamp, level, service, request_id
+- Request middleware logs latency in ms
+- MCP routes excluded from logging (to avoid SSE noise)
 
 ### Metrics
 
-- `exocortex/digest.py:get_metrics()` computes success_rate, avg_time, reworks, undo_rate from ledger
-- `exocortex/digest.py:get_switchboard()` gives real-time system status
-- No Prometheus/Grafana/StatsD integration
+- No Prometheus/StatsD metrics exported
+- No request count, error rate, or latency histograms
+- SCOUT tracks item counts internally
+- QA pipeline tracks scores but no time-series
 
 ### Error Reporting
 
-- Exceptions logged with traceback (`superpowers.py:85`)
-- No external error reporting (no Sentry, no PagerDuty)
-- Telegram notifications on job completion (`services/telegram.py`)
-
-### Assessment
-
-Observability is **basic but functional**. Logs are structured. Metrics are computed from ledger. No external observability stack.
+- No Sentry/Bugsnag integration
+- Errors logged to stdout/JSON
+- Supabase failures logged but not alerted
+- No dead-letter queue for failed dispatches
 
 ---
 
 ## 8. DX & Maintainability
 
-### Code Structure
+### Structure
 
-```
-joao-spine/
-  main.py            (376 lines -- app entrypoint)
-  routers/           (16 routers)
-  capability/        (5 modules -- superpowers)
-  exocortex/         (4 modules -- provenance/learning)
-  middleware/         (auth + logging)
-  services/          (dispatch, ai_processor, telegram, qa_pipeline, supabase, scout)
-  models/            (pydantic schemas)
-  tools/             (chat helper)
-  mcp_server.py      (MCP tools)
-  joao_local_dispatch.py (565 lines -- local dispatch)
-```
+Good separation: routers/ (HTTP layer), services/ (business logic), capability/ (superpowers), exocortex/ (learning), models/ (schemas), middleware/ (cross-cutting).
 
-**Strengths:**
-- Clean router separation (each router has a single concern)
-- Capability modules are self-contained
-- Exocortex is well-abstracted (ledgers, learning, digest, receipts)
-- Pydantic models for request/response validation
+### Naming
 
-**Weaknesses:**
-- `routers/joao.py` at 2,390 lines is a god-module -- handles dispatch, council, content pipeline, build tracking, logs, idea-vault
-- `joao_local_dispatch.py` at 565 lines mixes HTTP server, tmux management, process inspection, file I/O
-- No test directory or test files found
-- Hardcoded paths throughout (`/home/zamoritacr/joao-spine/...`)
+Consistent Python naming conventions. Router files match their URL prefix. Service files match their domain.
 
-### Configuration
+### Config
 
-- Secrets in `.env` (good)
-- Hardcoded paths to home directory (fragile -- breaks on user change or machine migration)
-- No configuration file for capability timeouts, retry counts, etc.
+All configuration via environment variables. No config files beyond `.env`. No config validation at startup (missing vars discovered at first use).
+
+### Docs
+
+- JOAO_MASTER_CONTEXT.md -- comprehensive project context
+- JOAO_SESSION_LOG.md -- 479KB active session log
+- CLAUDE.md -- execution protocol + canon mandates
+- Inline docstrings on most functions
+
+### Issues
+
+- 166 ruff lint warnings (mostly unused imports)
+- No type annotations on most functions
+- No mypy configuration
+- Test directory exists but coverage unknown
+- Two dispatch listeners running concurrently (port 7777 + 8100)
 
 ---
 
 ## 9. Failure Modes Table
 
-| # | Failure Mode | Likelihood | Impact | Mitigation Status |
-|---|-------------|-----------|--------|-------------------|
-| 1 | Path traversal via filename in upload | MEDIUM | HIGH (arbitrary file write) | **NONE** -- needs filename sanitization |
-| 2 | OOM from large file upload | MEDIUM | HIGH (spine crash) | **NONE** -- no size limit |
-| 3 | SSRF via inspector with ALLOW_PRIVATE=true | LOW | HIGH (internal network scan) | **WEAKENED** -- protection disabled in prod |
-| 4 | Unauthenticated superpowers access | MEDIUM | MEDIUM (file processing abuse) | **NONE** -- no auth on superpowers |
-| 5 | Tmux session hijack via dispatch | LOW | HIGH (arbitrary code execution) | **PARTIAL** -- agent allowlist + command filter |
-| 6 | Supabase credential leak in logs | LOW | HIGH (DB compromise) | **GOOD** -- env-only, no logging of value |
-| 7 | Unbounded artifact storage fills disk | HIGH | MEDIUM (service degradation) | **NONE** -- no cleanup |
-| 8 | Concurrent JSONL writes corrupt ledger | LOW | MEDIUM (audit trail integrity) | **NONE** -- no file locking |
-| 9 | Spine not supervised by systemd | MEDIUM | MEDIUM (manual restart needed) | **PARTIAL** -- service file exists but not used |
-| 10 | Dispatch secret exposed in systemd env | LOW | MEDIUM (unauthorized dispatch) | **ACCEPTED** -- systemd env is root-readable only |
-| 11 | Two dispatch instances on different ports | LOW | LOW (confusion, stale routing) | **NONE** -- should consolidate |
-| 12 | qwen3:8b model missing from Ollama | LOW | LOW (fallback to other models) | **DOCUMENTED** -- in spec gaps |
-| 13 | No rate limiting on any endpoint | MEDIUM | MEDIUM (abuse/DoS) | **NONE** -- relies on Cloudflare |
-| 14 | context_watcher.sh silent failure | LOW | LOW (stale context) | **PARTIAL** -- no health check |
-| 15 | Redis running as ollama user | LOW | LOW (unexpected permissions) | **NONE** -- should run as dedicated user |
+| # | Failure Mode | Trigger | Impact | Mitigation | Status |
+|---|-------------|---------|--------|------------|--------|
+| 1 | Path traversal via upload filename | Malicious filename like `../../etc/cron.d/x` | Arbitrary file write on server | Sanitize filename, resolve against job_dir | **OPEN** |
+| 2 | Unbounded upload size | Large file upload (>1GB) | OOM / disk full | Add upload size limit (100MB) | **OPEN** |
+| 3 | CORS wildcard allows cross-origin requests | Any website can call API | Data exfiltration if auth cookies exist | Restrict to known origins | **OPEN** |
+| 4 | No auth on superpowers endpoints | Public access to tableau/playlist | Unauthorized use of compute resources | Add auth dependency | **OPEN** |
+| 5 | Ollama timeout blocks event loop | Slow model inference | All requests hang | Add async timeout wrapper | **OPEN** |
+| 6 | Concurrent JSONL writes interleave | Multiple simultaneous capability runs | Corrupted provenance entries | Add flock() or async lock | **OPEN** |
+| 7 | Duplicate tmux sessions waste resources | Re-launch without cleanup | 26 sessions, 12 duplicates | Cleanup script + idempotent launch | **OPEN** |
+| 8 | Supabase SERVICE_ROLE_KEY compromise | Key leaked from Railway env | Full database access | Row-level security policies | **OPEN** |
+| 9 | Dispatch replays | Stolen HMAC signature reused within 300s | Duplicate command execution | Add nonce or narrower timestamp window | LOW RISK |
+| 10 | SSH key exposure in /tmp | Temp file not cleaned up | Key readable by other users | Use tempfile.NamedTemporaryFile with delete=True | LOW RISK |
+| 11 | qwen3:8b model missing | Code references it, not installed | Ollama errors on qwen requests | `ollama pull qwen3:8b` | COSMETIC |
+| 12 | Disk fills from artifact accumulation | No retention policy | Spine crashes | Add retention cron job | MEDIUM |
+| 13 | Telegram token compromise | Token leaked | Spam/phishing via JOAO bot | Rotate token, add IP allowlist | LOW RISK |
+| 14 | SCOUT RSS source goes down | External service failure | Scan produces incomplete intel | Timeout + skip failed sources | LOW RISK |
+| 15 | Railway 30s idle timeout | No activity for 30s | SSE connections drop | PatchedEventSourceResponse keepalive | **MITIGATED** |
 
 ---
 
 ## 10. Performance Hotspots
 
-| Hotspot | Location | Issue | Impact |
-|---------|----------|-------|--------|
-| `file.read()` full file into memory | `superpowers.py:72` | No streaming for large files | OOM risk |
-| `_read_jsonl()` reads entire file | `ledgers.py:44` | Reads all lines, filters in Python | Slow as ledger grows |
-| `check_lock()` scans all locks | `ledgers.py:242` | Linear scan of entire locks file | Slow with many locks |
-| `get_intents()` with local fallback | `ledgers.py:138` | Reads 2x requested records | Unnecessary I/O |
-| Supabase client created per call | `ledgers.py:58-59` | No connection pooling | Latency per write |
-| `tmux list-sessions` subprocess | `digest.py:28-31` | Fork + exec for each health check | Could cache |
+| # | Location | Issue | Impact |
+|---|----------|-------|--------|
+| 1 | `capability/tableau_to_powerbi.py` | Synchronous XML parsing of potentially large TWBX | Blocks event loop during parse |
+| 2 | `services/brain_manager.py` | Synchronous Ollama HTTP calls | Blocks during inference (could be minutes) |
+| 3 | `routers/ingest.py` | Synchronous file processing (Whisper, PDF extraction) | Blocks during large file processing |
+| 4 | `services/scout.py` | Sequential RSS fetch (7 sources) | Total scan time = sum of all source latencies |
+| 5 | `routers/superpowers.py:72` | `await file.read()` reads entire upload into memory | Large files consume full RAM |
 
 ---
 
 ## 11. Additive-Only Guarantee
 
-The spec states JOAO is additive-only (new features add, never break existing).
+### Assessment
 
-**Evidence:**
+The spec claims (Section 10) that new features are additive -- existing capabilities continue working if new ones fail. This is **PARTIALLY PROVEN**:
 
-Git log shows additive commits:
-```
-0934ee8 Add Remote Inspector
-730943b JOAO v5: Dual-loop exocortex flywheel
-c081530 Wire superpowers into /joao/app UI
-8370ad8 Add superpowers: Tableau-to-PowerBI + MrDP
-```
+**Evidence FOR additive-only:**
+- Superpowers router is a separate module (`routers/superpowers.py`) that can be removed without affecting core `/joao/*` routes
+- Capability registry returns `general` fallback if no capability matches
+- Supabase failure doesn't block any operation (graceful degradation everywhere)
+- Go-live plan explicitly includes rollback commands per phase
+- Each router is independently importable
 
-All commits use "Add" or "Wire" -- no removals or breaking changes.
+**Evidence AGAINST additive-only:**
+- `main.py` imports all routers at startup -- a syntax error in any router crashes the whole spine
+- No lazy loading or try/except around router imports
+- Exocortex modules are imported eagerly -- a missing dependency would prevent startup
+- No feature flags to disable specific capabilities at runtime
 
-**The go_live_plan explicitly documents rollback plans** for each phase, and states each phase can be removed without affecting prior phases.
-
-**Assessment:** Additive-only pattern is **observed in practice** through git history and architecture design. Each capability is a separate module; removing one doesn't break others.
+**Verdict:** Additive at the design level, but not at the failure isolation level. A broken import in any new module would take down the entire spine.

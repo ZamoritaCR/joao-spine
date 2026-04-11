@@ -1,90 +1,109 @@
-# Phase 0: JOAO Project Inventory
+# JOAO Capability OS -- Phase 0: Inventory (Hard Facts)
 
-**Audit date:** 2026-04-10
-**Auditor:** BYTE (spec certification mode)
+**Audit date:** 2026-04-11 (v2 -- supersedes 2026-04-10 v1)
+**Auditor:** BYTE (spec-cert-v2)
+**Method:** READ-ONLY runtime observation + git inspection
+**Spec used:** `JOAO_OS_DESIGN.md` v2.0 (2026-04-10) from `/home/zamoritacr/taop-repos/joao-spine/joao-capability-os-spec/`
 
 ---
 
 ## A. Repository Inventory
 
-| # | Repo | Path | Branch | HEAD SHA | Remote |
-|---|------|------|--------|----------|--------|
-| 1 | joao-spine (LIVE) | `/home/zamoritacr/joao-spine` | `mrdp-v1-20260405` | `0934ee8` | `github.com/ZamoritaCR/joao-spine.git` |
-| 2 | council | `/home/zamoritacr/council` | `master` | `3478938` | `github.com/ZamoritaCR/council.git` |
-| 3 | joao-interface | `/home/zamoritacr/joao-interface` | `master` | `f28f6a2` | `github.com/ZamoritaCR/joao-interface.git` |
-| 4 | joao-mcp | `/home/zamoritacr/joao-mcp` | `master` | `cc30642` | `github.com/ZamoritaCR/joao-mcp.git` |
-| 5 | joao-voice | `/home/zamoritacr/joao-voice` | `master` | `daf209e` | `github.com/ZamoritaCR/joao-voice.git` |
-| 6 | joao_autonomy | `/home/zamoritacr/joao_autonomy` | `master` | `5d0af6c` | `github.com/ZamoritaCR/joao-autonomy.git` |
-| 7 | taop-repos/joao-spine (spec) | `/home/zamoritacr/taop-repos/joao-spine` | `master` | `292f698` | None (local only) |
-| 8 | projects/joao-spine (alt) | `/home/zamoritacr/projects/joao-spine` | `main` | `3b6ccce` | `github.com/ZamoritaCR/joao-spine.git` |
-| 9 | joao-computer-use | `/home/zamoritacr/projects/joao-computer-use` | `master` | `72980c1` | `github.com/ZamoritaCR/joao-computer-use.git` |
-| 10 | joao_flutter | `/home/zamoritacr/projects/joao_flutter` | `master` | `f35270b` | `github.com/ZamoritaCR/joao-flutter.git` |
+| # | Path | Branch | HEAD SHA | Remote |
+|---|------|--------|----------|--------|
+| 1 | `/home/zamoritacr/joao-spine` (LIVE) | `audit/joao-spec-cert-v1` | `a3e72aea87b835f` | `github.com/ZamoritaCR/joao-spine.git` |
+| 2 | `/home/zamoritacr/joao-interface` | `master` | `f28f6a2d0127d98` | `github.com/ZamoritaCR/joao-interface.git` |
+| 3 | `/home/zamoritacr/joao-mcp` | `master` | `cc30642316578269` | `github.com/ZamoritaCR/joao-mcp.git` |
+| 4 | `/home/zamoritacr/joao-voice` | `master` | `daf209eb9ce78ed` | `github.com/ZamoritaCR/joao-voice.git` |
+| 5 | `/home/zamoritacr/joao_autonomy` | `master` | `5d0af6ce3e931c8` | `github.com/ZamoritaCR/joao-autonomy.git` |
+| 6 | `/home/zamoritacr/taop-repos/joao-spine` (SPEC) | `master` | `292f698829` | **(none -- local only)** |
+| 7 | `/home/zamoritacr/projects/joao-spine` | `main` | `c47342c73386118` | `github.com/ZamoritaCR/joao-spine.git` |
+| 8 | `/home/zamoritacr/projects/joao-computer-use` | `master` | `72980c1b` | `github.com/ZamoritaCR/joao-computer-use.git` |
+| 9 | `/home/zamoritacr/projects/joao_flutter` | `master` | `f35270b4` | `github.com/ZamoritaCR/joao-flutter.git` |
 
-**Primary codebase:** Repo #1 (`/home/zamoritacr/joao-spine`) -- this is the LIVE production spine.
-**Spec source:** Repo #7 (`/home/zamoritacr/taop-repos/joao-spine/joao-capability-os-spec/`)
+**Critical observations:**
+- Three distinct joao-spine checkouts at different SHAs/branches. The LIVE spine is #1.
+- The spec source (#6) has NO git remote -- diverged and untracked.
+- joao-spine is on audit branch, not main/master -- indicates prior audit work ongoing.
 
----
+### Non-Git JOAO Directories
 
-## B. Spec Document Used
-
-**File:** `/home/zamoritacr/taop-repos/joao-spine/joao-capability-os-spec/JOAO_OS_DESIGN.md`
-**Version:** 2.0
-**Author:** BYTE
-**Date:** 2026-04-10
-**Status:** GROOMING (no implementation code)
-
-Supporting spec files:
-- `capability_registry.yaml` (534 lines) -- capability contracts
-- `go_live_plan.md` (169 lines) -- phased rollout plan
-- `runbooks/` -- operational runbooks (supabase, cloudflared, tmux, chatgpt)
+| Path | Contents |
+|------|----------|
+| `/home/zamoritacr/joao-brain/` | chat-backups/ only |
+| `/home/zamoritacr/joao-memory/` | security_incident_2025_04_03.md only |
 
 ---
 
-## C. Runtime Inventory (observed, not modified)
+## B. Runtime Inventory (Observed 2026-04-11 ~20:00 UTC)
 
-### Services Running
+### Systemd User Services
 
-| Service | PID | Port | Status |
-|---------|-----|------|--------|
-| joao-spine (uvicorn) | 2696 | 7778 | RUNNING |
-| joao_local_dispatch (gunicorn 4w) | 605381+ | 8100 | RUNNING |
-| joao_local_dispatch (uvicorn dev) | 471736 | 7777 | RUNNING |
-| cloudflared (system tunnel) | 482840 | -- | RUNNING |
-| cloudflared (cf-joao spine) | 1675 | -- | RUNNING |
-| cloudflared (cf-dispatch) | 1855 | -- | RUNNING |
-| cloudflared (drdata) | 1672 | -- | RUNNING |
-| cloudflared (telemetry) | 1674 | -- | RUNNING |
-| council-scout | 1848 | -- | RUNNING (systemd) |
-| joao-os-agent | -- | 7801 | RUNNING (systemd) |
-| ollama | 1678 | 11434 | RUNNING |
-| redis | 2756 | 6379 | RUNNING |
-| joao-interface http.server | 137306 | 7781 | RUNNING |
-| context_watcher (inotifywait) | 1102 | -- | RUNNING |
+| Service | Status | PID | Since | RAM | Details |
+|---------|--------|-----|-------|-----|---------|
+| joao-spine-local | active | 2900533 | Apr 10 18:52 | 214.9 MB | uvicorn main:app :7778 |
+| joao-dispatch | active | 605381 | Apr 07 22:17 | 151.6 MB | gunicorn 4w :8100 |
+| joao-tunnel | active | 1855 | Apr 07 18:15 | 13.9 MB | cloudflared -> :7777 |
 
-### tmux Sessions (17 total)
+### Network Ports
 
-All 15 Council agents + `byte` (this session) + `dispatch`:
-APEX, ARIA, BYTE, CJ, CORE, DEX, FLUX, GEMMA, IRIS, MAX, NOVA, SAGE, SCOUT, SOFIA, VOLT
+| Port | Process | Purpose |
+|------|---------|---------|
+| 7777 | uvicorn joao_local_dispatch | Dispatch (uvicorn, standalone) |
+| 7778 | uvicorn main:app | **JOAO Spine (production)** |
+| 7800 | uvicorn browser_agent | Browser agent |
+| 7801 | uvicorn os_agent | OS autonomy agent |
+| 8001 | uvicorn main:app | Secondary app instance |
+| 8100 | gunicorn dispatch (4w) | Dispatch (gunicorn, systemd managed) |
+| 8503 | uvicorn drdata_v2_app | Dr. Data V2 |
+| 11434 | ollama | Local LLM inference |
 
-### systemd User Services (active)
+**Anomaly:** Two dispatch listeners running concurrently (:7777 and :8100). Tunnel routes to :7777.
 
-- `council-scout.service` -- SCOUT Intel Scanner (24/7)
-- `joao-dispatch.service` -- Local Dispatch API
-- `joao-os-agent.service` -- OS Autonomy Agent (port 7801)
-- `joao-tunnel-spine.service` -- Cloudflare Tunnel (Spine 7778)
-- `joao-tunnel.service` -- Cloudflare Tunnel
+### Cloudflared Tunnels (7 processes)
+
+| PID | Target | Type |
+|-----|--------|------|
+| 482840 | /etc/cloudflared/config.yml | Named tunnel (system) |
+| 1675 | localhost:7778 | Quick tunnel (spine) |
+| 1854 | localhost:7778 | **DUPLICATE** quick tunnel (spine) |
+| 1855 | localhost:7777 | Tunnel service (dispatch) |
+| 1672 | localhost:8502 | Dr. Data |
+| 1673 | localhost:8001 | Secondary app |
+| 1674 | localhost:8200 | Unknown service |
+
+### tmux Sessions (26 total)
+
+**Uppercase (Apr 7-8):** APEX, ARIA, BYTE, CJ, CORE, DEX, FLUX, GEMMA, IRIS, MAX, NOVA, SAGE, SCOUT, SOFIA, VOLT (15)
+**Lowercase (Apr 10):** aria, byte, cj, dex, gemma, sofia (6)
+**Council-prefixed (Apr 10):** council_LEX, council_MAX, council_NOVA, council_SCOUT (4)
+**Infrastructure:** dispatch (1)
+
+**Anomaly:** 6 agents have duplicate sessions (upper+lower). Indicates re-launch without cleanup.
+
+### Ollama Models
+
+| Model | Size |
+|-------|------|
+| deepseek-coder-v2:latest | 8.9 GB |
+| phi4:latest | 9.1 GB |
+| llama3.1:8b | 4.9 GB |
+
+**Missing:** qwen3:8b (spec Section 7.1 lists it; CLAUDE.md references it; not installed).
 
 ---
 
-## D. Codebase Metrics
+## C. Codebase Metrics (joao-spine, excl. .venv)
 
 | Metric | Value |
 |--------|-------|
-| Total Python LOC (excl. venv) | 17,135 |
+| Python files | ~60 |
+| Total Python LOC (est.) | ~17,000 |
 | FastAPI routers | 16 |
-| MCP servers | 2 |
-| API endpoints (estimated) | 70+ |
-| Shell scripts (council) | 8 |
-| Capability modules | 5 (registry, artifact_store, tableau, playlist, music) |
+| MCP servers | 2 (main + TAOP) |
+| API endpoints (est.) | 70+ |
+| Capability modules | 5 (registry, artifact_store, tableau_to_powerbi, mood_playlist, music) |
 | Exocortex modules | 4 (ledgers, learning, digest, receipts) |
-| Provenance JSONL files | 6 (intents, outcomes, deltas, locks, experiments, inspections) |
+| Service modules | 10+ |
+| Provenance JSONL files | 4 (intents, outcomes, deltas, locks) |
+| Shell scripts | 3+ |

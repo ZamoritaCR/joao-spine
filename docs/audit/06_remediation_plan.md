@@ -1,173 +1,122 @@
 # Phase 5b: Remediation Plan
 
 **Principle:** Smallest safe steps. Fix security first, then governance, then features.
+**Date:** 2026-04-11 (v2)
 
 ---
 
 ## Sprint 0: Security Hardening (IMMEDIATE -- before any feature work)
 
-### S0-1: Fix path traversal (G-01, G-08)
+**Estimated effort:** 1-2 hours
+**Risk if skipped:** Publicly exploitable vulnerabilities
 
-**File:** `capability/artifact_store.py`
+| Task | Gap | Fix | File(s) | Effort |
+|------|-----|-----|---------|--------|
+| 0.1 | G-01 | Sanitize upload filenames: resolve against job_dir, reject if final path escapes it. Use `Path.resolve()` and check `str(resolved).startswith(str(job_dir))`. | `capability/artifact_store.py:28` | 15 min |
+| 0.2 | G-02 | Same sanitization for artifact download: validate filename does not contain `..` or path separators. | `routers/superpowers.py:186-199` | 15 min |
+| 0.3 | G-03 | Add `require_dispatch_auth` or a new `require_api_key` dependency to all superpowers endpoints. | `routers/superpowers.py` | 30 min |
+| 0.4 | G-04 | Add upload size limit: `File(..., max_length=100_000_000)` or custom middleware. | `routers/superpowers.py:62` | 10 min |
+| 0.5 | G-08 | Restrict CORS origins from `"*"` to `["https://joao.theartofthepossible.io", "http://localhost:7778"]`. | `main.py` CORS config | 5 min |
 
-```python
-# In save_upload() and load_artifact():
-import os
-safe_name = os.path.basename(filename)  # Strip all path components
-# Then validate: resolved_path.is_relative_to(ARTIFACTS_DIR)
+**Verification:** After Sprint 0, run:
+```bash
+# Path traversal test
+curl -s -X POST -F "file=@/tmp/test.twb;filename=../../etc/evil.txt" http://127.0.0.1:7778/joao/superpowers/tableau
+# Should return 400 or sanitized filename
+
+# Auth test
+curl -s http://127.0.0.1:7778/joao/superpowers/capabilities
+# Should return 401/403
+
+# Size limit test
+dd if=/dev/zero bs=1M count=200 > /tmp/big.twb
+curl -s -X POST -F "file=@/tmp/big.twb" http://127.0.0.1:7778/joao/superpowers/tableau
+# Should return 413
 ```
 
-**Effort:** 15 minutes. **Risk:** None (additive validation).
+---
 
-### S0-2: Add upload size limit (G-03)
+## Sprint 1: Governance Layer (Spec Phase 1)
 
-**File:** `routers/superpowers.py`
+**Estimated effort:** 1 session
+**Depends on:** Sprint 0 completed
+**Gaps addressed:** G-05, G-06, G-07, G-18, G-19
 
-Add to `tableau_upload()`:
-```python
-MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
-content = await file.read()
-if len(content) > MAX_UPLOAD_SIZE:
-    raise HTTPException(413, "File too large")
-```
+| Task | Gap | Fix | Details |
+|------|-----|-----|---------|
+| 1.1 | G-05 | Create `middleware/autonomy.py` -- FastAPI dependency that extracts autonomy level from request (call `parse_flags()` on body/header) and injects it into request state. | New file |
+| 1.2 | G-05 | Add `min_autonomy` field to each capability in `registry.py` and check it in the autonomy middleware. | `capability/registry.py` |
+| 1.3 | G-06 | Create `check_lock()` function in `exocortex/ledgers.py` that validates: lock exists, not expired, scope matches target. Wire it into autonomy middleware for L3/L4. | `exocortex/ledgers.py` |
+| 1.4 | G-07 | Add provenance recording calls in `routers/superpowers.py` after each capability execution. Call `record_intent()` before and `record_outcome()` after. | `routers/superpowers.py` |
+| 1.5 | G-18 | Add `fcntl.flock()` around JSONL writes in `_dual_write()`. | `exocortex/ledgers.py:44-50` |
+| 1.6 | G-19 | Add SHA-256 hash of previous entry to each new entry (hash chain). | `exocortex/ledgers.py` |
 
-**Effort:** 5 minutes. **Risk:** None.
-
-### S0-3: Disable SSRF bypass (G-05)
-
-Remove `JOAO_INSPECT_ALLOW_PRIVATE=true` from the spine startup command/env.
-
-**Effort:** 2 minutes. **Risk:** Inspector will block private IPs (intended behavior).
-
-### S0-4: Add basic auth to superpowers (G-02)
-
-**File:** `routers/superpowers.py`
-
-Add `require_api_key` dependency from `middleware/auth.py` to all superpowers endpoints.
-
-**Effort:** 30 minutes. **Risk:** Low -- existing auth middleware, just not applied.
+**Success criteria:**
+- Tableau upload at L1 -> 403 (min_autonomy is L2)
+- Tableau upload at L2 -> succeeds + provenance entry recorded
+- Git write attempt without WRITE_LOCK -> 403
+- Two concurrent writes -> both entries intact in JSONL
 
 ---
 
-## Sprint 1: Provenance Wiring (Phase 1 from go_live_plan)
+## Sprint 2: Git Adapter + Missing Endpoints (Spec Phase 2)
 
-### S1-1: Wire provenance to superpowers (G-06)
+**Estimated effort:** 1 session
+**Depends on:** Sprint 1 (needs lock enforcement)
+**Gaps addressed:** G-09, G-14, G-17
 
-In `superpowers.py`, wrap each capability execution:
-1. Call `record_intent()` before execution
-2. Call `record_outcome()` after execution (success or failure)
-3. Include timing, artifacts list, capability chain
-
-**Effort:** 1-2 hours. **Risk:** Low -- additive logging, doesn't change execution.
-
-### S1-2: Build autonomy enforcement middleware (G-04)
-
-Create `middleware/autonomy.py`:
-1. Extract autonomy level from request (call `parse_control_flags`)
-2. Compare against endpoint's `min_autonomy` annotation
-3. Check locks via `check_lock()` if L3/L4
-4. Return 403 with lock requirement if violated
-
-Apply as FastAPI dependency to superpowers + git endpoints.
-
-**Effort:** 2-3 hours. **Risk:** Medium -- could block legitimate operations if misconfigured. Test thoroughly.
-
-### S1-3: Add provenance API endpoints (G-06)
-
-Add to `routers/superpowers.py`:
-- `GET /superpowers/provenance/{run_id}` -- calls `get_intent()` + `get_outcomes()`
-- `GET /superpowers/provenance?last=N` -- calls `get_intents(last_n=N)`
-
-**Effort:** 30 minutes. **Risk:** None -- read-only endpoints.
-
-### S1-4: Add file locking to JSONL writes (G-12)
-
-In `ledgers.py:_append_jsonl()`, wrap with `fcntl.flock()`:
-```python
-import fcntl
-with open(path, "a") as f:
-    fcntl.flock(f, fcntl.LOCK_EX)
-    f.write(json.dumps(record) + "\n")
-    # flock auto-released on close
-```
-
-**Effort:** 10 minutes. **Risk:** None.
+| Task | Gap | Fix | Details |
+|------|-----|-----|---------|
+| 2.1 | G-09 | Create `capability/git_adapter.py` with scan/write/ship functions. | New file |
+| 2.2 | G-14 | Add endpoints: `/superpowers/git/scan`, `/superpowers/git/write`, `/superpowers/git/ship` | `routers/superpowers.py` |
+| 2.3 | G-14 | Add endpoints: `/superpowers/provenance/{run_id}`, `/superpowers/undo/{run_id}` | `routers/superpowers.py` |
+| 2.4 | G-14 | Add endpoint: `/superpowers/tunnel/status` | `routers/superpowers.py` |
+| 2.5 | G-17 | Add `POST /joao/agent_callback` endpoint to receive structured results from agents. | `routers/joao.py` or new router |
+| 2.6 | G-09 | Register git_scan, git_write, git_ship, tunnel_status, file_ingest in `capability/registry.py`. | `capability/registry.py` |
 
 ---
 
-## Sprint 2: Git Adapter + Undo (Phase 2 from go_live_plan)
+## Sprint 3: Context Packs + Multi-Brain + Undo (Spec Phase 3)
 
-### S2-1: Implement git adapter
+**Estimated effort:** 1 session
+**Depends on:** Sprint 1 (needs provenance)
+**Gaps addressed:** G-11, G-12, G-13, G-15
 
-Create `capability/git_adapter.py`:
-- `git_scan(repo, since)` -- subprocess git commands (status, log, diff)
-- `git_write(repo, action, branch, message)` -- checkout, commit (behind lock check)
-- `git_ship(repo, action)` -- push (behind lock check)
-
-### S2-2: Add git API endpoints
-
-Add to superpowers router:
-- `POST /superpowers/git/scan`
-- `POST /superpowers/git/write` (checks WRITE_LOCK)
-- `POST /superpowers/git/ship` (checks SHIP_LOCK)
-
-### S2-3: Implement undo executor (G-07)
-
-Create `capability/undo.py`:
-- `execute_undo(run_id)` -- reads provenance, executes undo recipe
-- Handle: delete_artifacts, git_revert, noop
-- Add `POST /superpowers/undo/{run_id}`
-
-**Effort:** 1 session. **Risk:** Medium -- git operations affect repos.
+| Task | Gap | Fix | Details |
+|------|-----|-----|---------|
+| 3.1 | G-12 | Create `capability/context_builder.py` -- reads MEMORY.md, CLAUDE.md, queries last 20 provenance entries, assembles context pack per spec Section 5. | New file |
+| 3.2 | G-12 | Add `/superpowers/context/build` endpoint. | `routers/superpowers.py` |
+| 3.3 | G-15 | Refactor `services/qa_pipeline.py` to query Ollama first, then paid APIs for review. Respect CLAUDE.md canon mandate. | `services/qa_pipeline.py` |
+| 3.4 | G-11 | Create `capability/undo_executor.py` -- implements all 5 undo types (delete_artifacts, git_revert, git_delete_branch, noop, service_rollback). | New file |
+| 3.5 | G-13 | Create `capability/chain_resolver.py` -- resolves intent to capability chain, executes sequentially with intermediate artifacts. | New file |
 
 ---
 
-## Sprint 3: Context Packs + Multi-Brain (Phase 3 from go_live_plan)
+## Sprint 4: Polish + Operational (Spec Phase 4-5)
 
-### S3-1: Build context pack assembler (G-10)
+**Estimated effort:** 1 session
+**Gaps addressed:** G-16, G-20, G-21, G-22, G-24, G-25, G-26, G-27
 
-Create `capability/context_builder.py`:
-- Read CLAUDE.md + MEMORY.md for operating_rules
-- Query last 20 intents for session_history
-- Populate landmines from hardcoded list + CLAUDE.md
-- Compute SHA-256 hash of assembled pack
-
-### S3-2: Fix multi-brain to use Ollama-first (G-11)
-
-Modify QA pipeline to call Ollama before paid APIs, per CLAUDE.md mandate.
-
-**Effort:** 1 session. **Risk:** Low -- additive changes.
-
----
-
-## Sprint 4: Operational Hardening
-
-### S4-1: Run spine under systemd (G-16)
-
-Enable `joao-spine-local.service` and stop the manual uvicorn process.
-
-### S4-2: Add artifact cleanup cron (G-14)
-
-Add cron job to delete artifacts older than 30 days.
-
-### S4-3: Consolidate dispatch instances (G-18)
-
-Choose gunicorn :8100 as canonical. Remove uvicorn :7777 dev instance.
-
-### S4-4: Add tests (G-21)
-
-Create `tests/` with pytest. Start with smoke tests from capability_registry.yaml.
-
-**Effort:** 1 session. **Risk:** None.
+| Task | Gap | Fix | Details |
+|------|-----|-----|---------|
+| 4.1 | G-22 | `ollama pull qwen3:8b` | One command |
+| 4.2 | G-20 | Kill duplicate tmux sessions (lowercase duplicates). | Script in `scripts/cleanup_tmux.sh` |
+| 4.3 | G-21 | Stop the standalone uvicorn dispatch on :7777 (gunicorn on :8100 is the systemd-managed one). | Stop process, update tunnel target |
+| 4.4 | G-16 | Add WU data classification: flag ingest sources that may contain WU data, block external API calls for flagged data. | `routers/ingest.py`, `services/brain_manager.py` |
+| 4.5 | G-24 | Create `scripts/smoke_test.sh` that runs all smoke tests from `capability_registry.yaml`. | New script |
+| 4.6 | G-25 | Add cron job to delete artifacts older than 30 days. | `scripts/cleanup_artifacts.sh` |
+| 4.7 | G-26 | Update spec Section 7.1 to reflect 16 council agents (not 7 brains). | Spec update |
+| 4.8 | G-27 | Add `egress_summary` field to provenance entries. Log which external APIs were called. | `exocortex/ledgers.py` |
+| 4.9 | G-23 | Run `ruff --fix .` to auto-fix 90 unused imports. | One command |
 
 ---
 
 ## Priority Summary
 
-| Sprint | Focus | Gaps Addressed | Effort |
-|--------|-------|---------------|--------|
-| S0 | Security fixes | G-01,02,03,05,08 | 1 hour |
-| S1 | Governance wiring | G-04,06,12 | 1 session |
-| S2 | Git + Undo | G-07,09 (partial) | 1 session |
-| S3 | Context + Multi-brain | G-10,11 | 1 session |
-| S4 | Operations | G-14,16,18,21 | 1 session |
+| Sprint | When | Gaps Fixed | Safety Impact |
+|--------|------|-----------|---------------|
+| 0 | IMMEDIATE | G-01 to G-04, G-08 | Eliminates exploitable vulns |
+| 1 | Next session | G-05 to G-07, G-18, G-19 | Enables governance model |
+| 2 | After Sprint 1 | G-09, G-14, G-17 | Completes API surface |
+| 3 | After Sprint 1 | G-11 to G-13, G-15 | Completes intelligence layer |
+| 4 | After Sprint 2+3 | G-16, G-20-G-28 | Operational polish |
