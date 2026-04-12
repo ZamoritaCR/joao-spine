@@ -148,9 +148,14 @@ _ALLOWED_ORIGINS = [
     "https://joao.theartofthepossible.io",
     "https://dispatch.theartofthepossible.io",
     "https://drdata.theartofthepossible.io",
+    "https://drdata-v2.theartofthepossible.io",
+    "http://localhost:7772",
     "http://localhost:7778",
     "http://localhost:8100",
+    "http://localhost:8502",
+    "http://127.0.0.1:7772",
     "http://127.0.0.1:7778",
+    "http://192.168.0.55:7772",
     "http://192.168.0.55:7778",
 ]
 app.add_middleware(
