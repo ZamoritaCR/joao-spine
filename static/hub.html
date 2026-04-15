@@ -1,1450 +1,381 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TAOP Command Center</title>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&family=Space+Mono&family=Syne:wght@800&display=swap" rel="stylesheet">
-<style>
-:root {
-  --void: #030508;
-  --s1: #06080f;
-  --s2: #0a0d17;
-  --s3: #0f1220;
-  --tg: #00ff88;
-  --gold: #ffd700;
-  --red: #ff3344;
-  --amber: #ffaa00;
-  --cyan: #00e5ff;
-  --blue: #4488ff;
-  --purple: #aa77ff;
-  --orange: #ff7722;
-  --pink: #ff44aa;
-  --teal: #00ccaa;
-  --font-head: 'Rajdhani', sans-serif;
-  --font-mono: 'Space Mono', monospace;
-  --font-brand: 'Syne', sans-serif;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; background: var(--void); color: #c8d0e0; font-family: var(--font-mono); font-size: 13px; }
-body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background:
-    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,136,0.015) 2px, rgba(0,255,136,0.015) 4px);
-}
-body::after {
-  content: '';
-  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 0; pointer-events: none;
-  width: 800px; height: 400px;
-  background: radial-gradient(ellipse at center, rgba(0,255,136,0.04) 0%, transparent 70%);
-}
-.grid-overlay {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background:
-    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,255,136,0.04) 39px, rgba(0,255,136,0.04) 40px),
-    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,255,136,0.04) 39px, rgba(0,255,136,0.04) 40px);
-}
-
-/* Layout */
-.app { display: flex; height: 100vh; position: relative; z-index: 1; }
-.sidebar {
-  width: 52px; min-width: 52px; background: var(--s1); border-right: 1px solid rgba(0,255,136,0.1);
-  display: flex; flex-direction: column; padding-top: 48px; overflow-y: auto; z-index: 10;
-}
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.header {
-  height: 48px; background: var(--s1); border-bottom: 1px solid rgba(0,255,136,0.1);
-  display: flex; align-items: center; padding: 0 16px; gap: 16px; z-index: 10; flex-shrink: 0;
-}
-.header .brand { font-family: var(--font-brand); font-size: 14px; color: var(--tg); letter-spacing: 2px; }
-.header .title { font-family: var(--font-head); font-size: 15px; color: var(--cyan); letter-spacing: 1px; }
-.header .spacer { flex: 1; }
-.header .meta { font-size: 11px; color: #556; }
-.header .meta span { margin-left: 12px; }
-.header .dot-alive { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--tg); box-shadow: 0 0 6px var(--tg); animation: pulse-dot 2s infinite; }
-@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-.content { flex: 1; overflow-y: auto; padding: 16px; }
-
-/* Sidebar tabs */
-.tab-btn {
-  width: 52px; height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  border: none; background: transparent; cursor: pointer; color: #445; font-size: 16px; transition: all 0.2s;
-  border-left: 2px solid transparent; position: relative;
-}
-.tab-btn .tab-label { font-family: var(--font-head); font-size: 8px; letter-spacing: 0.5px; margin-top: 1px; }
-.tab-btn:hover { color: #889; background: rgba(255,255,255,0.02); }
-.tab-btn.active { border-left-color: var(--tg); }
-.tab-sep { height: 1px; margin: 4px 8px; background: rgba(255,255,255,0.05); }
-
-/* Tab accent colors */
-.tab-btn[data-tab="bridge"].active, .tab-btn[data-tab="bridge"]:hover { color: var(--cyan); border-left-color: var(--cyan); }
-.tab-btn[data-tab="deck"].active, .tab-btn[data-tab="deck"]:hover { color: var(--gold); border-left-color: var(--gold); }
-.tab-btn[data-tab="warroom"].active, .tab-btn[data-tab="warroom"]:hover { color: var(--red); border-left-color: var(--red); }
-.tab-btn[data-tab="terminal"].active, .tab-btn[data-tab="terminal"]:hover { color: var(--tg); border-left-color: var(--tg); }
-.tab-btn[data-tab="arena"].active, .tab-btn[data-tab="arena"]:hover { color: var(--blue); border-left-color: var(--blue); }
-.tab-btn[data-tab="projects"].active, .tab-btn[data-tab="projects"]:hover { color: var(--orange); border-left-color: var(--orange); }
-.tab-btn[data-tab="brain"].active, .tab-btn[data-tab="brain"]:hover { color: var(--purple); border-left-color: var(--purple); }
-.tab-btn[data-tab="memory"].active, .tab-btn[data-tab="memory"]:hover { color: var(--amber); border-left-color: var(--amber); }
-.tab-btn[data-tab="financials"].active, .tab-btn[data-tab="financials"]:hover { color: var(--teal); border-left-color: var(--teal); }
-.tab-btn[data-tab="reporting"].active, .tab-btn[data-tab="reporting"]:hover { color: var(--pink); border-left-color: var(--pink); }
-.tab-btn[data-tab="pulse"].active, .tab-btn[data-tab="pulse"]:hover { color: var(--tg); border-left-color: var(--tg); }
-
-.tab-btn.active .tab-icon { text-shadow: 0 0 8px currentColor; }
-
-/* Room panels */
-.room { display: none; height: 100%; }
-.room.active { display: flex; flex-direction: column; }
-.room-title { font-family: var(--font-head); font-size: 18px; letter-spacing: 2px; margin-bottom: 12px; }
-
-/* Cards */
-.card {
-  background: var(--s2); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 12px;
-  transition: border-color 0.3s;
-}
-.card:hover { border-color: rgba(255,255,255,0.12); }
-
-/* Status dots */
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.dot.running { background: var(--tg); box-shadow: 0 0 6px var(--tg); animation: pulse-dot 2s infinite; }
-.dot.hot { background: var(--gold); box-shadow: 0 0 4px var(--gold); }
-.dot.idle { background: #334; }
-.dot.dead { background: var(--red); }
-
-/* Buttons */
-.btn {
-  font-family: var(--font-head); font-size: 12px; letter-spacing: 1px; padding: 6px 14px;
-  border: 1px solid; border-radius: 4px; cursor: pointer; transition: all 0.2s; background: transparent;
-}
-.btn-gold { color: var(--gold); border-color: var(--gold); }
-.btn-gold:hover { background: rgba(255,215,0,0.15); box-shadow: 0 0 12px rgba(255,215,0,0.2); }
-.btn-red { color: var(--red); border-color: var(--red); }
-.btn-red:hover { background: rgba(255,51,68,0.15); }
-.btn-purple { color: var(--purple); border-color: var(--purple); }
-.btn-purple:hover { background: rgba(170,119,255,0.15); }
-.btn-tg { color: var(--tg); border-color: var(--tg); }
-.btn-tg:hover { background: rgba(0,255,136,0.1); }
-
-/* Inputs */
-input, textarea, select {
-  background: var(--s1); border: 1px solid rgba(255,255,255,0.1); color: #c8d0e0;
-  font-family: var(--font-mono); font-size: 12px; padding: 8px; border-radius: 4px; outline: none;
-}
-input:focus, textarea:focus, select:focus { border-color: var(--tg); }
-
-/* Terminal-style display */
-.term-output {
-  background: var(--void); border: 1px solid rgba(0,255,136,0.08); border-radius: 4px;
-  padding: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--tg);
-  overflow-y: auto; white-space: pre-wrap; line-height: 1.5;
-}
-
-/* Gauges */
-.gauge-bar { height: 6px; background: var(--s1); border-radius: 3px; overflow: hidden; }
-.gauge-fill { height: 100%; border-radius: 3px; transition: width 0.5s, background 0.5s; }
-.gauge-label { font-family: var(--font-head); font-size: 10px; letter-spacing: 1px; color: #556; margin-bottom: 2px; }
-.gauge-val { font-family: var(--font-mono); font-size: 11px; float: right; }
-
-/* Badge */
-.badge {
-  display: inline-block; font-family: var(--font-head); font-size: 9px; letter-spacing: 1px;
-  padding: 2px 6px; border-radius: 3px; border: 1px solid;
-}
-.badge-green { color: var(--tg); border-color: var(--tg); }
-.badge-gold { color: var(--gold); border-color: var(--gold); }
-.badge-red { color: var(--red); border-color: var(--red); }
-.badge-grey { color: #556; border-color: #334; }
-.badge-cyan { color: var(--cyan); border-color: var(--cyan); }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--void); }
-::-webkit-scrollbar-thumb { background: rgba(0,255,136,0.15); border-radius: 2px; }
-
-/* Scanline animation on terminal cards */
-@keyframes scanline { 0% { left: -100%; } 100% { left: 100%; } }
-.scan-line {
-  position: absolute; top: 0; left: -100%; height: 2px; width: 100%;
-  background: linear-gradient(90deg, transparent, var(--tg), transparent);
-  animation: scanline 3s linear infinite;
-}
-
-/* Agent card running glow */
-.agent-card-running { border-color: rgba(0,255,136,0.3) !important; }
-
-/* Responsive */
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%; min-width: 100%; height: 52px; flex-direction: row; padding-top: 0;
-    border-right: none; border-top: 1px solid rgba(0,255,136,0.1);
-    position: fixed; bottom: 0; left: 0; z-index: 100; overflow-x: auto;
-  }
-  .app { flex-direction: column-reverse; }
-  .tab-btn { width: 44px; height: 52px; border-left: none; border-top: 2px solid transparent; }
-  .tab-btn.active { border-top-color: var(--tg); border-left-color: transparent; }
-  .tab-sep { width: 1px; height: auto; margin: 8px 2px; }
-  .main { padding-bottom: 52px; }
-  .content { padding: 8px; }
-  #bridgeGrid { grid-template-columns: 1fr !important; }
-  #deckHotPool { grid-template-columns: 1fr !important; }
-  #deckOnDemand { grid-template-columns: 1fr 1fr !important; }
-}
-@media (max-width: 480px) {
-  #deckOnDemand { grid-template-columns: 1fr !important; }
-}
-
-/* Login overlay */
-.login-overlay {
-  position: fixed; inset: 0; z-index: 1000; background: var(--void);
-  display: flex; align-items: center; justify-content: center;
-}
-.login-box { text-align: center; }
-.login-box h1 { font-family: var(--font-brand); font-size: 28px; color: var(--tg); margin-bottom: 4px; }
-.login-box h2 { font-family: var(--font-head); font-size: 14px; color: var(--cyan); letter-spacing: 2px; margin-bottom: 24px; }
-.login-box input { width: 260px; text-align: center; margin-bottom: 12px; display: block; margin-left: auto; margin-right: auto; }
-.login-box .btn { width: 260px; }
-.login-error { color: var(--red); font-size: 11px; margin-top: 8px; }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOAO Operator Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/hub.css?v=20260415f">
 </head>
 <body>
-<div class="grid-overlay"></div>
+  <div class="app-shell">
+    <section class="auth-gate" id="authGate">
+      <div class="auth-card">
+        <div class="brand-row">
+          <img class="brand-mark" src="/static/joao-monogram.svg" alt="JOAO monogram">
+          <div>
+            <p class="eyebrow">JOAO Private System</p>
+            <p class="brand-caption">Luxury Monogram Edition</p>
+          </div>
+        </div>
+        <h1>Full-system access, one surface.</h1>
+        <p class="auth-copy">
+          The exocortex lives here: memory, routes, agents, terminal control, model surface,
+          and the closure loop that keeps context compounding instead of disappearing.
+        </p>
+        <label class="field">
+          <span>Hub token</span>
+          <input id="tokenInput" type="password" placeholder="Paste HUB_SECRET or dispatch secret">
+        </label>
+        <div class="auth-actions">
+          <button id="tokenLoginBtn" class="primary">Enter cockpit</button>
+          <button id="autoUnlockBtn" class="secondary">Auto-unlock</button>
+          <button id="guestBtn" class="secondary">Load UI shell only</button>
+        </div>
+        <p class="auth-status" id="authStatus"></p>
+      </div>
+    </section>
 
-<!-- Login -->
-<div class="login-overlay" id="loginOverlay">
-  <div class="login-box">
-    <h1>TAOP</h1>
-    <h2>COMMAND CENTER</h2>
-    <input type="password" id="loginToken" placeholder="ACCESS TOKEN" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-tg" onclick="doLogin()" style="display:block;margin:0 auto">AUTHENTICATE</button>
-    <div class="login-error" id="loginError"></div>
-  </div>
-</div>
-
-<!-- App -->
-<div class="app" id="app" style="display:none">
-  <!-- Sidebar -->
-  <nav class="sidebar" id="sidebar">
-    <button class="tab-btn" data-tab="bridge"><span class="tab-icon">&#x2B21;</span><span class="tab-label">BRIDGE</span></button>
-    <button class="tab-btn active" data-tab="deck"><span class="tab-icon">&#x25C8;</span><span class="tab-label">DECK</span></button>
-    <button class="tab-btn" data-tab="warroom"><span class="tab-icon">&#x2694;</span><span class="tab-label">WAR RM</span></button>
-    <button class="tab-btn" data-tab="terminal"><span class="tab-icon">&#x25B8;</span><span class="tab-label">SHELL</span></button>
-    <div class="tab-sep"></div>
-    <button class="tab-btn" data-tab="arena"><span class="tab-icon">&#x26A1;</span><span class="tab-label">ARENA</span></button>
-    <button class="tab-btn" data-tab="projects"><span class="tab-icon">&#x25CE;</span><span class="tab-label">APPS</span></button>
-    <div class="tab-sep"></div>
-    <button class="tab-btn" data-tab="brain"><span class="tab-icon">&#x25C9;</span><span class="tab-label">BRAIN</span></button>
-    <button class="tab-btn" data-tab="memory"><span class="tab-icon">&#x25EB;</span><span class="tab-label">MEMORY</span></button>
-    <div class="tab-sep"></div>
-    <button class="tab-btn" data-tab="financials"><span class="tab-icon">&#x25EC;</span><span class="tab-label">$$$</span></button>
-    <button class="tab-btn" data-tab="reporting"><span class="tab-icon">&#x25A3;</span><span class="tab-label">REPORT</span></button>
-    <button class="tab-btn" data-tab="pulse"><span class="tab-icon">&#x25B2;</span><span class="tab-label">PULSE</span></button>
-  </nav>
-
-  <div class="main">
-    <!-- Header -->
-    <header class="header">
-      <span class="brand">TAOP</span>
-      <span class="title">COMMAND CENTER</span>
-      <span class="spacer"></span>
-      <span class="meta">
-        <span id="hdrAgentCount">--</span> ACTIVE
-        <span id="hdrMET">MET +0:00:00</span>
-        <span class="dot-alive"></span>
-      </span>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <img class="brand-mark large" src="/static/joao-monogram.svg" alt="JOAO monogram">
+        <div>
+        <p class="eyebrow">JOAO Brain OS</p>
+        <h1>JOAO Operator Workbench</h1>
+        <p class="build-pill">LIVE BUILD 2026-04-15f</p>
+        <p class="topbar-copy">One brain, any model. Context, taste, routing, and execution live here.</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <label class="compact-field">
+          <span>Session</span>
+          <input id="sessionName" type="text" value="operator-main" spellcheck="false">
+        </label>
+        <button id="refreshAllBtn" class="secondary">Refresh all</button>
+      </div>
     </header>
 
-    <!-- Rooms -->
-    <div class="content" id="contentArea">
+    <main class="layout">
+      <aside class="panel sidebar">
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>LLM Surface</h2>
+            <span class="status-chip">API map</span>
+          </div>
+          <div id="providerGrid" class="provider-grid"></div>
+        </section>
 
-      <!-- BRIDGE -->
-      <div class="room" id="room-bridge">
-        <div class="room-title" style="color:var(--cyan)">&#x2B21; BRIDGE -- OVERVIEW</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex:1;min-height:0" id="bridgeGrid">
-          <div class="card" style="overflow-y:auto">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--cyan);letter-spacing:1px;margin-bottom:8px">AGENT STATUS</div>
-            <div id="bridgeAgents"></div>
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Dispatch</h2>
+            <span id="dispatchStatus" class="status-chip">idle</span>
           </div>
-          <div class="card" style="overflow-y:auto">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--cyan);letter-spacing:1px;margin-bottom:8px">RECENT DISPATCHES</div>
-            <div id="bridgeFeed"></div>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--gold);letter-spacing:1px;margin-bottom:8px">QUICK DISPATCH</div>
-            <select id="bridgeAgent" style="width:100%;margin-bottom:8px"></select>
-            <textarea id="bridgeTask" rows="4" style="width:100%;margin-bottom:8px" placeholder="Mission directive..."></textarea>
-            <button class="btn btn-gold" style="width:100%" onclick="quickDispatch()">&#x26A1; FIRE</button>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px" id="bridgeGauges"></div>
-      </div>
+          <label class="field">
+            <span>Agent</span>
+            <select id="agentSelect"></select>
+          </label>
+          <label class="field">
+            <span>Project tag</span>
+            <input id="projectTagInput" type="text" placeholder="dopamine.watch">
+          </label>
+          <label class="field">
+            <span>Task</span>
+            <textarea id="dispatchTask" rows="5" placeholder="Tell BYTE exactly what to do."></textarea>
+          </label>
+          <button id="dispatchBtn" class="primary full">Dispatch task</button>
+        </section>
 
-      <!-- DECK -->
-      <div class="room active" id="room-deck">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
-          <div class="room-title" style="color:var(--gold);margin-bottom:0">&#x25C8; FLIGHT DECK</div>
-          <span style="font-size:10px;color:#556;font-family:var(--font-head);letter-spacing:1px">AGENT TELEMETRY -- REAL TIME</span>
-          <span style="flex:1"></span>
-          <span class="badge badge-gold" id="deckActiveBadge">0 ACTIVE</span>
-          <button class="btn btn-gold" style="font-size:10px;padding:3px 8px" onclick="deckFilter='all';renderDeck()">ALL</button>
-          <button class="btn btn-gold" style="font-size:10px;padding:3px 8px" onclick="deckFilter='hot';renderDeck()">HOT POOL</button>
-          <button class="btn btn-gold" style="font-size:10px;padding:3px 8px" onclick="deckFilter='active';renderDeck()">ACTIVE</button>
-        </div>
-        <div style="flex:1;overflow-y:auto">
-          <div style="font-family:var(--font-head);font-size:11px;color:var(--gold);letter-spacing:2px;margin-bottom:8px;border-bottom:1px solid rgba(255,215,0,0.2);padding-bottom:4px">HOT POOL -- PERSISTENT SESSIONS</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px" id="deckHotPool"></div>
-          <div style="font-family:var(--font-head);font-size:11px;color:#445;letter-spacing:2px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:4px">ON-DEMAND -- 12 AGENTS</div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px" id="deckOnDemand"></div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,215,0,0.1);flex-wrap:wrap">
-          <span style="color:var(--gold);font-size:14px">&#x26A1;</span>
-          <span style="color:var(--gold);font-family:var(--font-head);font-size:11px;letter-spacing:1px">FIRE</span>
-          <select id="deckAgent" style="width:140px"></select>
-          <input id="deckTask" type="text" style="flex:1;min-width:200px" placeholder="Mission directive..." onkeydown="if(event.key==='Enter')deckDispatch()">
-          <button class="btn btn-gold" onclick="deckDispatch()">LAUNCH MISSION</button>
-          <button class="btn btn-red" onclick="killAll()">KILL ALL</button>
-        </div>
-      </div>
-
-      <!-- WAR ROOM -->
-      <div class="room" id="room-warroom">
-        <div class="room-title" style="color:var(--red)">&#x2694; WAR ROOM</div>
-        <div style="display:flex;gap:12px;flex:1;min-height:0">
-          <div style="width:35%;overflow-y:auto">
-            <div style="font-family:var(--font-head);font-size:11px;color:var(--gold);letter-spacing:1px;margin-bottom:8px">HOT POOL</div>
-            <div id="warHotPool"></div>
-            <div style="font-family:var(--font-head);font-size:11px;color:#445;letter-spacing:1px;margin:12px 0 8px">ON-DEMAND</div>
-            <div id="warOnDemand"></div>
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Agents</h2>
+            <button id="refreshAgentsBtn" class="ghost">Refresh</button>
           </div>
-          <div style="flex:1;display:flex;flex-direction:column">
-            <div id="warAgentHeader" style="font-family:var(--font-head);font-size:20px;color:var(--gold);margin-bottom:8px">SELECT AN AGENT</div>
-            <textarea id="warTask" rows="6" style="width:100%;margin-bottom:8px" placeholder="Write mission in plain language. Agent will read, understand, and execute with full autonomy."></textarea>
-            <button class="btn btn-gold" style="width:100%;margin-bottom:12px" onclick="warDispatch()">&#x26A1; LAUNCH MISSION</button>
-            <div class="term-output" id="warOutput" style="flex:1;min-height:200px">Awaiting agent selection...</div>
-            <div style="margin-top:8px">
-              <div style="font-family:var(--font-head);font-size:10px;color:#445;letter-spacing:1px;margin-bottom:4px">RECENT MISSIONS</div>
-              <div id="warHistory"></div>
+          <div id="agentList" class="agent-list"></div>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Services</h2>
+            <button id="refreshServicesBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="serviceList" class="mini-list"></div>
+        </section>
+      </aside>
+
+      <section class="panel center">
+        <section class="panel-block chat-block">
+          <div class="section-head">
+            <h2>Brain Console</h2>
+            <div class="tabs">
+              <button class="tab" data-view="overview">Overview</button>
+              <button class="tab active" data-view="terminal">Terminal</button>
+              <button class="tab" data-view="logs">Logs</button>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- TERMINAL -->
-      <div class="room" id="room-terminal">
-        <div class="room-title" style="color:var(--tg)">&#x25B8; TERMINAL</div>
-        <div style="display:flex;gap:12px;flex:1;min-height:0">
-          <div style="flex:1;display:flex;flex-direction:column">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="dot running"></span>
-              <span style="font-family:var(--font-head);font-size:12px;color:var(--tg)">ROG STRIX -- 192.168.0.55</span>
-              <span class="badge badge-green">CONNECTED</span>
-            </div>
-            <iframe src="/joao/terminal" style="width:100%;flex:1;border:none;background:var(--void);border-radius:4px"></iframe>
-          </div>
-          <div style="flex:1;display:flex;flex-direction:column">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span class="dot idle"></span>
-              <span style="font-family:var(--font-head);font-size:12px;color:#556">MACBOOK -- NOT YET WIRED</span>
-              <span class="badge badge-grey">OFFLINE</span>
-            </div>
-            <div class="card" style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#445">
-              <div style="font-family:var(--font-head);font-size:14px;letter-spacing:1px;margin-bottom:16px;color:#667">MACBOOK TERMINAL SETUP</div>
-              <div style="font-size:11px;line-height:1.8;max-width:400px;margin-bottom:16px">
-                1. SSH into MacBook<br>
-                2. brew install ttyd<br>
-                3. ttyd -p 8301 bash<br>
-                4. Add Cloudflare tunnel:<br>
-                mac.theartofthepossible.io -> localhost:8301<br><br>
-                Once wired, this pane connects automatically.
+          <div id="overviewView" class="view">
+            <div class="overview-hero">
+              <div>
+                <p class="eyebrow">Portable Exocortex</p>
+                <h3>Private operating system for thinking, coding, routing, and shipping.</h3>
+                <p class="overview-copy">
+                  JOAO is not the chat window. JOAO is the shell that holds context, model choice, tool execution,
+                  memory, and production leverage. Open the widget when you need counsel. Keep the cockpit visible while work moves.
+                </p>
               </div>
-              <button class="btn btn-tg" onclick="navigator.clipboard.writeText('brew install ttyd &amp;&amp; ttyd -p 8301 bash')">COPY SETUP COMMANDS</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ARENA -->
-      <div class="room" id="room-arena">
-        <iframe src="/arena" style="width:100%;height:100%;border:none"></iframe>
-      </div>
-
-      <!-- PROJECTS -->
-      <div class="room" id="room-projects">
-        <div class="room-title" style="color:var(--orange)">&#x25CE; APPS -- TAOP PORTFOLIO</div>
-        <div style="flex:1;overflow-y:auto">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="projectsGrid"></div>
-          <div style="font-family:var(--font-head);font-size:11px;color:#445;letter-spacing:1px;margin-bottom:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:12px">TOOLS</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap" id="toolsGrid"></div>
-        </div>
-      </div>
-
-      <!-- BRAIN -->
-      <div class="room" id="room-brain">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div class="room-title" style="color:var(--purple);margin-bottom:0" id="brainTitle">&#x25C9; BRAIN -- JOAO</div>
-          <div style="display:flex;align-items:center;gap:6px;font-size:10px;font-family:var(--font-head);letter-spacing:1px">
-            <span id="modeJoao" style="color:var(--purple);cursor:pointer;padding:4px 8px;border:1px solid transparent;border-radius:3px" onclick="setBrainMode('joao')">JOAO</span>
-            <span style="color:#334">|</span>
-            <span id="modeMrdp" style="color:#556;cursor:pointer;padding:4px 8px;border:1px solid transparent;border-radius:3px" onclick="setBrainMode('mrdp')">MrDP</span>
-          </div>
-        </div>
-        <div style="flex:1;overflow-y:auto;margin-bottom:8px" id="brainChat">
-          <div class="card" style="margin-bottom:8px;color:var(--purple);font-size:11px">JOAO online. Awaiting context load...</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:flex-end">
-          <textarea id="brainInput" rows="2" style="flex:1" placeholder="Talk to JOAO..." onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();brainSend()}"></textarea>
-          <button class="btn btn-purple" onclick="brainSend()">SEND</button>
-          <button class="btn btn-gold" onclick="brainDispatchModal()" id="brainDispatchBtn">DISPATCH</button>
-        </div>
-      </div>
-
-      <!-- MEMORY -->
-      <div class="room" id="room-memory">
-        <div class="room-title" style="color:var(--amber)">&#x25EB; MEMORY</div>
-        <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <span style="font-family:var(--font-head);font-size:12px;color:var(--amber);letter-spacing:1px">SCOUT LAST SUMMARY</span>
-              <button class="btn btn-gold" style="font-size:10px;padding:2px 8px" onclick="scoutSummarize()">SUMMARIZE NOW</button>
-            </div>
-            <div class="term-output" id="memScout" style="max-height:200px">Loading...</div>
-          </div>
-          <div class="card" style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-              <span style="font-family:var(--font-head);font-size:12px;color:var(--amber);letter-spacing:1px">MEMORY FEED</span>
-              <input type="text" id="memSearch" placeholder="Search..." style="width:200px;font-size:10px;padding:4px 8px" oninput="filterMemory()">
-            </div>
-            <div id="memFeed" style="overflow-y:auto;max-height:300px"></div>
-          </div>
-          <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <span style="font-family:var(--font-head);font-size:12px;color:var(--amber);letter-spacing:1px">MASTER CONTEXT</span>
-              <button class="btn btn-tg" style="font-size:10px;padding:2px 8px" onclick="loadMemory()">REFRESH</button>
-            </div>
-            <div class="term-output" id="memContext" style="max-height:200px">Loading...</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- FINANCIALS -->
-      <div class="room" id="room-financials">
-        <div class="room-title" style="color:var(--teal)">&#x25EC; FINANCIALS</div>
-        <div style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--teal);letter-spacing:1px;margin-bottom:12px">API CREDITS</div>
-            <div id="finCredits" style="text-align:center">
-              <div style="font-family:var(--font-mono);font-size:36px;color:var(--teal)" id="finBalance">--</div>
-              <div style="font-size:10px;color:#556;margin:4px 0">REMAINING BALANCE</div>
-              <div class="gauge-bar" style="margin:12px 0;height:8px"><div class="gauge-fill" id="finBar" style="width:50%;background:var(--teal)"></div></div>
-              <div style="display:flex;justify-content:space-between;font-size:10px;color:#445">
-                <span id="finKeyLabel">JOAO-Primary</span>
-                <span id="finBurnRate">--/day</span>
+              <div class="overview-actions">
+                <button id="openWidgetBtn" class="primary">Open JOAO Chat</button>
+                <button id="minimizeWidgetBtn" class="ghost">Minimize</button>
               </div>
-              <button class="btn" style="margin-top:12px;color:var(--teal);border-color:var(--teal)" onclick="updateBalance()">UPDATE BALANCE</button>
+            </div>
+            <div class="overview-grid">
+              <article class="overview-card">
+                <strong>Brain First</strong>
+                <p>Context belongs to JOAO, not the current model. The shell stays consistent while the engine can change.</p>
+              </article>
+              <article class="overview-card">
+                <strong>Agenting Coding</strong>
+                <p>Use the hub to route into code, dispatch, terminals, sessions, and memory without fragmenting across tools or chats.</p>
+              </article>
+              <article class="overview-card">
+                <strong>Closure Loop</strong>
+                <p>Every good conversation should close into memory, prompt patterns, and reusable execution context.</p>
+              </article>
             </div>
           </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--teal);letter-spacing:1px;margin-bottom:8px">PER-KEY BREAKDOWN</div>
-            <table style="width:100%;font-size:11px;border-collapse:collapse">
-              <tr style="color:#556"><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05)">JOAO-Primary</td><td>Railway spine</td><td style="text-align:right">~60%</td></tr>
-              <tr style="color:#556"><td style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05)">JOAO-Council</td><td>Claude Code agents</td><td style="text-align:right">~25%</td></tr>
-              <tr style="color:#556"><td style="padding:6px 0">JOAO-Arena</td><td>Arena 7 brains</td><td style="text-align:right">~15%</td></tr>
-            </table>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--teal);letter-spacing:1px;margin-bottom:8px">BURN TIMELINE (7 DAY)</div>
-            <div id="finChart" style="display:flex;align-items:flex-end;gap:6px;height:120px"></div>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--gold);letter-spacing:1px;margin-bottom:8px">DOPAMINE.INVEST MONITOR</div>
-            <div id="finInvest">
-              <div style="margin-bottom:8px"><span class="dot idle"></span> <span style="font-size:11px">Monster MCP: CHECKING...</span></div>
-              <div style="margin-bottom:8px"><span class="dot idle"></span> <span style="font-size:11px">Alpaca: NOT CONFIGURED</span></div>
-              <div style="font-size:10px;color:#445;margin-top:12px">Portfolio tracking requires Alpaca API keys in Railway env vars.</div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- REPORTING -->
-      <div class="room" id="room-reporting">
-        <div class="room-title" style="color:var(--pink)">&#x25A3; REPORTING</div>
-        <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px">
-          <!-- BUILD LOG -->
-          <div class="card" style="grid-column:span 2">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--pink);letter-spacing:1px;margin-bottom:10px">BUILD LOG -- AI WORKFORCE ACTIVITY</div>
-            <div id="build-log-table" style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:11px">
-                <thead>
-                  <tr style="border-bottom:1px solid #1a2440;color:#5a6a8a">
-                    <th style="padding:8px;text-align:left">TIME</th>
-                    <th style="padding:8px;text-align:left">AGENT</th>
-                    <th style="padding:8px;text-align:left">TASK</th>
-                    <th style="padding:8px;text-align:left">MODEL</th>
-                    <th style="padding:8px;text-align:left">QA</th>
-                    <th style="padding:8px;text-align:left">COMMIT</th>
-                  </tr>
-                </thead>
-                <tbody id="build-log-body"><tr><td colspan="6" style="padding:16px;color:#5a6a8a;text-align:center">Loading build log...</td></tr></tbody>
-              </table>
+          <div id="terminalView" class="view active">
+            <iframe id="terminalFrame" title="JOAO Terminal" src="/joao/terminal"></iframe>
+          </div>
+
+          <div id="logsView" class="view">
+            <div class="log-toolbar">
+              <button id="connectLogsBtn" class="secondary">Connect logs</button>
+              <button id="clearLogsBtn" class="ghost">Clear</button>
+            </div>
+            <pre id="logStream" class="log-stream"></pre>
+          </div>
+        </section>
+
+        <section class="panel-block split-grid">
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>System</h2>
+              <div class="inline-actions">
+                <button id="runExecProofBtn" class="ghost">Exec proof</button>
+                <button id="liveModeBtn" class="secondary">Live mode: ON</button>
+                <button id="refreshSystemBtn" class="ghost">Refresh</button>
+              </div>
+            </div>
+            <div id="systemMetrics" class="stats-grid"></div>
+            <pre id="execProofOutput" class="exec-proof-output">Execution proof not run yet.</pre>
+          </div>
+
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>Dispatches</h2>
+              <button id="refreshDispatchesBtn" class="ghost">Refresh</button>
+            </div>
+            <div id="dispatchList" class="dispatch-list"></div>
+          </div>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Live Ops Feed</h2>
+            <span id="liveFeedStatus" class="status-chip">watching</span>
+          </div>
+          <div id="liveFeed" class="live-feed"></div>
+        </section>
+
+        <section class="panel-block split-grid lower-grid">
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>Session Vault</h2>
+              <button id="refreshSessionsBtn" class="ghost">Refresh</button>
+            </div>
+            <div id="sessionVault" class="session-vault"></div>
+          </div>
+
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>Closure Engine</h2>
+              <span id="closureStatus" class="status-chip">open</span>
+            </div>
+            <div class="closure-panel">
+              <label class="field">
+                <span>Outcome summary</span>
+                <textarea id="closureSummary" rows="3" placeholder="What did JOAO accomplish or learn?"></textarea>
+              </label>
+              <label class="field">
+                <span>Prompt pattern</span>
+                <textarea id="closurePromptPattern" rows="3" placeholder="What prompt style, routing, or context pattern worked?"></textarea>
+              </label>
+              <button id="saveClosureBtn" class="primary full">Close loop into JOAO memory</button>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--pink);letter-spacing:1px;margin-bottom:8px">PROJECT STATUS</div>
-            <div id="repProjects">Loading...</div>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--pink);letter-spacing:1px;margin-bottom:8px">DISPATCH TELEMETRY</div>
-            <div id="repTelemetry">Loading...</div>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--pink);letter-spacing:1px;margin-bottom:8px">AGENT PERFORMANCE</div>
-            <div id="repPerformance">Loading...</div>
-          </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--pink);letter-spacing:1px;margin-bottom:8px">SYSTEM EVENTS</div>
-            <div class="term-output" id="repEvents" style="max-height:300px">Loading...</div>
-          </div>
-          </div>
-        </div>
-      </div>
+        </section>
+      </section>
 
-      <!-- PULSE -->
-      <div class="room" id="room-pulse">
-        <div class="room-title" style="color:var(--tg)">&#x25B2; PULSE -- SYSTEM HEALTH</div>
-        <div style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--tg);letter-spacing:1px;margin-bottom:12px">VITALS</div>
-            <div id="pulseVitals"></div>
+      <aside class="panel rightbar">
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Selected Agent Output</h2>
+            <button id="refreshOutputBtn" class="ghost">Refresh</button>
           </div>
-          <div class="card">
-            <div style="font-family:var(--font-head);font-size:12px;color:var(--tg);letter-spacing:1px;margin-bottom:8px">SERVICES</div>
-            <div id="pulseServices"></div>
+          <div class="selected-agent">
+            <strong id="selectedAgentName">BYTE</strong>
+            <span id="selectedAgentSource">tmux</span>
           </div>
-          <div class="card" style="grid-column:span 2">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <span style="font-family:var(--font-head);font-size:12px;color:var(--cyan);letter-spacing:1px">LIVE LOGS</span>
-              <button class="btn btn-tg" style="font-size:10px;padding:2px 8px" id="logPauseBtn" onclick="toggleLogPause()">PAUSE</button>
+          <pre id="agentOutput" class="agent-output"></pre>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Memory</h2>
+            <button id="refreshMemoryBtn" class="ghost">Refresh</button>
+          </div>
+          <div class="memory-columns">
+            <div>
+              <h3>Pinned</h3>
+              <div id="pinnedMemory" class="memory-list"></div>
             </div>
-            <div class="term-output" id="pulseLogs" style="height:250px;color:var(--cyan);font-size:10px">Connecting...</div>
+            <div>
+              <h3>Recent</h3>
+              <div id="recentMemory" class="memory-list"></div>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-    </div>
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Projects + Routes</h2>
+            <button id="refreshProjectsBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="projectList" class="project-list"></div>
+          <div id="routeList" class="route-list"></div>
+        </section>
+      </aside>
+    </main>
   </div>
-</div>
 
-<script>
-// State
-let AUTH_TOKEN = localStorage.getItem('hub_token') || '';
-let agentData = {};
-let deckFilter = 'all';
-let selectedWarAgent = null;
-let warPollId = null;
-let brainMessages = [];
-let brainMode = localStorage.getItem('brainMode') || 'joao';
-let memoryData = { pinned: [], recent: [] };
-let logPaused = false;
-let logSSE = null;
-let MET_START = Date.now();
+  <template id="chatMessageTemplate">
+    <article class="chat-message">
+      <span class="role"></span>
+      <div class="bubble"></div>
+    </article>
+  </template>
 
-const HOT_POOL = ['MAX', 'CORE', 'BYTE'];
-const ON_DEMAND = ['ARIA', 'CJ', 'SOFIA', 'DEX', 'GEMMA', 'LEX', 'NOVA', 'SAGE', 'FLUX', 'APEX', 'IRIS', 'VOLT'];
-const ALL_AGENTS = [...HOT_POOL, ...ON_DEMAND];
+  <button id="chatLauncher" class="chat-launcher" aria-label="Open JOAO chat">
+    <img class="launcher-mark" src="/static/joao-monogram.svg" alt="">
+    <span>Open JOAO</span>
+  </button>
 
-const AGENT_ROLES = {
-  MAX: 'Commander', CORE: 'Ops Lead', BYTE: 'Full Stack Eng',
-  ARIA: 'Creative Dir', CJ: 'Brand Voice', SOFIA: 'UX/UI Lead',
-  DEX: 'Data Eng', GEMMA: 'ML Ops', LEX: 'Legal/Compliance',
-  NOVA: 'Innovation', SAGE: 'Research', FLUX: 'DevOps',
-  APEX: 'Performance', IRIS: 'Analytics', VOLT: 'Rapid Proto',
-  SCOUT: 'Recon/Memory'
-};
+  <section id="chatWidget" class="chat-widget minimized" aria-label="JOAO Chat Widget">
+    <div class="chat-widget-head">
+      <div class="brand-row compact">
+        <img class="brand-mark" src="/static/joao-monogram.svg" alt="JOAO monogram">
+        <div>
+        <p class="eyebrow">JOAO Brain</p>
+        <h2>Operator Chat</h2>
+        </div>
+      </div>
+      <div class="chat-widget-actions">
+        <button id="widgetMinimizeBtn" class="ghost" type="button">_</button>
+        <button id="widgetCloseBtn" class="ghost" type="button">×</button>
+      </div>
+    </div>
+    <div class="chat-widget-meta">
+      <label class="field">
+        <span>Mode</span>
+        <select id="chatMode">
+          <option value="joao">JOAO</option>
+          <option value="drdata">Dr. Data</option>
+          <option value="mrdp">MrDP</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Session</span>
+        <input id="chatSessionMirror" type="text" placeholder="syncs with top session field" readonly>
+      </label>
+    </div>
+    <div id="chatStream" class="chat-stream"></div>
+    <div class="widget-composer">
+      <label class="field grow">
+        <span>Message</span>
+        <textarea id="chatInput" rows="3" placeholder="Ask JOAO to manage the system for you."></textarea>
+      </label>
+      <button id="sendChatBtn" class="primary">Send</button>
+    </div>
+  </section>
 
-const PROJECTS = [
-  { name: 'dopamine.watch', cat: 'STREAMING', url: 'https://app.dopamine.watch', tag: 'Feel-First streaming prescription', accent: 'var(--pink)' },
-  { name: 'Dr. Data', cat: 'ENTERPRISE', url: 'https://drdata.theartofthepossible.io', tag: 'AI Tableau to Power BI migration', accent: 'var(--orange)' },
-  { name: 'FocusFlow', cat: 'PRODUCTIVITY', url: 'https://focusflow.theartofthepossible.io', tag: 'ADHD summarizer, 6 output formats', accent: 'var(--purple)' },
-  { name: 'Arena', cat: 'AI RESEARCH', url: 'https://joao.theartofthepossible.io/arena', tag: '7-brain parallel AI debate', accent: 'var(--blue)' },
-  { name: 'JOAO Hub', cat: 'LIVING OS', url: 'https://joao.theartofthepossible.io/hub', tag: 'AI exocortex, 16-agent Council', accent: 'var(--cyan)' },
-  { name: 'dopamine.chat', cat: 'MESSAGING', url: 'https://dopamine.chat', tag: 'Privacy-first, no shame mechanics', accent: 'var(--teal)' },
-  { name: 'dopamine.invest', cat: 'FINANCE', url: '#', tag: 'Neurodivergent investment platform', accent: 'var(--gold)', status: 'BUILDING' },
-  { name: 'Spark ADHD', cat: 'APP', url: '#', tag: 'Next.js -- In build', accent: 'var(--tg)', status: 'BUILDING' },
-  { name: 'ARC Prize 2026', cat: 'RESEARCH', url: 'https://arcprize.org', tag: '$2M -- Oct 26 2026 deadline', accent: 'var(--red)', status: 'SPRINT' },
-  { name: 'theartofthepossible.io', cat: 'MARKETING', url: 'https://theartofthepossible.io', tag: "The builder's studio", accent: '#556' },
-];
+  <script src="/static/hub.js?v=20260415f"></script>
 
-const TOOLS = [
-  { name: 'PBIX Extractor', url: '#' },
-  { name: 'Terminal', url: '/joao/terminal' },
-  { name: 'Supabase', url: 'https://supabase.com/dashboard' },
-  { name: 'Railway', url: 'https://railway.app/dashboard' },
-  { name: 'GitHub', url: 'https://github.com' },
-  { name: 'Anthropic', url: 'https://console.anthropic.com' },
-  { name: 'Cloudflare', url: 'https://dash.cloudflare.com' },
-];
+    <!-- LLM ROUTER STATUS PANEL -->
+    <div id="llm-router-panel" style="background:#0f1528;border:1px solid rgba(0,229,160,0.3);border-radius:12px;padding:18px 22px;margin:16px 0;font-family:monospace;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="color:#00e5a0;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">LLM Router</span>
+        <span id="llm-provider-badge" style="font-size:10px;padding:2px 10px;border-radius:4px;background:rgba(0,229,160,0.15);color:#00e5a0;border:1px solid rgba(0,229,160,0.3);">loading...</span>
+      </div>
+      <div id="llm-model-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;font-size:11px;">
+        <div style="color:#8892b0;">checking...</div>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:#8892b0;">
+        To switch to OpenRouter: add <code style="color:#f0b429">OPENROUTER_API_KEY</code> to .env and restart
+      </div>
+    </div>
 
-// API helpers
-function api(path, opts) {
-  opts = opts || {};
-  var sep = path.indexOf('?') >= 0 ? '&' : '?';
-  var url = path + sep + 'token=' + encodeURIComponent(AUTH_TOKEN);
-  return fetch(url, {
-    headers: Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {}),
-    method: opts.method || 'GET',
-    body: opts.body || undefined,
-  }).then(function(r) {
-    if (r.status === 401) { logout(); throw new Error('Unauthorized'); }
-    return r;
-  });
-}
-function apiJSON(path, opts) { return api(path, opts).then(function(r) { return r.json(); }); }
-
-// Auth
-function doLogin() {
-  var t = document.getElementById('loginToken').value.trim();
-  if (!t) return;
-  fetch('/api/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: t }),
-  }).then(function(r) {
-    if (r.ok) {
-      AUTH_TOKEN = t;
-      localStorage.setItem('hub_token', t);
-      document.getElementById('loginOverlay').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      boot();
-    } else {
-      document.getElementById('loginError').textContent = 'ACCESS DENIED';
-    }
-  }).catch(function() {
-    document.getElementById('loginError').textContent = 'CONNECTION ERROR';
-  });
-}
-
-function logout() {
-  AUTH_TOKEN = '';
-  localStorage.removeItem('hub_token');
-  document.getElementById('loginOverlay').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-}
-
-// Tab routing
-document.querySelectorAll('.tab-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() { switchTab(btn.dataset.tab); });
-});
-
-function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tab === tab); });
-  document.querySelectorAll('.room').forEach(function(r) { r.classList.toggle('active', r.id === 'room-' + tab); });
-  location.hash = tab;
-  if (tab === 'memory') loadMemory();
-  if (tab === 'reporting') loadReporting();
-  if (tab === 'pulse') { loadPulse(); startLogSSE(); }
-  if (tab === 'financials') loadFinancials();
-  if (tab === 'projects') renderProjects();
-  if (tab === 'bridge') { renderBridge(); renderBridgeFeed(); }
-}
-
-// MET clock
-function updateMET() {
-  var s = Math.floor((Date.now() - MET_START) / 1000);
-  var h = Math.floor(s / 3600);
-  var m = Math.floor((s % 3600) / 60);
-  var sec = s % 60;
-  document.getElementById('hdrMET').textContent = 'MET +' + h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
-}
-setInterval(updateMET, 1000);
-
-// Agent data fetch
-function fetchAgents() {
-  return apiJSON('/api/agents').then(function(data) {
-    agentData = data.agents || {};
-    var activeCount = 0;
-    for (var k in agentData) { if (agentData[k].alive) activeCount++; }
-    document.getElementById('hdrAgentCount').textContent = activeCount;
-    return agentData;
-  }).catch(function(e) {
-    console.error('fetchAgents:', e);
-    return {};
-  });
-}
-
-// Populate agent dropdowns
-function populateDropdowns() {
-  var selects = ['bridgeAgent', 'deckAgent'];
-  selects.forEach(function(id) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = '';
-    ALL_AGENTS.forEach(function(a) {
-      var opt = document.createElement('option');
-      opt.value = a;
-      opt.textContent = a + ' -- ' + (AGENT_ROLES[a] || '');
-      el.appendChild(opt);
-    });
-  });
-}
-
-// BRIDGE
-function renderBridge() {
-  var agEl = document.getElementById('bridgeAgents');
-  var html = '';
-  var ordered = HOT_POOL.concat(ON_DEMAND);
-  ordered.forEach(function(name) {
-    var info = agentData[name] || {};
-    var dotClass = info.alive ? (HOT_POOL.indexOf(name) >= 0 ? 'hot' : 'running') : 'idle';
-    var isHot = HOT_POOL.indexOf(name) >= 0;
-    html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;' + (isHot ? 'border-left:2px solid var(--gold);padding-left:6px;' : '') + '" onclick="switchTab(\'deck\')">' +
-      '<span class="dot ' + dotClass + '" style="' + (isHot ? 'width:10px;height:10px;' : '') + '"></span>' +
-      '<span style="font-family:var(--font-head);font-size:11px;color:' + (info.alive ? '#c8d0e0' : '#445') + '">' + name + '</span>' +
-      '<span style="font-size:9px;color:#445;flex:1">' + (AGENT_ROLES[name] || '') + '</span>' +
-    '</div>';
-  });
-  agEl.innerHTML = html;
-}
-
-function renderBridgeFeed() {
-  return apiJSON('/api/dispatches').then(function(data) {
-    var items = (data.dispatches || []).slice(0, 10);
-    var el = document.getElementById('bridgeFeed');
-    if (!items.length) { el.innerHTML = '<div style="color:#334;font-size:11px">No dispatches yet</div>'; return; }
-    el.innerHTML = items.map(function(d) {
-      var badgeClass = (d.status === 'dispatched' || d.status === 'completed') ? 'badge-green' : d.status === 'failed' ? 'badge-red' : 'badge-grey';
-      var ago = timeAgo(d.dispatched_at);
-      return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)">' +
-        '<span class="badge badge-gold" style="min-width:40px;text-align:center">' + d.agent + '</span>' +
-        '<span style="flex:1;font-size:10px;color:#667;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + esc((d.task || '').substring(0,40)) + '</span>' +
-        '<span class="badge ' + badgeClass + '">' + d.status + '</span>' +
-        '<span style="font-size:9px;color:#334">' + ago + '</span>' +
-      '</div>';
-    }).join('');
-  }).catch(function() {
-    document.getElementById('bridgeFeed').innerHTML = '<div style="color:#334;font-size:11px">Feed unavailable</div>';
-  });
-}
-
-function renderBridgeGauges(sys) {
-  var el = document.getElementById('bridgeGauges');
-  var items = [
-    { label: 'CPU', val: sys.cpu_percent, unit: '%' },
-    { label: 'RAM', val: (sys.memory && sys.memory.percent) || 0, unit: '%' },
-    { label: 'DISK', val: (sys.disk && sys.disk.percent) || 0, unit: '%' },
-    { label: 'UPTIME', val: Math.floor((sys.uptime_seconds || 0) / 86400), unit: 'd' },
-  ];
-  el.innerHTML = items.map(function(i) {
-    var pct = i.label === 'UPTIME' ? 100 : i.val;
-    var color = pct > 85 ? 'var(--red)' : pct > 70 ? 'var(--amber)' : 'var(--tg)';
-    var display = i.label === 'UPTIME' ? i.val + 'd' : i.val.toFixed(1) + i.unit;
-    return '<div class="card" style="padding:8px">' +
-      '<div class="gauge-label">' + i.label + ' <span class="gauge-val" style="color:' + color + '">' + display + '</span></div>' +
-      '<div class="gauge-bar"><div class="gauge-fill" style="width:' + Math.min(pct, 100) + '%;background:' + color + '"></div></div>' +
-    '</div>';
-  }).join('');
-}
-
-// DECK
-function renderDeck() {
-  var hotEl = document.getElementById('deckHotPool');
-  var odEl = document.getElementById('deckOnDemand');
-  var activeCount = 0;
-
-  if (deckFilter !== 'active') {
-    hotEl.parentElement.previousElementSibling.style.display = '';
-    hotEl.style.display = 'grid';
-    hotEl.innerHTML = HOT_POOL.map(function(name) {
-      var info = agentData[name] || {};
-      var alive = info.alive;
-      if (alive) activeCount++;
-      var dotClass = alive ? 'running' : 'hot';
-      var statusLabel = alive ? 'RUNNING' : 'HOT STANDBY';
-      return '<div class="card ' + (alive ? 'agent-card-running' : '') + '" style="position:relative;overflow:hidden;border-left:2px solid var(--gold)">' +
-        (alive ? '<div class="scan-line"></div>' : '') +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">' +
-          '<span class="dot ' + dotClass + '" style="width:10px;height:10px"></span>' +
-          '<span style="font-family:var(--font-head);font-size:16px;color:var(--gold)">' + name + '</span>' +
-          '<span style="font-size:10px;color:#556">' + (AGENT_ROLES[name] || '') + '</span>' +
-        '</div>' +
-        '<div class="term-output" style="height:60px;font-size:10px;margin-bottom:8px" id="deck-term-' + name + '">' +
-          '<span style="animation:pulse-dot 1s infinite">_</span>' +
-        '</div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<span class="badge ' + (alive ? 'badge-green' : 'badge-gold') + '">' + statusLabel + '</span>' +
-          '<button class="btn btn-gold" style="font-size:9px;padding:2px 8px" onclick="deckFireAgent(\'' + name + '\')">FIRE</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-  } else {
-    hotEl.style.display = 'none';
-    hotEl.parentElement.previousElementSibling.style.display = 'none';
-  }
-
-  var showOD = deckFilter === 'all' || deckFilter === 'active';
-  if (showOD) {
-    odEl.parentElement.previousElementSibling.style.display = '';
-    odEl.style.display = 'grid';
-    var agents = deckFilter === 'active' ? ON_DEMAND.filter(function(n) { return (agentData[n] || {}).alive; }) : ON_DEMAND;
-    odEl.innerHTML = agents.map(function(name) {
-      var info = agentData[name] || {};
-      var alive = info.alive;
-      if (alive) activeCount++;
-      return '<div class="card" style="cursor:pointer;position:relative;overflow:hidden;' + (alive ? 'border-color:rgba(0,255,136,0.2)' : '') + '" onclick="selectWarAgent(\'' + name + '\');switchTab(\'warroom\')">' +
-        (alive ? '<div class="scan-line"></div>' : '') +
-        '<div style="display:flex;align-items:center;gap:4px">' +
-          '<span class="dot ' + (alive ? 'running' : 'idle') + '"></span>' +
-          '<span style="font-family:var(--font-head);font-size:12px;color:' + (alive ? '#c8d0e0' : '#445') + '">' + name + '</span>' +
-        '</div>' +
-        '<div style="font-size:9px;color:#445;margin-top:2px">' + (AGENT_ROLES[name] || '') + '</div>' +
-        (alive ? '<div style="margin-top:4px;height:2px;background:var(--s1);border-radius:1px;overflow:hidden"><div style="width:60%;height:100%;background:var(--tg);animation:scanline 2s linear infinite;position:relative"></div></div>' : '') +
-      '</div>';
-    }).join('');
-  } else {
-    odEl.style.display = 'none';
-    odEl.parentElement.previousElementSibling.style.display = 'none';
-  }
-
-  if (deckFilter === 'all') {
-    activeCount = 0;
-    for (var k in agentData) { if (agentData[k].alive) activeCount++; }
-  }
-  document.getElementById('deckActiveBadge').textContent = activeCount + ' ACTIVE';
-}
-
-function loadDeckTerminals() {
-  HOT_POOL.forEach(function(name) {
-    apiJSON('/api/agent-output/' + name).then(function(data) {
-      var el = document.getElementById('deck-term-' + name);
-      if (el && data.lines && data.lines.length) {
-        el.textContent = data.lines.slice(-4).join('\n');
-      }
-    }).catch(function() {});
-  });
-}
-
-function deckFireAgent(name) {
-  document.getElementById('deckAgent').value = name;
-  document.getElementById('deckTask').focus();
-}
-
-function deckDispatch() {
-  var agent = document.getElementById('deckAgent').value;
-  var task = document.getElementById('deckTask').value.trim();
-  if (!task) return;
-  apiJSON('/api/dispatch', { method: 'POST', body: JSON.stringify({ agent: agent, task: task }) }).then(function() {
-    document.getElementById('deckTask').value = '';
-    return fetchAgents();
-  }).then(function() {
-    renderDeck();
-  }).catch(function(e) { console.error('dispatch error:', e); });
-}
-
-function killAll() {
-  if (!confirm('Kill all agent tmux sessions? This is destructive.')) return;
-  alert('Kill all requires manual intervention. Use terminal.');
-}
-
-// WAR ROOM
-function renderWarRoom() {
-  var hotEl = document.getElementById('warHotPool');
-  var odEl = document.getElementById('warOnDemand');
-
-  hotEl.innerHTML = HOT_POOL.map(function(name) {
-    var info = agentData[name] || {};
-    var sel = selectedWarAgent === name;
-    return '<div class="card" style="margin-bottom:6px;cursor:pointer;border-left:2px solid var(--gold);' + (sel ? 'border-color:var(--gold);box-shadow:0 0 12px rgba(255,215,0,0.15)' : '') + '" onclick="selectWarAgent(\'' + name + '\')">' +
-      '<div style="display:flex;align-items:center;gap:6px">' +
-        '<span class="dot ' + (info.alive ? 'running' : 'hot') + '"></span>' +
-        '<span style="font-family:var(--font-head);font-size:13px;color:' + (sel ? 'var(--gold)' : '#c8d0e0') + '">' + name + '</span>' +
-        '<span style="font-size:9px;color:#445;flex:1">' + (AGENT_ROLES[name] || '') + '</span>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-
-  odEl.innerHTML = ON_DEMAND.map(function(name) {
-    var info = agentData[name] || {};
-    var sel = selectedWarAgent === name;
-    return '<div style="display:flex;align-items:center;gap:6px;padding:4px 6px;cursor:pointer;border-radius:4px;' + (sel ? 'background:rgba(255,215,0,0.1);' : '') + '" onclick="selectWarAgent(\'' + name + '\')">' +
-      '<span class="dot ' + (info.alive ? 'running' : 'idle') + '" style="width:6px;height:6px"></span>' +
-      '<span style="font-size:11px;color:' + (sel ? 'var(--gold)' : '#667') + '">' + name + '</span>' +
-    '</div>';
-  }).join('');
-}
-
-function selectWarAgent(name) {
-  selectedWarAgent = name;
-  var info = agentData[name] || {};
-  document.getElementById('warAgentHeader').innerHTML = '<span class="dot ' + (info.alive ? 'running' : 'idle') + '" style="width:12px;height:12px"></span> ' + name + ' <span style="font-size:14px;color:#556">-- ' + (AGENT_ROLES[name] || '') + '</span>';
-  document.getElementById('warOutput').textContent = 'Loading output...';
-  renderWarRoom();
-  loadWarOutput(name);
-  loadWarHistory(name);
-}
-
-function loadWarOutput(name) {
-  return apiJSON('/api/agent-output/' + name).then(function(data) {
-    var el = document.getElementById('warOutput');
-    if (data.lines && data.lines.length) {
-      el.textContent = data.lines.join('\n');
-    } else if (data.tmux_lines && data.tmux_lines.length) {
-      el.textContent = data.tmux_lines.join('\n');
-    } else {
-      el.textContent = 'No output available for ' + name;
-    }
-    el.scrollTop = el.scrollHeight;
-  }).catch(function(e) {
-    document.getElementById('warOutput').textContent = 'Error loading output: ' + e.message;
-  });
-}
-
-function loadWarHistory(name) {
-  apiJSON('/api/dispatches?limit=5').then(function(data) {
-    var items = (data.dispatches || []).filter(function(d) { return d.agent === name; }).slice(0, 5);
-    var el = document.getElementById('warHistory');
-    if (!items.length) { el.innerHTML = '<div style="color:#334;font-size:10px">No missions for ' + name + '</div>'; return; }
-    el.innerHTML = items.map(function(d) {
-      return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.03)">' +
-        '<span style="font-size:9px;color:#445">' + timeAgo(d.dispatched_at) + '</span>' +
-        '<span style="flex:1;font-size:10px;color:#667;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">' + esc((d.task || '').substring(0, 60)) + '</span>' +
-        '<button class="btn btn-gold" style="font-size:8px;padding:1px 6px" onclick="reDispatch(\'' + name + '\',\'' + esc((d.task || '').replace(/'/g, "\\'")) + '\')">RE-DISPATCH</button>' +
-      '</div>';
-    }).join('');
-  }).catch(function() {});
-}
-
-function reDispatch(agent, task) {
-  document.getElementById('warTask').value = task;
-  selectedWarAgent = agent;
-}
-
-function warDispatch() {
-  if (!selectedWarAgent) { alert('Select an agent first.'); return; }
-  var task = document.getElementById('warTask').value.trim();
-  if (!task) return;
-  apiJSON('/api/dispatch', { method: 'POST', body: JSON.stringify({ agent: selectedWarAgent, task: task }) }).then(function() {
-    document.getElementById('warTask').value = '';
-    document.getElementById('warOutput').textContent = 'WAITING FOR AGENT...';
-    if (warPollId) clearInterval(warPollId);
-    var polls = 0;
-    warPollId = setInterval(function() {
-      polls++;
-      loadWarOutput(selectedWarAgent);
-      var text = document.getElementById('warOutput').textContent;
-      if (text.indexOf('COMPLETED_') >= 0 || polls > 30) {
-        clearInterval(warPollId);
-        warPollId = null;
-        if (text.indexOf('COMPLETED_') >= 0) {
-          document.getElementById('warOutput').textContent += '\n\n--- MISSION COMPLETE ---';
-        }
-      }
-    }, 2000);
-  }).catch(function(e) {
-    document.getElementById('warOutput').textContent = 'Dispatch error: ' + e.message;
-  });
-}
-
-// PROJECTS
-function renderProjects() {
-  var grid = document.getElementById('projectsGrid');
-  grid.innerHTML = PROJECTS.map(function(p) {
-    var statusBadge = p.status
-      ? '<span class="badge" style="color:' + p.accent + ';border-color:' + p.accent + '">' + p.status + '</span>'
-      : '<span class="dot idle" id="proj-dot-' + slugify(p.name) + '"></span>';
-    return '<div class="card" style="border-left:2px solid ' + p.accent + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
-        '<span style="font-family:var(--font-brand);font-size:14px;color:' + p.accent + '">' + esc(p.name) + '</span>' +
-        statusBadge +
-      '</div>' +
-      '<div style="font-family:var(--font-head);font-size:9px;color:#445;letter-spacing:1px;margin-bottom:4px">' + p.cat + '</div>' +
-      '<div style="font-size:10px;color:#667;margin-bottom:8px">' + esc(p.tag) + '</div>' +
-      (p.url !== '#' ? '<div style="display:flex;justify-content:space-between;align-items:center">' +
-        '<span style="font-size:9px;color:#334;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">' + p.url + '</span>' +
-        '<a href="' + p.url + '" target="_blank" class="btn btn-tg" style="font-size:9px;padding:2px 8px;text-decoration:none">OPEN</a>' +
-      '</div>' : '') +
-    '</div>';
-  }).join('');
-
-  // Check live URLs via no-cors HEAD
-  PROJECTS.filter(function(p) { return p.url !== '#' && !p.status; }).forEach(function(p) {
-    var dotEl = document.getElementById('proj-dot-' + slugify(p.name));
-    if (!dotEl) return;
-    var ctrl = new AbortController();
-    setTimeout(function() { ctrl.abort(); }, 3000);
-    fetch(p.url, { method: 'HEAD', mode: 'no-cors', signal: ctrl.signal })
-      .then(function() { dotEl.className = 'dot running'; })
-      .catch(function() { dotEl.className = 'dot dead'; });
-  });
-
-  document.getElementById('toolsGrid').innerHTML = TOOLS.map(function(t) {
-    return '<a href="' + t.url + '" target="_blank" class="card" style="padding:6px 12px;font-family:var(--font-head);font-size:10px;color:#667;text-decoration:none;letter-spacing:1px">' + t.name + '</a>';
-  }).join('');
-}
-
-// BRAIN
-function setBrainMode(mode) {
-  brainMode = mode;
-  localStorage.setItem('brainMode', mode);
-  brainMessages = [];
-  document.getElementById('brainChat').innerHTML = '';
-  var isMrdp = mode === 'mrdp';
-  document.getElementById('modeJoao').style.color = isMrdp ? '#556' : 'var(--purple)';
-  document.getElementById('modeJoao').style.borderColor = isMrdp ? 'transparent' : 'var(--purple)';
-  document.getElementById('modeMrdp').style.color = isMrdp ? 'var(--cyan)' : '#556';
-  document.getElementById('modeMrdp').style.borderColor = isMrdp ? 'var(--cyan)' : 'transparent';
-  document.getElementById('brainTitle').innerHTML = isMrdp ? '&#x25C9; BRAIN -- MrDP' : '&#x25C9; BRAIN -- JOAO';
-  document.getElementById('brainTitle').style.color = isMrdp ? 'var(--cyan)' : 'var(--purple)';
-  document.getElementById('brainInput').placeholder = isMrdp ? 'Talk to MrDP...' : 'Talk to JOAO...';
-  document.getElementById('brainDispatchBtn').style.display = isMrdp ? 'none' : '';
-  var statusMsg = isMrdp ? 'MrDP online. Built from neuroscience.' : 'JOAO online. Awaiting context load...';
-  var statusColor = isMrdp ? 'var(--cyan)' : 'var(--purple)';
-  document.getElementById('brainChat').innerHTML = '<div class="card" style="margin-bottom:8px;color:' + statusColor + ';font-size:11px">' + statusMsg + '</div>';
-}
-
-function brainSend() {
-  var input = document.getElementById('brainInput');
-  var text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-
-  brainMessages.push({ role: 'user', content: text });
-  appendChat('user', text);
-
-  var msgDiv = appendChat('assistant', '');
-
-  api('/api/brain', {
-    method: 'POST',
-    body: JSON.stringify({ messages: brainMessages, mode: brainMode }),
-  }).then(function(resp) {
-    var reader = resp.body.getReader();
-    var decoder = new TextDecoder();
-    var fullText = '';
-    var buffer = '';
-
-    function readChunk() {
-      return reader.read().then(function(result) {
-        if (result.done) {
-          brainMessages.push({ role: 'assistant', content: fullText });
-          document.getElementById('brainChat').scrollTop = document.getElementById('brainChat').scrollHeight;
-          return;
-        }
-        buffer += decoder.decode(result.value, { stream: true });
-        var lines = buffer.split('\n');
-        buffer = lines.pop();
-        lines.forEach(function(line) {
-          if (!line.startsWith('data: ')) return;
-          try {
-            var ev = JSON.parse(line.slice(6));
-            if (ev.type === 'token') {
-              fullText += ev.text;
-              msgDiv.textContent = fullText;
+    <script>
+    (function() {
+      async function refreshLLMRouter() {
+        try {
+          const h = await fetch('/joao/llm/health');
+          const hd = await h.json();
+          const m = await fetch('/joao/llm/models');
+          const md = await m.json();
+          
+          const badge = document.getElementById('llm-provider-badge');
+          if (badge) {
+            badge.textContent = hd.provider === 'openrouter' ? 'OpenRouter Cloud' : 'Ollama Local';
+            badge.style.background = hd.status === 'ok' ? 'rgba(0,229,160,0.15)' : 'rgba(255,71,87,0.15)';
+            badge.style.color = hd.status === 'ok' ? '#00e5a0' : '#ff4757';
+            badge.style.borderColor = hd.status === 'ok' ? 'rgba(0,229,160,0.3)' : 'rgba(255,71,87,0.3)';
+          }
+          
+          const grid = document.getElementById('llm-model-grid');
+          if (grid && md.active_models) {
+            const models = md.active_models;
+            const taskColors = {
+              code_generation: '#7bb8ff',
+              reasoning: '#9b6dff', 
+              summarization: '#00e5a0',
+              classification: '#ff9f43',
+              chat: '#00d2d3',
+              council_dispatch: '#f0b429',
+              fallback: '#8892b0'
+            };
+            let html = '';
+            for (const [task, model] of Object.entries(models)) {
+              if (task === 'code_review' || task === 'bulk_processing') continue;
+              const color = taskColors[task] || '#8892b0';
+              html += `<div style="display:flex;flex-direction:column;background:rgba(255,255,255,0.04);border-radius:6px;padding:6px 8px;">
+                <span style="color:${color};font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;">${task}</span>
+                <span style="color:#e8eaf6;font-size:10px;">${model.split(':')[0].split('/').pop()}</span>
+              </div>`;
             }
-          } catch(e) {}
-        });
-        return readChunk();
-      });
-    }
-    return readChunk();
-  }).catch(function(e) {
-    msgDiv.textContent = 'Error: ' + e.message;
-    msgDiv.style.color = 'var(--red)';
-  });
-}
+            grid.innerHTML = html;
+          }
+        } catch(e) {
+          const badge = document.getElementById('llm-provider-badge');
+          if (badge) { badge.textContent = 'ERROR'; badge.style.color = '#ff4757'; }
+        }
+      }
+      refreshLLMRouter();
+      setInterval(refreshLLMRouter, 15000);
+    })();
+    </script>
 
-function appendChat(role, text) {
-  var chatArea = document.getElementById('brainChat');
-  var div = document.createElement('div');
-  div.className = 'card';
-  div.style.marginBottom = '8px';
-  div.style.fontSize = '11px';
-  div.style.whiteSpace = 'pre-wrap';
-  if (role === 'user') {
-    div.style.borderLeft = '2px solid var(--cyan)';
-    div.style.color = '#c8d0e0';
-  } else {
-    div.style.borderLeft = '2px solid var(--purple)';
-    div.style.color = 'var(--purple)';
-  }
-  div.textContent = text;
-  chatArea.appendChild(div);
-  chatArea.scrollTop = chatArea.scrollHeight;
-  return div;
-}
-
-function brainDispatchModal() {
-  var agent = prompt('Agent name (e.g. VOLT):');
-  if (!agent) return;
-  var task = prompt('Mission task:');
-  if (!task) return;
-  apiJSON('/api/dispatch', { method: 'POST', body: JSON.stringify({ agent: agent.toUpperCase(), task: task }) })
-    .then(function() { appendChat('assistant', 'Dispatched ' + agent.toUpperCase() + ': ' + task); })
-    .catch(function(e) { appendChat('assistant', 'Dispatch error: ' + e.message); });
-}
-
-// MEMORY
-function loadMemory() {
-  apiJSON('/api/memory').then(function(data) {
-    memoryData = data;
-    var scout = (data.pinned || []).find(function(m) { return m.source === 'scout_nightly'; });
-    document.getElementById('memScout').textContent = scout ? scout.content : 'No scout summary available.';
-    renderMemoryFeed();
-    var contextItems = (data.recent || []).slice(0, 30);
-    document.getElementById('memContext').textContent = contextItems.length
-      ? contextItems.map(function(m) { return '[' + m.source + '] ' + (m.content || '').substring(0, 120); }).join('\n')
-      : 'No context available.';
-  }).catch(function(e) {
-    document.getElementById('memScout').textContent = 'Error loading memory: ' + e.message;
-  });
-}
-
-function renderMemoryFeed() {
-  var filter = (document.getElementById('memSearch') ? document.getElementById('memSearch').value : '').toLowerCase();
-  var items = (memoryData.recent || []).filter(function(m) {
-    return !filter || (m.content || '').toLowerCase().indexOf(filter) >= 0 || (m.source || '').toLowerCase().indexOf(filter) >= 0;
-  });
-  var el = document.getElementById('memFeed');
-  if (!items.length) { el.innerHTML = '<div style="color:#334;font-size:11px">No memories found</div>'; return; }
-  el.innerHTML = items.map(function(m) {
-    var badgeColor = m.source === 'brain_chat' ? 'badge-cyan' : m.source === 'hub_dispatch' ? 'badge-gold' : 'badge-grey';
-    return '<div style="display:flex;align-items:flex-start;gap:6px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.03)">' +
-      '<span class="badge ' + badgeColor + '" style="margin-top:2px">' + (m.source || '?') + '</span>' +
-      '<span style="flex:1;font-size:10px;color:#667">' + esc((m.content || '').substring(0, 120)) + '</span>' +
-      '<span style="font-size:9px;color:#334;white-space:nowrap">' + timeAgo(m.created_at) + '</span>' +
-      '<button class="btn btn-gold" style="font-size:8px;padding:1px 4px" onclick="pinMemory(\'' + m.id + '\')">PIN</button>' +
-    '</div>';
-  }).join('');
-}
-
-function filterMemory() { renderMemoryFeed(); }
-
-function pinMemory(id) {
-  api('/api/memory/' + id + '/pin', { method: 'PATCH' }).then(function() { loadMemory(); }).catch(function(e) { console.error('pin error:', e); });
-}
-
-function scoutSummarize() {
-  document.getElementById('memScout').textContent = 'Summarizing...';
-  apiJSON('/api/scout/summarize', { method: 'POST' }).then(function(data) {
-    document.getElementById('memScout').textContent = data.summary || 'Summary complete. ' + (data.count || 0) + ' memories processed.';
-  }).catch(function(e) {
-    document.getElementById('memScout').textContent = 'Error: ' + e.message;
-  });
-}
-
-// FINANCIALS
-function loadFinancials() {
-  apiJSON('/api/credits').then(function(data) {
-    var bal = data.balance != null ? data.balance : parseFloat(localStorage.getItem('hub_credit_balance') || '0');
-    document.getElementById('finBalance').textContent = bal > 0 ? '$' + bal.toFixed(2) : '--';
-    document.getElementById('finKeyLabel').textContent = data.key_label || 'JOAO-Primary';
-    var pct = Math.min(Math.max((bal / 100) * 100, 0), 100);
-    var bar = document.getElementById('finBar');
-    bar.style.width = pct + '%';
-    bar.style.background = pct < 15 ? 'var(--red)' : pct < 30 ? 'var(--amber)' : 'var(--teal)';
-  }).catch(function() {});
-
-  // Burn chart placeholder
-  var chart = document.getElementById('finChart');
-  var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  var vals = [2.1, 3.4, 1.8, 4.2, 2.9, 1.2, 0.8];
-  var max = Math.max.apply(null, vals);
-  chart.innerHTML = days.map(function(d, i) {
-    var h = Math.max((vals[i] / max) * 100, 5);
-    return '<div style="flex:1;text-align:center">' +
-      '<div style="height:' + h + 'px;background:var(--teal);border-radius:2px 2px 0 0;margin:0 auto;width:80%"></div>' +
-      '<div style="font-size:8px;color:#445;margin-top:4px">' + d + '</div>' +
-      '<div style="font-size:9px;color:var(--teal)">$' + vals[i] + '</div>' +
-    '</div>';
-  }).join('');
-
-  // Monster MCP check
-  apiJSON('/api/services').then(function(svc) {
-    var investEl = document.getElementById('finInvest');
-    investEl.innerHTML =
-      '<div style="margin-bottom:8px"><span class="dot idle"></span> <span style="font-size:11px">Monster MCP: NOT DETECTED</span></div>' +
-      '<div style="margin-bottom:8px"><span class="dot idle"></span> <span style="font-size:11px">Alpaca: NOT CONFIGURED</span></div>' +
-      '<div style="font-size:10px;color:#445;margin-top:12px">Portfolio tracking requires Alpaca API keys.</div>';
-  }).catch(function() {});
-}
-
-function updateBalance() {
-  var val = prompt('Enter current credit balance (e.g. 18.42):');
-  if (val === null) return;
-  var num = parseFloat(val);
-  if (isNaN(num)) return;
-  localStorage.setItem('hub_credit_balance', num.toString());
-  loadFinancials();
-}
-
-// BUILD LOG
-function loadBuildLog() {
-  apiJSON('/api/build-log?limit=50').then(function(data) {
-    var tbody = document.getElementById('build-log-body');
-    var entries = data.entries || [];
-    if (!entries.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#5a6a8a;text-align:center">No build log entries yet. Dispatches will appear here.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = entries.map(function(e) {
-      var qaColor = e.qa_result === 'PASS' ? '#00ff88' : e.qa_result === 'FAIL' ? '#ff4466' : '#ffd700';
-      var modelBadge = e.model_used === 'ollama'
-        ? '<span style="background:rgba(255,215,0,0.12);color:#ffd700;padding:2px 6px;border-radius:3px;font-size:9px">OLLAMA $0</span>'
-        : '<span style="background:rgba(0,229,255,0.12);color:#00e5ff;padding:2px 6px;border-radius:3px;font-size:9px">CLAUDE API</span>';
-      var timeStr = e.created_at ? new Date(e.created_at).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '--';
-      var commit = e.git_commit ? '<code style="color:#5a6a8a">' + esc(e.git_commit.slice(0,7)) + '</code>' : '--';
-      return '<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">' +
-        '<td style="padding:6px 8px;color:#5a6a8a;white-space:nowrap">' + timeStr + '</td>' +
-        '<td style="padding:6px 8px;font-family:var(--font-head);color:#00e5ff">' + esc(e.agent||'--') + '</td>' +
-        '<td style="padding:6px 8px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.task_summary||'--') + '</td>' +
-        '<td style="padding:6px 8px">' + modelBadge + '</td>' +
-        '<td style="padding:6px 8px;color:' + qaColor + ';font-weight:600">' + esc(e.qa_result||'PENDING') + '</td>' +
-        '<td style="padding:6px 8px">' + commit + '</td>' +
-      '</tr>';
-    }).join('');
-  }).catch(function(err) {
-    document.getElementById('build-log-body').innerHTML = '<tr><td colspan="6" style="padding:16px;color:#ff4466">Failed to load build log</td></tr>';
-  });
-}
-
-// Auto-refresh build log every 60s
-setInterval(function() {
-  if (document.getElementById('room-reporting') && document.getElementById('room-reporting').style.display !== 'none') {
-    loadBuildLog();
-  }
-}, 60000);
-
-// REPORTING
-function loadReporting() {
-  loadBuildLog();
-  // Project status
-  apiJSON('/api/projects').then(function(data) {
-    var el = document.getElementById('repProjects');
-    el.innerHTML = (data.projects || []).map(function(p) {
-      return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.03)">' +
-        '<span class="dot ' + (p.status === 'alive' ? 'running' : 'dead') + '"></span>' +
-        '<span style="font-family:var(--font-head);font-size:11px;flex:1">' + esc(p.name) + '</span>' +
-        '<span class="badge ' + (p.status === 'alive' ? 'badge-green' : 'badge-red') + '">' + p.status + '</span>' +
-      '</div>';
-    }).join('');
-  }).catch(function() { document.getElementById('repProjects').textContent = 'Error loading projects'; });
-
-  // Dispatch telemetry
-  apiJSON('/api/dispatches?limit=100').then(function(data) {
-    var items = data.dispatches || [];
-    var today = new Date().toISOString().split('T')[0];
-    var todayCount = items.filter(function(d) { return (d.dispatched_at || '').startsWith(today); }).length;
-    var agentCounts = {};
-    items.forEach(function(d) { agentCounts[d.agent] = (agentCounts[d.agent] || 0) + 1; });
-    var sorted = Object.entries(agentCounts).sort(function(a, b) { return b[1] - a[1]; });
-    var maxCount = sorted.length ? sorted[0][1] : 1;
-    var confirmed = items.filter(function(d) { return d.status === 'completed'; }).length;
-    var total = items.length || 1;
-
-    document.getElementById('repTelemetry').innerHTML =
-      '<div style="margin-bottom:8px;font-size:11px">Today: <span style="color:var(--tg)">' + todayCount + '</span> | Total: <span style="color:var(--cyan)">' + items.length + '</span> | Success: <span style="color:var(--tg)">' + Math.round(confirmed/total*100) + '%</span></div>' +
-      sorted.slice(0, 8).map(function(pair) {
-        return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">' +
-          '<span style="font-size:10px;width:40px;color:#667">' + pair[0] + '</span>' +
-          '<div style="flex:1;height:4px;background:var(--s1);border-radius:2px"><div style="height:100%;width:' + (pair[1]/maxCount*100) + '%;background:var(--pink);border-radius:2px"></div></div>' +
-          '<span style="font-size:9px;color:#556">' + pair[1] + '</span>' +
-        '</div>';
-      }).join('') +
-      (sorted.length ? '<div style="font-size:10px;color:#445;margin-top:8px">Most active: <span style="color:var(--gold)">' + sorted[0][0] + '</span></div>' : '');
-  }).catch(function() { document.getElementById('repTelemetry').textContent = 'Error'; });
-
-  // Agent performance
-  apiJSON('/api/dispatches?limit=100').then(function(data) {
-    var items = data.dispatches || [];
-    var perf = {};
-    items.forEach(function(d) {
-      if (!perf[d.agent]) perf[d.agent] = { count: 0, completed: 0, last: d.dispatched_at };
-      perf[d.agent].count++;
-      if (d.status === 'completed') perf[d.agent].completed++;
-    });
-    document.getElementById('repPerformance').innerHTML =
-      '<table style="width:100%;font-size:10px;border-collapse:collapse">' +
-        '<tr style="color:#445"><td style="padding:3px 0">AGENT</td><td>DISPATCHES</td><td>COMPLETED</td><td>LAST ACTIVE</td></tr>' +
-        Object.entries(perf).sort(function(a, b) { return b[1].count - a[1].count; }).map(function(pair) {
-          return '<tr style="border-top:1px solid rgba(255,255,255,0.03)"><td style="padding:3px 0;color:var(--gold)">' + pair[0] + '</td><td>' + pair[1].count + '</td><td>' + pair[1].completed + '</td><td style="color:#445">' + timeAgo(pair[1].last) + '</td></tr>';
-        }).join('') +
-      '</table>';
-  }).catch(function() { document.getElementById('repPerformance').textContent = 'Error'; });
-
-  // System events
-  apiJSON('/api/dispatches?limit=20').then(function(data) {
-    var items = data.dispatches || [];
-    document.getElementById('repEvents').textContent = items.map(function(d) {
-      return '[' + (d.dispatched_at || '').substring(11, 19) + '] ' + d.agent + ': ' + (d.task || '').substring(0, 80) + ' [' + d.status + ']';
-    }).join('\n') || 'No events';
-  }).catch(function() { document.getElementById('repEvents').textContent = 'Error loading events'; });
-}
-
-// PULSE
-function loadPulse() {
-  apiJSON('/api/system').then(function(sys) {
-    var vitals = [
-      { label: 'CPU', val: sys.cpu_percent, max: 100, unit: '%' },
-      { label: 'RAM', val: (sys.memory && sys.memory.percent) || 0, max: 100, unit: '%' },
-      { label: 'DISK', val: (sys.disk && sys.disk.percent) || 0, max: 100, unit: '%' },
-    ];
-    var upDays = Math.floor((sys.uptime_seconds || 0) / 86400);
-    var upHours = Math.floor(((sys.uptime_seconds || 0) % 86400) / 3600);
-    var upMins = Math.floor(((sys.uptime_seconds || 0) % 3600) / 60);
-
-    document.getElementById('pulseVitals').innerHTML = vitals.map(function(v) {
-      var color = v.val > 85 ? 'var(--red)' : v.val > 70 ? 'var(--amber)' : 'var(--tg)';
-      return '<div style="margin-bottom:12px">' +
-        '<div class="gauge-label">' + v.label + ' <span class="gauge-val" style="color:' + color + '">' + v.val.toFixed(1) + v.unit + '</span></div>' +
-        '<div class="gauge-bar" style="height:8px"><div class="gauge-fill" style="width:' + v.val + '%;background:' + color + '"></div></div>' +
-      '</div>';
-    }).join('') +
-    '<div style="margin-bottom:12px">' +
-      '<div class="gauge-label">UPTIME <span class="gauge-val" style="color:var(--tg)">' + upDays + 'd ' + upHours + 'h ' + upMins + 'm</span></div>' +
-      '<div class="gauge-bar" style="height:8px"><div class="gauge-fill" style="width:100%;background:var(--tg)"></div></div>' +
-    '</div>';
-
-    return apiJSON('/api/services');
-  }).then(function(svcData) {
-    document.getElementById('pulseServices').innerHTML =
-      '<table style="width:100%;font-size:11px;border-collapse:collapse">' +
-      (svcData.services || []).map(function(s) {
-        var dotClass = s.status === 'alive' ? 'running' : s.status === 'dead' ? 'dead' : 'idle';
-        return '<tr style="border-bottom:1px solid rgba(255,255,255,0.03)">' +
-          '<td style="padding:6px 0"><span class="dot ' + dotClass + '"></span></td>' +
-          '<td style="font-family:var(--font-head)">' + s.name + '</td>' +
-          '<td style="color:#556">' + (s.port || '--') + '</td>' +
-          '<td style="text-align:right"><button class="btn btn-red" style="font-size:8px;padding:1px 6px" onclick="restartService(\'' + s.name + '\')">RESTART</button></td>' +
-        '</tr>';
-      }).join('') + '</table>';
-  }).catch(function(e) {
-    document.getElementById('pulseVitals').textContent = 'Error: ' + e.message;
-  });
-}
-
-function restartService(name) {
-  if (!confirm('Restart ' + name + '?')) return;
-  apiJSON('/api/service/restart/' + name, { method: 'POST' }).then(function(data) {
-    alert(name + ': ' + data.status);
-    loadPulse();
-  }).catch(function(e) { alert('Restart failed: ' + e.message); });
-}
-
-// Live Logs SSE
-function startLogSSE() {
-  if (logSSE) return;
-  var el = document.getElementById('pulseLogs');
-  el.textContent = '';
-  var lineCount = 0;
-
-  var url = '/api/logs?token=' + encodeURIComponent(AUTH_TOKEN);
-  logSSE = new EventSource(url);
-  logSSE.onmessage = function(e) {
-    if (logPaused) return;
-    lineCount++;
-    if (lineCount > 200) {
-      var lines = el.textContent.split('\n');
-      el.textContent = lines.slice(-150).join('\n');
-      lineCount = 150;
-    }
-    el.textContent += e.data + '\n';
-    el.scrollTop = el.scrollHeight;
-  };
-  logSSE.onerror = function() {
-    el.textContent += '\n[connection lost -- reconnecting...]\n';
-  };
-}
-
-function toggleLogPause() {
-  logPaused = !logPaused;
-  document.getElementById('logPauseBtn').textContent = logPaused ? 'RESUME' : 'PAUSE';
-}
-
-// Quick dispatch (bridge)
-function quickDispatch() {
-  var agent = document.getElementById('bridgeAgent').value;
-  var task = document.getElementById('bridgeTask').value.trim();
-  if (!task) return;
-  apiJSON('/api/dispatch', { method: 'POST', body: JSON.stringify({ agent: agent, task: task }) }).then(function() {
-    document.getElementById('bridgeTask').value = '';
-    return renderBridgeFeed();
-  }).catch(function(e) { console.error('dispatch error:', e); });
-}
-
-// Helpers
-function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-function slugify(s) { return s.replace(/[^a-z0-9]/gi, '-').toLowerCase(); }
-function timeAgo(ts) {
-  if (!ts) return '--';
-  var d = new Date(ts);
-  var s = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (s < 60) return s + 's ago';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-  return Math.floor(s / 86400) + 'd ago';
-}
-
-// Boot
-function boot() {
-  setBrainMode(brainMode);
-  populateDropdowns();
-  fetchAgents().then(function() {
-    renderDeck();
-    loadDeckTerminals();
-    var hash = location.hash.replace('#', '') || 'deck';
-    switchTab(hash);
-  });
-
-  // Auto-refresh agents every 3s
-  setInterval(function() {
-    fetchAgents().then(function() {
-      var activeTab = document.querySelector('.tab-btn.active');
-      var tab = activeTab ? activeTab.dataset.tab : '';
-      if (tab === 'deck') { renderDeck(); loadDeckTerminals(); }
-      if (tab === 'bridge') { renderBridge(); }
-      if (tab === 'warroom') { renderWarRoom(); }
-    });
-  }, 3000);
-
-  // Bridge feed refresh
-  setInterval(function() {
-    var activeTab = document.querySelector('.tab-btn.active');
-    if (activeTab && activeTab.dataset.tab === 'bridge') renderBridgeFeed();
-  }, 10000);
-
-  // System gauges
-  function refreshSystem() {
-    apiJSON('/api/system').then(function(sys) { renderBridgeGauges(sys); }).catch(function() {});
-  }
-  refreshSystem();
-  setInterval(refreshSystem, 15000);
-
-  // Pulse auto-refresh
-  setInterval(function() {
-    var activeTab = document.querySelector('.tab-btn.active');
-    if (activeTab && activeTab.dataset.tab === 'pulse') loadPulse();
-  }, 10000);
-}
-
-// Check saved token on load
-if (AUTH_TOKEN) {
-  fetch('/api/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: AUTH_TOKEN }),
-  }).then(function(r) {
-    if (r.ok) {
-      document.getElementById('loginOverlay').style.display = 'none';
-      document.getElementById('app').style.display = 'flex';
-      boot();
-    }
-  }).catch(function() {});
-}
-
-// Hash change
-window.addEventListener('hashchange', function() {
-  var hash = location.hash.replace('#', '') || 'deck';
-  switchTab(hash);
-});
-</script>
 </body>
 </html>

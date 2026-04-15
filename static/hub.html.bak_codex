@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOAO Operator Workbench</title>
+  <link rel="stylesheet" href="/static/hub.css">
+</head>
+<body>
+  <div class="app-shell">
+    <section class="auth-gate" id="authGate">
+      <div class="auth-card">
+        <p class="eyebrow">JOAO Operator Workbench</p>
+        <h1>Full-system access, one surface.</h1>
+        <p class="auth-copy">
+          This cockpit talks to the live JOAO APIs for chat, dispatch, terminals,
+          memory, services, and system state.
+        </p>
+        <label class="field">
+          <span>Hub token</span>
+          <input id="tokenInput" type="password" placeholder="Paste HUB_SECRET or dispatch secret">
+        </label>
+        <div class="auth-actions">
+          <button id="tokenLoginBtn" class="primary">Enter cockpit</button>
+          <button id="guestBtn" class="secondary">Load UI shell only</button>
+        </div>
+        <p class="auth-status" id="authStatus"></p>
+      </div>
+    </section>
+
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Mission Control</p>
+        <h1>JOAO Operator Workbench</h1>
+      </div>
+      <div class="topbar-actions">
+        <label class="compact-field">
+          <span>Session</span>
+          <input id="sessionName" type="text" value="operator-main" spellcheck="false">
+        </label>
+        <button id="refreshAllBtn" class="secondary">Refresh all</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sidebar">
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Dispatch</h2>
+            <span id="dispatchStatus" class="status-chip">idle</span>
+          </div>
+          <label class="field">
+            <span>Agent</span>
+            <select id="agentSelect"></select>
+          </label>
+          <label class="field">
+            <span>Project tag</span>
+            <input id="projectTagInput" type="text" placeholder="dopamine.watch">
+          </label>
+          <label class="field">
+            <span>Task</span>
+            <textarea id="dispatchTask" rows="5" placeholder="Tell BYTE exactly what to do."></textarea>
+          </label>
+          <button id="dispatchBtn" class="primary full">Dispatch task</button>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Agents</h2>
+            <button id="refreshAgentsBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="agentList" class="agent-list"></div>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Services</h2>
+            <button id="refreshServicesBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="serviceList" class="mini-list"></div>
+        </section>
+      </aside>
+
+      <section class="panel center">
+        <section class="panel-block chat-block">
+          <div class="section-head">
+            <h2>Operator Chat</h2>
+            <div class="tabs">
+              <button class="tab active" data-view="chat">Chat</button>
+              <button class="tab" data-view="terminal">Terminal</button>
+              <button class="tab" data-view="logs">Logs</button>
+            </div>
+          </div>
+
+          <div id="chatView" class="view active">
+            <div id="chatStream" class="chat-stream"></div>
+            <div class="composer">
+              <label class="field">
+                <span>Mode</span>
+                <select id="chatMode">
+                  <option value="joao">JOAO</option>
+                  <option value="mrdp">MrDP</option>
+                </select>
+              </label>
+              <label class="field grow">
+                <span>Message</span>
+                <textarea id="chatInput" rows="4" placeholder="Ask JOAO to work the system for you."></textarea>
+              </label>
+              <button id="sendChatBtn" class="primary">Send</button>
+            </div>
+          </div>
+
+          <div id="terminalView" class="view">
+            <iframe id="terminalFrame" title="JOAO Terminal" src="/joao/terminal"></iframe>
+          </div>
+
+          <div id="logsView" class="view">
+            <div class="log-toolbar">
+              <button id="connectLogsBtn" class="secondary">Connect logs</button>
+              <button id="clearLogsBtn" class="ghost">Clear</button>
+            </div>
+            <pre id="logStream" class="log-stream"></pre>
+          </div>
+        </section>
+
+        <section class="panel-block split-grid">
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>System</h2>
+              <button id="refreshSystemBtn" class="ghost">Refresh</button>
+            </div>
+            <div id="systemMetrics" class="stats-grid"></div>
+          </div>
+
+          <div class="subpanel">
+            <div class="section-head">
+              <h2>Dispatches</h2>
+              <button id="refreshDispatchesBtn" class="ghost">Refresh</button>
+            </div>
+            <div id="dispatchList" class="dispatch-list"></div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="panel rightbar">
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Selected Agent Output</h2>
+            <button id="refreshOutputBtn" class="ghost">Refresh</button>
+          </div>
+          <div class="selected-agent">
+            <strong id="selectedAgentName">BYTE</strong>
+            <span id="selectedAgentSource">tmux</span>
+          </div>
+          <pre id="agentOutput" class="agent-output"></pre>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Memory</h2>
+            <button id="refreshMemoryBtn" class="ghost">Refresh</button>
+          </div>
+          <div class="memory-columns">
+            <div>
+              <h3>Pinned</h3>
+              <div id="pinnedMemory" class="memory-list"></div>
+            </div>
+            <div>
+              <h3>Recent</h3>
+              <div id="recentMemory" class="memory-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-block">
+          <div class="section-head">
+            <h2>Projects</h2>
+            <button id="refreshProjectsBtn" class="ghost">Refresh</button>
+          </div>
+          <div id="projectList" class="project-list"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <template id="chatMessageTemplate">
+    <article class="chat-message">
+      <span class="role"></span>
+      <div class="bubble"></div>
+    </article>
+  </template>
+
+  <script src="/static/hub.js"></script>
+</body>
+</html>

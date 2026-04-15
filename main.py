@@ -278,6 +278,7 @@ async def service_worker():
 
 # Static files
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+app.mount("/demo", StaticFiles(directory=str(_STATIC_DIR)), name="demo")
 
 # ── MCP SSE mounts ────────────────────────────────────────────────────────
 # We create the SSE transports manually so the advertised messages endpoint

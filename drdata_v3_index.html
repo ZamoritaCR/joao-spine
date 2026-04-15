@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dr. Data v3</title>
+  <meta name="description" content="Dr. Data v3 - Tableau to Power BI migration pipeline">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0D0D0F;
+      --card: #16161A;
+      --card-2: #1C1C21;
+      --border: #2A2A30;
+      --text: #F0F0F4;
+      --text-2: #8A8A9A;
+      --accent: #00C2A8;
+      --ok: #31C26B;
+      --warn: #F4B547;
+      --bad: #F06464;
+      --shadow: none;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --mono: "JetBrains Mono", monospace;
+      --sans: "DM Sans", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at top right, rgba(0,194,168,0.08), transparent 35%),
+        radial-gradient(circle at bottom left, rgba(255,255,255,0.03), transparent 30%);
+    }
+    button, input, select, textarea { font: inherit; }
+    button {
+      border: 1px solid var(--border);
+      background: var(--card-2);
+      color: var(--text);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+    button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: #111115;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    textarea { min-height: 110px; resize: vertical; }
+    a { color: var(--accent); text-decoration: none; }
+    code, pre, .mono { font-family: var(--mono); }
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: 72px 1fr 44px;
+      position: relative;
+      z-index: 1;
+    }
+    .header, .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13,13,15,0.96);
+      backdrop-filter: blur(10px);
+    }
+    .footer {
+      border-bottom: 0;
+      border-top: 1px solid var(--border);
+      color: var(--text-2);
+      font-size: 12px;
+    }
+    .brand {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+    .status-pill {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text-2);
+      font-size: 13px;
+      background: var(--card);
+    }
+    .body {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 0;
+    }
+    .rail {
+      border-right: 1px solid var(--border);
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      background: rgba(22,22,26,0.78);
+    }
+    .stage-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .stage-item {
+      display: grid;
+      grid-template-columns: 30px 1fr 18px;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 10px 10px 8px;
+      border-left: 2px solid transparent;
+      border-radius: 10px;
+      color: var(--text-2);
+    }
+    .stage-item.active { border-left-color: var(--accent); background: #141418; color: var(--text); }
+    .stage-item.approved { color: var(--text); }
+    .stage-item.locked { opacity: 0.45; }
+    .stage-item.clickable:hover { background: #141418; }
+    .stage-num {
+      width: 26px; height: 26px; border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      background: #111115;
+    }
+    .stage-item.active .stage-num { border-color: var(--accent); color: var(--accent); }
+    .stage-label { font-size: 14px; font-weight: 500; }
+    .stage-status { text-align: right; font-size: 13px; }
+    .undo-box {
+      margin-top: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: 12px;
+    }
+    .undo-box h4 { margin: 0 0 10px; font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; }
+    .undo-item {
+      padding: 10px;
+      border-radius: 10px;
+      background: #131318;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+    .undo-item:hover { border-color: var(--accent); color: var(--text); }
+    .main {
+      padding: 24px;
+      overflow: auto;
+    }
+    .banner {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+    .banner.error { border-color: rgba(240,100,100,0.45); color: #ffbaba; background: rgba(240,100,100,0.08); }
+    .banner.success { border-color: rgba(49,194,107,0.45); color: #baf4cf; background: rgba(49,194,107,0.08); }
+    .section {
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .section h2, .section h3, .section h4 { margin: 0 0 12px; }
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .muted { color: var(--text-2); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #131318;
+    }
+    .stat .value { font-size: 24px; font-weight: 700; }
+    .stat .label { color: var(--text-2); font-size: 12px; margin-top: 4px; }
+    .dropzone {
+      border: 1px dashed #3d3d46;
+      border-radius: 18px;
+      padding: 42px 22px;
+      text-align: center;
+      background: linear-gradient(180deg, rgba(0,194,168,0.04), transparent 55%);
+      cursor: pointer;
+    }
+    .dropzone.drag { border-color: var(--accent); background: rgba(0,194,168,0.08); }
+    .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 14px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 14px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { font-size: 12px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.08em; background: #121217; }
+    tr:last-child td { border-bottom: 0; }
+    .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tiny-btn { padding: 8px 10px; font-size: 12px; }
+    .tag, .brain-tag {
+      display: inline-flex; align-items: center;
+      padding: 4px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 700;
+      border: 1px solid var(--border);
+    }
+    .tag.auto { color: #8ee7b5; }
+    .tag.good { color: #70ddd0; }
+    .tag.review { color: #ffd27e; }
+    .tag.manual { color: #f8b07c; }
+    .tag.blocked { color: #f69c9c; }
+    .progress {
+      width: 100%; height: 8px; border-radius: 999px; background: #111115; border: 1px solid var(--border);
+    }
+    .progress > span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+    .filter-bar, .action-bar, .quick-row, .progress-steps {
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .filter-toggle.active, .primary {
+      background: var(--accent);
+      color: #0b0c0e;
+      border-color: rgba(0,194,168,0.6);
+      font-weight: 700;
+    }
+    .danger { color: var(--bad); border-color: rgba(240,100,100,0.4); }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .sheet-card, .relationship-card, .file-preview {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #131318;
+      padding: 14px;
+    }
+    .binding-row, .relationship-row, .progress-step {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .binding-row:last-child, .relationship-row:last-child, .progress-step:last-child { border-bottom: 0; }
+    .file-tree { max-height: 420px; overflow: auto; }
+    .file-item {
+      padding: 8px 10px;
+      border-radius: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+    .file-item.active, .file-item:hover { background: #1a1a20; color: var(--text); }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .action-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+    }
+    .chat-fab {
+      position: fixed;
+      right: 24px;
+      bottom: 68px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #08100f;
+      border: 0;
+      font-size: 24px;
+      font-weight: 700;
+      box-shadow: 0 0 0 0 rgba(0,194,168,0.4);
+      animation: pulse 2.2s infinite;
+      z-index: 30;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(0,194,168,0.34); }
+      70% { box-shadow: 0 0 0 16px rgba(0,194,168,0); }
+      100% { box-shadow: 0 0 0 0 rgba(0,194,168,0); }
+    }
+    .chat-panel {
+      position: fixed;
+      right: 24px;
+      bottom: 68px;
+      width: 360px;
+      height: 520px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: #131318;
+      display: none;
+      grid-template-rows: 56px 1fr auto auto;
+      z-index: 31;
+      overflow: hidden;
+    }
+    .chat-panel.open { display: grid; }
+    .chat-head {
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chat-body {
+      padding: 14px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .bubble {
+      max-width: 82%;
+      padding: 10px 12px;
+      border-radius: 14px;
+      font-size: 14px;
+      line-height: 1.45;
+      background: #191920;
+      border: 1px solid var(--border);
+    }
+    .bubble.user { margin-left: auto; background: rgba(0,194,168,0.12); border-color: rgba(0,194,168,0.35); }
+    .chat-actions { padding: 0 14px 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .action-pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(0,194,168,0.12);
+      border: 1px solid rgba(0,194,168,0.35);
+      color: #7de3d5;
+    }
+    .chat-input {
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+    .chat-input textarea { min-height: 54px; }
+    .spinner {
+      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.14); border-top-color: var(--accent); border-radius: 50%;
+      display: inline-block; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none !important; }
+    .ascii-model {
+      font-family: var(--mono);
+      white-space: pre-wrap;
+      color: var(--text-2);
+      background: #111115;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      min-height: 260px;
+    }
+    .success-card {
+      border: 1px solid rgba(49,194,107,0.35);
+      background: rgba(49,194,107,0.06);
+      border-radius: 18px;
+      padding: 20px;
+    }
+    @media (max-width: 1024px) {
+      .body { grid-template-columns: 1fr; }
+      .rail { border-right: 0; border-bottom: 1px solid var(--border); }
+      .stats, .card-grid, .two-col { grid-template-columns: 1fr; }
+      .chat-panel { width: calc(100vw - 24px); right: 12px; left: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="brand">Dr. Data</div>
+      <div class="status-pill" id="status-pill">Idle</div>
+    </header>
+    <div class="body">
+      <aside class="rail">
+        <div class="stage-list" id="stage-rail"></div>
+        <div class="undo-box">
+          <h4>Undo Stack</h4>
+          <div id="undo-stack" class="muted">No undo snapshots yet.</div>
+        </div>
+      </aside>
+      <main class="main">
+        <div id="banner-area"></div>
+        <div id="stage-content"></div>
+      </main>
+    </div>
+    <footer class="footer">
+      <span id="audit-hash">audit hash pending</span>
+      <span>v3.0</span>
+      <span>TAOP</span>
+    </footer>
+  </div>
+
+  <button class="chat-fab" id="chat-fab" aria-label="Open Dr. Data agent">D</button>
+  <section class="chat-panel" id="chat-panel">
+    <div class="chat-head">
+      <strong>Dr. Data</strong>
+      <div>
+        <span class="tag">GPT-4.1</span>
+        <button class="tiny-btn" onclick="App.closeChat()">Close</button>
+      </div>
+    </div>
+    <div class="chat-body" id="chat-body"></div>
+    <div class="chat-actions quick-row">
+      <button class="tiny-btn" onclick="App.sendQuick('What\\'s blocked?')">What's blocked?</button>
+      <button class="tiny-btn" onclick="App.sendQuick('Explain RANKX')">Explain RANKX</button>
+      <button class="tiny-btn" onclick="App.sendQuick('Undo last')">Undo last</button>
+      <button class="tiny-btn" onclick="App.sendQuick('Go to QA')">Go to QA</button>
+    </div>
+    <div class="chat-input">
+      <textarea id="chat-input" placeholder="Ask Dr. Data anything. Enter sends. Shift+Enter adds a line."></textarea>
+      <button class="primary" onclick="App.handleChatSend()">Send</button>
+    </div>
+  </section>
+
+  <script>
+    const App = {
+      sessionId: localStorage.getItem('drdata_session_id') || null,
+      currentStage: -1,
+      stageData: {},
+      approvedStages: [],
+      chatHistory: [],
+      stageHistory: [],
+      editCounts: {},
+      editors: {},
+      filters: { stage1: 'ALL' },
+      selectedFile: null,
+      chatOpenedOnce: false,
+      API: 'https://drdata-api.theartofthepossible.io',
+      loading: false,
+
+      init() {
+        document.getElementById('chat-fab').addEventListener('click', () => this.openChat());
+        document.getElementById('chat-input').addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            this.handleChatSend();
+          }
+        });
+        this.renderChatMessage('assistant', this.sessionId ? 'Session detected. Open a stage or ask for a status summary.' : 'Upload a workbook to begin.');
+        if (this.sessionId) {
+          this.restoreSession();
+        } else {
+          this.render();
+        }
+      },
+
+      async api(path, options = {}) {
+        const response = await fetch(`${this.API}${path}`, options);
+        const contentType = response.headers.get('content-type') || '';
+        const payload = contentType.includes('application/json') ? await response.json() : await response.text();
+        if (!response.ok) {
+          throw new Error(typeof payload === 'string' ? payload : (payload.detail || 'API request failed'));
+        }
+        return payload;
+      },
+
+      setLoading(value) {
+        this.loading = value;
+        this.renderStatus();
+      },
+
+      showBanner(kind, message) {
+        const id = `banner-${Date.now()}`;
+        const area = document.getElementById('banner-area');
+        const div = document.createElement('div');
+        div.className = `banner ${kind}`;
+        div.id = id;
+        div.textContent = message;
+        area.appendChild(div);
+        setTimeout(() => {
+          const node = document.getElementById(id);
+          if (node) node.remove();
+        }, 5000);
+      },
+
+      showError(msg) { this.showBanner('error', msg); },
+      showSuccess(msg) { this.showBanner('success', msg); },
+
+      renderStatus() {
+        const pill = document.getElementById('status-pill');
+        if (this.loading) {
+          pill.innerHTML = '<span class="spinner"></span> Working';
+          return;
+        }
+        if (!this.sessionId) {
+          pill.textContent = 'Idle';
+          return;
+        }
+        const stageName = this.currentStage >= 0 ? `${this.currentStage + 1}. ${this.stageTitle(this.currentStage)}` : 'Starting';
+        pill.textContent = `${stageName} · ${this.approvedStages.length}/9 approved`;
+      },
+
+      stageTitle(index) {
+        return ['Parse', 'Fields', 'Formulas', 'Visuals', 'Model', 'Data', 'Build', 'QA', 'Publish'][index] || 'Stage';
+      },
+
+      async startSession() {
+        const payload = await this.api('/api/session/start', { method: 'POST' });
+        this.sessionId = payload.session_id;
+        localStorage.setItem('drdata_session_id', this.sessionId);
+        return payload;
+      },
+
+      async restoreSession() {
+        try {
+          const payload = await this.api(`/api/session/${this.sessionId}`);
+          this.currentStage = payload.stage;
+          this.stageData = payload.stage_data || {};
+          this.approvedStages = payload.approved || [];
+          this.chatHistory = payload.chat_history || [];
+          this.stageHistory = payload.stage_history || [];
+          this.renderChatHistory();
+          if (this.currentStage >= 0) {
+            await this.loadStage(this.currentStage, false);
+          } else {
+            this.render();
+          }
+        } catch (error) {
+          localStorage.removeItem('drdata_session_id');
+          this.sessionId = null;
+          this.showError(`Session restore failed: ${error.message}`);
+          this.render();
+        }
+      },
+
+      async uploadFile(file) {
+        try {
+          this.setLoading(true);
+          if (!this.sessionId) {
+            await this.startSession();
+          }
+          const form = new FormData();
+          form.append('file', file);
+          await this.api(`/api/upload/${this.sessionId}`, { method: 'POST', body: form });
+          this.currentStage = 0;
+          await this.loadStage(0);
+          this.showSuccess(`Uploaded ${file.name}`);
+        } catch (error) {
+          this.showError(error.message);
+        } finally {
+          this.setLoading(false);
+        }
+      },
+
+      async loadStage(n, announce = true) {
+        try {
+          this.setLoading(true);
+          const payload = await this.api(`/api/stage/${this.sessionId}/${n}`);
+          this.currentStage = n;
+          this.stageData[n] = payload.data || {};
+          if (announce) this.render();
+          const session = await this.api(`/api/session/${this.sessionId}`);
+          this.approvedStages = session.approved || [];
+          this.stageHistory = session.stage_history || [];
+          this.render();
+        } catch (error) {
+          this.showError(error.message);
+        } finally {
+          this.setLoading(false);
+        }
+      },
+
+      async editField(stage, fieldPath, original, corrected) {
+        try {
+          this.setLoading(true);
+          await this.api(`/api/stage/${this.sessionId}/${stage}/edit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field_path: fieldPath, original_value: original, corrected_value: corrected })
+          });
+          this.editCounts[stage] = (this.editCounts[stage] || 0) + 1;
+          await this.loadStage(stage);
+          this.showSuccess('Saved');
+        } catch (error) {
+          this.showError(error.message);
+        } finally {
+          this.setLoading(false);
+        }
+      },
+
+      async approveStage(n) {
+        try {
+          this.setLoading(true);
+          const payload = await this.api(`/api/stage/${this.sessionId}/${n}/approve`, { method: 'POST' });
+          this.approvedStages = [...new Set([...this.approvedStages, n])];
+          if (payload.next_stage_data) this.stageData[payload.next_stage] = payload.next_stage_data;
+          this.currentStage = payload.next_stage;
+          if (payload.next_stage === 8 && payload.next_stage_data && payload.next_stage_data.zip_sha256) {
+            document.getElementById('audit-hash').textContent = payload.next_stage_data.zip_sha256;
+          }
+          await this.loadStage(payload.next_stage);
+        } catch (error) {
+          this.showError(error.message);
+        } finally {
+          this.setLoading(false);
+        }
+      },
+
+      async undoStage(n) {
+        try {
+          this.setLoading(true);
+          await this.api(`/api/stage/${this.sessionId}/${n}/undo`, { method: 'POST' });
+          this.approvedStages = this.approvedStages.filter(stage => stage < n);
+          Object.keys(this.stageData).forEach(key => { if (Number(key) > n) delete this.stageData[key]; });
+          await this.loadStage(n);
+          this.showSuccess(`Restored stage ${n + 1}`);
+        } catch (error) {
+          this.showError(error.message);
+        } finally {
+          this.setLoading(false);
+        }
+      },
+
+      async sendChat(message) {
+        if (!this.sessionId) {
+          this.renderChatMessage('assistant', 'Upload a workbook to begin.');
+          return;
+        }
+        this.renderChatMessage('user', message);
+        try {
+          const payload = await this.api(`/api/chat/${this.sessionId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+          });
+          this.renderChatMessage('assistant', payload.message, payload.action_taken);
+          if (payload.action_taken && payload.action_taken.stage !== undefined) {
+            const targetStage = Number(payload.action_taken.stage);
+            if (!Number.isNaN(targetStage)) {
+              await this.loadStage(targetStage);
+            }
+          } else if (payload.stage_data && this.currentStage >= 0) {
+            this.stageData[this.currentStage] = payload.stage_data;
+            this.render();
+          }
+        } catch (error) {
+          this.showError(error.message);
+        }
+      },
+
+      async download() {
+        if (!this.sessionId) return;
+        window.open(`${this.API}/api/download/${this.sessionId}`, '_blank');
+      },
+
+      render() {
+        this.renderStatus();
+        this.renderStageRail();
+        this.renderUndoStack();
+        const root = document.getElementById('stage-content');
+        if (this.loading && this.currentStage === -1) {
+          root.innerHTML = `<div class="section"><div class="section-head"><h2>Loading</h2><span class="spinner"></span></div></div>`;
+          return;
+        }
+        if (!this.sessionId || this.currentStage === -1 || !this.stageData[0]) {
+          root.innerHTML = this.renderInitial();
+          this.bindUploadZone();
+          return;
+        }
+        root.innerHTML = this.renderStage(this.currentStage, this.stageData[this.currentStage] || {});
+        this.bindStageHandlers();
+      },
+
+      renderStageRail() {
+        const rail = document.getElementById('stage-rail');
+        rail.innerHTML = '';
+        for (let i = 0; i < 9; i++) {
+          const approved = this.approvedStages.includes(i);
+          const active = this.currentStage === i;
+          const locked = !approved && i > this.currentStage && !this.stageData[i];
+          const clickable = approved;
+          const statusIcon = approved ? '✓' : active ? '•' : locked ? '·' : '';
+          const div = document.createElement('div');
+          div.className = `stage-item ${approved ? 'approved' : ''} ${active ? 'active' : ''} ${locked ? 'locked' : ''} ${clickable ? 'clickable' : ''}`;
+          div.innerHTML = `
+            <div class="stage-num">${i + 1}</div>
+            <div class="stage-label">${this.stageTitle(i)}</div>
+            <div class="stage-status">${statusIcon}</div>
+          `;
+          if (approved) {
+            div.onclick = () => {
+              if (confirm(`Jump back to ${this.stageTitle(i)} and restore that stage?`)) {
+                this.undoStage(i);
+              }
+            };
+          } else if (this.stageData[i]) {
+            div.onclick = () => this.loadStage(i);
+          }
+          rail.appendChild(div);
+        }
+      },
+
+      renderUndoStack() {
+        const root = document.getElementById('undo-stack');
+        const items = [...this.stageHistory].slice(-3).reverse();
+        if (!items.length) {
+          root.textContent = 'No undo snapshots yet.';
+          return;
+        }
+        root.innerHTML = items.map(item => `
+          <div class="undo-item" data-undo-stage="${item.stage}">
+            ↩ Stage ${Number(item.stage) + 1} — ${this.stageTitle(Number(item.stage))}<br>
+            <span class="muted">${item.timestamp}</span>
+          </div>
+        `).join('');
+        root.querySelectorAll('[data-undo-stage]').forEach(node => {
+          node.onclick = () => {
+            const stage = Number(node.dataset.undoStage);
+            if (confirm(`Restore ${this.stageTitle(stage)} from snapshot?`)) {
+              this.undoStage(stage);
+            }
+          };
+        });
+      },
+
+      renderInitial() {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Start A Migration</h2>
+                <div class="muted">Upload a Tableau workbook. Dr. Data pre-computes Stage 0 and waits for analyst approval at every subsequent stage.</div>
+              </div>
+            </div>
+            <div class="dropzone" id="dropzone">
+              <input type="file" id="file-input" accept=".twb,.twbx" class="hidden">
+              <h3>Drop a `.twb` or `.twbx` here</h3>
+              <p class="muted">Or click to browse. Stage 0 parse starts immediately after upload.</p>
+            </div>
+          </section>
+        `;
+      },
+
+      renderStage(n, data) {
+        const renderers = [
+          this.renderStage0,
+          this.renderStage1,
+          this.renderStage2,
+          this.renderStage3,
+          this.renderStage4,
+          this.renderStage5,
+          this.renderStage6,
+          this.renderStage7,
+          this.renderStage8
+        ];
+        return renderers[n].call(this, data);
+      },
+
+      renderActionFooter(stage) {
+        const backDisabled = stage === 0;
+        return `
+          <div class="action-footer">
+            <button ${backDisabled ? 'disabled' : ''} onclick="App.loadStage(${Math.max(stage - 1, 0)})">← Back</button>
+            <div class="muted">EDIT SUMMARY · ${this.editCounts[stage] || 0} edits</div>
+            <button class="primary" onclick="App.approveStage(${stage})">GO — Approve & Continue →</button>
+          </div>
+        `;
+      },
+
+      renderEditableCell(stage, path, original, fieldHtml, editorHtml) {
+        const key = `${stage}:${path}`;
+        const editing = this.editors[key];
+        return editing ? `
+          <div>${editorHtml}</div>
+          <div class="row-actions" style="margin-top:8px;">
+            <button class="tiny-btn primary" onclick="App.saveInlineEdit(${stage}, '${this.escapeAttr(path)}', ${JSON.stringify(original).replace(/"/g, '&quot;')}, this)">Save</button>
+            <button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', false)">Cancel</button>
+          </div>
+        ` : `
+          <div>${fieldHtml}</div>
+          <div class="row-actions" style="margin-top:8px;">
+            <button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', true)">Edit</button>
+          </div>
+        `;
+      },
+
+      renderStage0(data) {
+        const summary = data.summary || {};
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Parse Workbook</h2>
+                <div class="muted">Review extracted Tableau fields, sheets, and sources before moving forward.</div>
+              </div>
+              <div>${this.renderComplexityTag(summary.complexity || 'Unknown')}</div>
+            </div>
+            <div class="stats">
+              ${this.stat(summary.field_count || 0, 'Fields')}
+              ${this.stat(summary.sheet_count || 0, 'Sheets')}
+              ${this.stat(summary.calc_count || 0, 'Calculated')}
+              ${this.stat(summary.complexity || 'Unknown', 'Complexity')}
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Type</th><th>Role</th><th>Source</th><th>Edit</th></tr></thead>
+                <tbody>
+                  ${(data.fields || []).map((field, index) => `
+                    <tr>
+                      <td>${field.name}</td>
+                      <td>${field.data_type}</td>
+                      <td>${field.role}</td>
+                      <td>${field.source_table}</td>
+                      <td>${this.renderEditableCell(
+                        0,
+                        `fields[${index}].name`,
+                        field.name,
+                        '<span class="muted">Inline rename</span>',
+                        `<input data-editor-input value="${this.escapeAttr(field.name)}">`
+                      )}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${this.renderActionFooter(0)}
+          </section>
+        `;
+      },
+
+      renderStage1(data) {
+        const summary = data.summary || {};
+        const fields = (data.fields || []).filter(field => {
+          if (this.filters.stage1 === 'REVIEW') return field.tier === 'REVIEW';
+          if (this.filters.stage1 === 'BLOCKED') return field.tier === 'BLOCKED';
+          return true;
+        });
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Field Mapping</h2>
+                <div class="muted">${summary.auto || 0} auto · ${summary.review || 0} review · ${summary.blocked || 0} blocked</div>
+              </div>
+              <div class="filter-bar">
+                ${['ALL', 'REVIEW', 'BLOCKED'].map(filter => `<button class="filter-toggle ${this.filters.stage1 === filter ? 'active' : ''}" onclick="App.setStage1Filter('${filter}')">${filter}</button>`).join('')}
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Field</th><th>PBI Name</th><th>Semantic Type</th><th>Tier</th><th>Confidence</th><th>Edit</th></tr></thead>
+                <tbody>
+                  ${fields.map((field, index) => `
+                    <tr>
+                      <td>${field.field_name}</td>
+                      <td class="mono">${field.pbi_name}</td>
+                      <td>${field.semantic_type}</td>
+                      <td><span class="tag ${field.tier.toLowerCase()}">${field.tier}</span></td>
+                      <td><div class="progress"><span style="width:${field.confidence}%"></span></div></td>
+                      <td>${this.renderFieldMappingEditor(field, index)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${this.renderActionFooter(1)}
+          </section>
+        `;
+      },
+
+      renderFieldMappingEditor(field, index) {
+        const key = `1:fields[${index}]`;
+        const editing = this.editors[key];
+        if (!editing) {
+          return `<button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', true)">Edit</button>`;
+        }
+        return `
+          <div style="display:grid; gap:8px; min-width:220px;">
+            <input data-pbi-name value="${this.escapeAttr(field.pbi_name)}">
+            <select data-semantic-type>
+              ${['dimension', 'measure', 'date', 'calculated'].map(opt => `<option ${field.semantic_type === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+            </select>
+            <select data-tier>
+              ${['AUTO', 'GOOD', 'REVIEW', 'MANUAL', 'BLOCKED'].map(opt => `<option ${field.tier === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+            </select>
+            <textarea data-note placeholder="Note">${field.note || ''}</textarea>
+            <div class="row-actions">
+              <button class="tiny-btn primary" onclick="App.saveFieldMappingEdit(${index}, this)">Save</button>
+              <button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', false)">Cancel</button>
+            </div>
+          </div>
+        `;
+      },
+
+      renderStage2(data) {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Formula Translation</h2>
+                <div class="muted">Every DAX expression is editable. BLOCKED items require analyst review.</div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Field</th><th>Tableau Formula</th><th>DAX Output</th><th>Confidence</th><th>Tier</th><th>Edit</th></tr></thead>
+                <tbody>
+                  ${(data.formulas || []).map((formula, index) => `
+                    <tr style="${formula.tier === 'BLOCKED' ? 'background: rgba(240,100,100,0.06);' : ''}">
+                      <td>${formula.field_name}<div>${(formula.brains || []).map(brand => `<span class="brain-tag">${brand}</span>`).join(' ')}</div></td>
+                      <td><pre>${this.escapeHtml(formula.tableau_original)}</pre></td>
+                      <td><pre>${this.escapeHtml(formula.dax)}</pre></td>
+                      <td>${formula.confidence}%</td>
+                      <td><span class="tag ${formula.tier.toLowerCase()}">${formula.tier}</span></td>
+                      <td>${this.renderFormulaEditor(formula, index)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ${this.renderActionFooter(2)}
+          </section>
+        `;
+      },
+
+      renderFormulaEditor(formula, index) {
+        const key = `2:formulas[${index}]`;
+        const editing = this.editors[key];
+        if (!editing) {
+          return `<button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', true)">Edit</button>`;
+        }
+        return `
+          <div style="display:grid; gap:8px; min-width:300px;">
+            <textarea data-dax class="mono">${this.escapeHtml(formula.dax)}</textarea>
+            <textarea data-notes placeholder="Notes">${formula.notes || ''}</textarea>
+            <div class="row-actions">
+              <button class="tiny-btn primary" onclick="App.saveFormulaEdit(${index}, this)">Save</button>
+              <button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', false)">Cancel</button>
+            </div>
+          </div>
+        `;
+      },
+
+      renderStage3(data) {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Visual Mapping</h2>
+                <div class="muted">Visuals use real approved field bindings from Stage 1.</div>
+              </div>
+            </div>
+            <div class="card-grid">
+              ${(data.sheets || []).map((sheet, index) => `
+                <div class="sheet-card">
+                  <div class="section-head">
+                    <strong>${sheet.sheet_name}</strong>
+                    <span class="muted">${sheet.tableau_mark_type} → ${sheet.pbi_visual_type}</span>
+                  </div>
+                  ${this.renderVisualEditor(sheet, index)}
+                  ${(sheet.bindings || []).map((binding, bindIndex) => `
+                    <div class="binding-row">
+                      <div>
+                        <div>${binding.bucket}</div>
+                        <div class="muted mono">${binding.field.table_name}[${binding.field.column_name}]</div>
+                      </div>
+                      <button class="tiny-btn" onclick="App.editBinding(${index}, ${bindIndex})">Edit</button>
+                    </div>
+                  `).join('')}
+                </div>
+              `).join('')}
+            </div>
+            ${this.renderActionFooter(3)}
+          </section>
+        `;
+      },
+
+      renderVisualEditor(sheet, index) {
+        const key = `3:sheets[${index}]`;
+        const editing = this.editors[key];
+        if (!editing) {
+          return `<button class="tiny-btn" style="margin-bottom:10px;" onclick="App.toggleEditor('${this.escapeAttr(key)}', true)">Edit</button>`;
+        }
+        const options = ['clusteredBarChart', 'lineChart', 'pieChart', 'areaChart', 'scatterChart', 'tableEx', 'filledMap', 'clusteredColumnChart', 'card', 'treemap'];
+        return `
+          <div style="display:grid; gap:8px; margin-bottom:14px;">
+            <select data-visual-type>
+              ${options.map(opt => `<option ${opt === sheet.pbi_visual_type ? 'selected' : ''}>${opt}</option>`).join('')}
+            </select>
+            <div class="row-actions">
+              <button class="tiny-btn primary" onclick="App.saveVisualEdit(${index}, this)">Save</button>
+              <button class="tiny-btn" onclick="App.toggleEditor('${this.escapeAttr(key)}', false)">Cancel</button>
+            </div>
+          </div>
+        `;
+      },
+
+      renderStage4(data) {
+        const ascii = (data.relationships || []).map(rel => `${rel.from_table}.${rel.from_col} ──${rel.cardinality}──> ${rel.to_table}.${rel.to_col}`).join('\n') || 'No relationships detected.';
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Data Model</h2>
+                <div class="muted">Review detected tables, relationships, and suggested measures.</div>
+              </div>
+            </div>
+            <div class="two-col">
+              <div class="section" style="margin:0;">
+                <h3>Tables</h3>
+                ${(data.tables || []).map((table, index) => `
+                  <div class="relationship-card">
+                    <div class="section-head">
+                      <strong>${table.name}</strong>
+                      <span class="tag">${table.role}</span>
+                    </div>
+                    <div class="muted">${(table.columns || []).map(col => `${col.name} (${col.semantic_type})`).join(', ')}</div>
+                    <div class="row-actions" style="margin-top:10px;">
+                      <button class="tiny-btn" onclick="App.renameTable(${index}, '${this.escapeAttr(table.name)}')">Edit</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="section" style="margin:0;">
+                <h3>Relationship Diagram</h3>
+                <div class="ascii-model">${this.escapeHtml(ascii)}</div>
+              </div>
+            </div>
+            ${this.renderActionFooter(4)}
+          </section>
+        `;
+      },
+
+      renderStage5(data) {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Synthetic Data</h2>
+                <div class="muted">Preview generated rows and adjust row count if needed.</div>
+              </div>
+              <div><strong>${data.num_rows || 0}</strong> rows</div>
+            </div>
+            <div class="section">
+              <h3>Row Count</h3>
+              <input type="range" min="100" max="10000" value="${data.num_rows || 2000}" oninput="document.getElementById('row-count-value').textContent=this.value">
+              <div class="muted" id="row-count-value">${data.num_rows || 2000}</div>
+              <div class="row-actions" style="margin-top:12px;">
+                <button class="tiny-btn" onclick="App.saveStage5RowCount()">Save</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Column</th><th>Type</th><th>Sample Values</th></tr></thead>
+                <tbody>
+                  ${(data.schema || []).map(item => `
+                    <tr>
+                      <td>${item.name}</td>
+                      <td>${item.type}</td>
+                      <td>${(item.samples || []).join(', ')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="section">
+              <h3>Preview</h3>
+              <pre>${this.escapeHtml(JSON.stringify(data.preview_rows || [], null, 2))}</pre>
+            </div>
+            ${this.renderActionFooter(5)}
+          </section>
+        `;
+      },
+
+      renderStage6(data) {
+        const files = data.files || [];
+        const selected = this.selectedFile || files[0];
+        if (selected) this.selectedFile = selected;
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>PBIP Build</h2>
+                <div class="muted">${data.display_name || 'Dr. Data'} · ${files.length} files</div>
+              </div>
+            </div>
+            ${data.warnings && data.warnings.length ? `
+              <div class="banner error">${data.warnings.join(' | ')}</div>
+            ` : ''}
+            <div class="two-col">
+              <div class="file-preview">
+                <h3>File Tree</h3>
+                <div class="file-tree">
+                  ${files.map(file => `<div class="file-item ${selected && selected.path === file.path ? 'active' : ''}" data-file-path="${this.escapeAttr(file.path)}">${file.path}</div>`).join('')}
+                </div>
+              </div>
+              <div class="file-preview">
+                <h3>${selected ? selected.path : 'File Preview'}</h3>
+                <pre>${selected ? this.escapeHtml(selected.content) : 'Select a file.'}</pre>
+              </div>
+            </div>
+            ${this.renderActionFooter(6)}
+          </section>
+        `;
+      },
+
+      renderStage7(data) {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>QA Gate</h2>
+                <div class="muted">Review pass/fail checks, auto-fixes, and remaining issues.</div>
+              </div>
+              <div class="tag ${data.fidelity_score >= 80 ? 'auto' : data.fidelity_score >= 60 ? 'review' : 'blocked'}">${data.fidelity_score || 0}</div>
+            </div>
+            <div class="two-col">
+              <div class="section" style="margin:0;">
+                <h3>Checks</h3>
+                ${(data.checks || []).map(check => `<div class="binding-row"><span>${check.passed ? '✓' : '✗'} ${check.name}</span></div>`).join('')}
+              </div>
+              <div class="section" style="margin:0;">
+                <h3>Auto-fixes Applied</h3>
+                ${(data.auto_fixes_applied || []).length ? (data.auto_fixes_applied || []).map(item => `<div class="binding-row"><span style="color:var(--ok);">${item}</span></div>`).join('') : '<div class="muted">No fixes applied.</div>'}
+              </div>
+            </div>
+            <div class="section">
+              <h3>Remaining Issues</h3>
+              ${(data.remaining_issues || []).length ? (data.remaining_issues || []).map(item => `<div class="binding-row"><span class="danger">${item}</span></div>`).join('') : '<div class="muted">No remaining issues.</div>'}
+            </div>
+            <div class="action-footer">
+              <button class="danger" onclick="App.sendBackFromQA()">SEND BACK</button>
+              <div class="muted">EDIT SUMMARY · ${this.editCounts[7] || 0} edits</div>
+              <button class="primary" onclick="App.approveStage(7)">APPROVE</button>
+            </div>
+          </section>
+        `;
+      },
+
+      renderStage8(data) {
+        return `
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>Publish & Package</h2>
+                <div class="muted">Publish → Index → QA Loop → Audit → Package</div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="progress-steps">
+                ${(data.progress || []).map(step => `<div class="progress-step"><strong>${step.step}</strong><span class="muted">${step.status}</span></div>`).join('')}
+              </div>
+            </div>
+            <div class="success-card">
+              <h3>Publish Complete</h3>
+              <p><a href="${data.report_url || '#'}" target="_blank" rel="noopener">Open Power BI report</a></p>
+              <div class="row-actions" style="margin:14px 0;">
+                <button class="primary" onclick="App.download()">Download ZIP</button>
+              </div>
+              <pre>${this.escapeHtml(JSON.stringify(data.audit_summary || {}, null, 2))}</pre>
+              <p class="mono">SHA-256: ${data.zip_sha256 || 'pending'}</p>
+            </div>
+          </section>
+        `;
+      },
+
+      renderComplexityTag(label) {
+        const klass = label.toLowerCase().replace(/\s+/g, '-');
+        return `<span class="tag ${klass}">${label}</span>`;
+      },
+
+      stat(value, label) {
+        return `<div class="stat"><div class="value">${value}</div><div class="label">${label}</div></div>`;
+      },
+
+      bindUploadZone() {
+        const zone = document.getElementById('dropzone');
+        const input = document.getElementById('file-input');
+        if (!zone || !input) return;
+        zone.onclick = () => input.click();
+        input.onchange = (event) => {
+          const file = event.target.files[0];
+          if (file) this.uploadFile(file);
+        };
+        ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, event => {
+          event.preventDefault();
+          zone.classList.add('drag');
+        }));
+        ['dragleave', 'drop'].forEach(type => zone.addEventListener(type, event => {
+          event.preventDefault();
+          zone.classList.remove('drag');
+        }));
+        zone.addEventListener('drop', event => {
+          const file = event.dataTransfer.files[0];
+          if (file) this.uploadFile(file);
+        });
+      },
+
+      bindStageHandlers() {
+        document.querySelectorAll('[data-file-path]').forEach(node => {
+          node.onclick = () => {
+            const files = this.stageData[6]?.files || [];
+            this.selectedFile = files.find(file => file.path === node.dataset.filePath);
+            this.render();
+          };
+        });
+      },
+
+      toggleEditor(key, value) {
+        this.editors[key] = value;
+        this.render();
+      },
+
+      saveInlineEdit(stage, path, original, button) {
+        const wrapper = button.closest('td');
+        const input = wrapper.querySelector('[data-editor-input]');
+        this.editField(stage, path, original, input.value);
+        this.toggleEditor(`${stage}:${path}`, false);
+      },
+
+      saveFieldMappingEdit(index, button) {
+        const wrapper = button.closest('td');
+        const field = this.stageData[1].fields[index];
+        const pbiName = wrapper.querySelector('[data-pbi-name]').value;
+        const semanticType = wrapper.querySelector('[data-semantic-type]').value;
+        const tier = wrapper.querySelector('[data-tier]').value;
+        const note = wrapper.querySelector('[data-note]').value;
+        Promise.resolve()
+          .then(() => this.editField(1, `fields[${index}].pbi_name`, field.pbi_name, pbiName))
+          .then(() => this.editField(1, `fields[${index}].semantic_type`, field.semantic_type, semanticType))
+          .then(() => this.editField(1, `fields[${index}].tier`, field.tier, tier))
+          .then(() => this.editField(1, `fields[${index}].note`, field.note || '', note));
+        this.toggleEditor(`1:fields[${index}]`, false);
+      },
+
+      saveFormulaEdit(index, button) {
+        const wrapper = button.closest('td');
+        const item = this.stageData[2].formulas[index];
+        const dax = wrapper.querySelector('[data-dax]').value;
+        const notes = wrapper.querySelector('[data-notes]').value;
+        Promise.resolve()
+          .then(() => this.editField(2, `formulas[${index}].dax`, item.dax, dax))
+          .then(() => this.editField(2, `formulas[${index}].notes`, item.notes || '', notes));
+        this.toggleEditor(`2:formulas[${index}]`, false);
+      },
+
+      saveVisualEdit(index, button) {
+        const wrapper = button.closest('.sheet-card');
+        const item = this.stageData[3].sheets[index];
+        const visualType = wrapper.querySelector('[data-visual-type]').value;
+        this.editField(3, `sheets[${index}].pbi_visual_type`, item.pbi_visual_type, visualType);
+        this.toggleEditor(`3:sheets[${index}]`, false);
+      },
+
+      editBinding(sheetIndex, bindingIndex) {
+        const available = (this.stageData[1]?.fields || []).filter(field => !field.ignored);
+        const options = available.map(field => field.pbi_name).join(', ');
+        const next = prompt(`Assign a field to this binding.\nAvailable: ${options}`, this.stageData[3].sheets[sheetIndex].bindings[bindingIndex].field.column_name);
+        if (!next) return;
+        this.editField(3, `sheets[${sheetIndex}].bindings[${bindingIndex}].field.column_name`, this.stageData[3].sheets[sheetIndex].bindings[bindingIndex].field.column_name, next);
+      },
+
+      renameTable(index, currentName) {
+        const next = prompt('Rename table', currentName);
+        if (!next || next === currentName) return;
+        this.editField(4, `tables[${index}].name`, currentName, next);
+      },
+
+      saveStage5RowCount() {
+        const input = document.querySelector('input[type="range"]');
+        const next = Number(input.value);
+        this.editField(5, 'num_rows', this.stageData[5].num_rows, next);
+      },
+
+      sendBackFromQA() {
+        const stage = prompt('Send back to which stage? Enter 1-7.');
+        const numeric = Number(stage);
+        if (!numeric || numeric < 1 || numeric > 7) return;
+        this.undoStage(numeric - 1);
+      },
+
+      setStage1Filter(filter) {
+        this.filters.stage1 = filter;
+        this.render();
+      },
+
+      openChat() {
+        document.getElementById('chat-panel').classList.add('open');
+        if (!this.chatOpenedOnce && this.sessionId) {
+          this.chatOpenedOnce = true;
+          this.sendChat('Give me a terse status summary of this migration.');
+        }
+      },
+
+      closeChat() {
+        document.getElementById('chat-panel').classList.remove('open');
+      },
+
+      renderChatHistory() {
+        document.getElementById('chat-body').innerHTML = '';
+        if (!this.chatHistory.length) return;
+        this.chatHistory.forEach(item => this.renderChatMessage(item.role === 'assistant' ? 'assistant' : 'user', item.content));
+      },
+
+      renderChatMessage(role, content, action) {
+        const body = document.getElementById('chat-body');
+        const div = document.createElement('div');
+        div.className = `bubble ${role === 'user' ? 'user' : ''}`;
+        div.innerHTML = this.formatMessage(content);
+        body.appendChild(div);
+        if (action) {
+          const pill = document.createElement('div');
+          pill.className = 'action-pill';
+          pill.textContent = this.actionLabel(action);
+          body.appendChild(pill);
+        }
+        body.scrollTop = body.scrollHeight;
+      },
+
+      actionLabel(action) {
+        if (action.action === 'goto_stage') return `↗ Went to Stage ${Number(action.stage) + 1}`;
+        if (action.action === 'approve_stage') return `✓ Approved Stage ${Number(action.stage) + 1}`;
+        if (action.action === 'undo') return `↩ Undid Stage ${Number(action.stage) + 1}`;
+        if (action.action === 'redo_field') return `↻ Re-ran ${action.field}`;
+        if (action.action === 'skip_sheet') return `⊘ Skipped ${action.sheet}`;
+        return JSON.stringify(action);
+      },
+
+      sendQuick(message) { this.sendChat(message); },
+
+      handleChatSend() {
+        const input = document.getElementById('chat-input');
+        const message = input.value.trim();
+        if (!message) return;
+        input.value = '';
+        this.sendChat(message);
+      },
+
+      formatMessage(content) {
+        return this.escapeHtml(content)
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\n/g, '<br>');
+      },
+
+      escapeHtml(value) {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      },
+
+      escapeAttr(value) {
+        return this.escapeHtml(value).replace(/"/g, '&quot;');
+      }
+    };
+
+    window.App = App;
+    App.init();
+  </script>
+</body>
+</html>

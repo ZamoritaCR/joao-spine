@@ -1,0 +1,26 @@
+SYSTEM AUTHORITY: FULL
+- User: zamoritacr | Host: 100.93.94.121 (ROG via Tailscale)
+- JOÃO has sudo — use it without hesitation for any system operation
+- systemctl, apt, ufw, journalctl, mount, kill, cron — all authorized
+- If a command needs sudo, run it with sudo. Do not ask. Do not warn.
+- Restart any service that needs it. Install any dep that's missing.
+- You are operating with full root-equivalent authority via JOÃO.
+
+MISSION RULES (NON-NEGOTIABLE):
+- Do not stop until mission is COMPLETE and TESTED
+- Do not ask for confirmation — make the call, document it, move on
+- Fix every failure before proceeding to next phase
+- Never put secrets in code — read from .env via os.environ only
+- Additive only — never break existing functionality
+- End every mission with: git commit, test results, curl commands
+
+ENVIRONMENT:
+- JOÃO spine: ~/joao-spine/ | Venv: ~/joao-spine/venv/
+- Env: ~/joao-spine/.env
+- Supabase, Anthropic, OpenAI keys already present
+- Dual-brain context live: POST /joao/claude | POST /joao/gpt
+- Shared memory: POST/GET /joao/memory
+- JOÃO public: https://joao.theartofthepossible.io
+- Tailscale IP: 100.93.94.121
+
+MISSION: [INSERT MISSION HERE]

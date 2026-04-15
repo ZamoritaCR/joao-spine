@@ -1,0 +1,88 @@
+{
+  "tables": [
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "federated",
+      "columns": [
+        {
+          "name": "Customer Type",
+          "type": "string",
+          "role": "dimension"
+        },
+        {
+          "name": "Date",
+          "type": "date",
+          "role": "dimension"
+        },
+        {
+          "name": "Number of Records",
+          "type": "integer",
+          "role": "measure"
+        },
+        {
+          "name": "Region",
+          "type": "string",
+          "role": "dimension"
+        },
+        {
+          "name": "State Code",
+          "type": "string",
+          "role": "dimension"
+        },
+        {
+          "name": "State Name",
+          "type": "string",
+          "role": "dimension"
+        },
+        {
+          "name": "Sub-Region",
+          "type": "string",
+          "role": "dimension"
+        }
+      ]
+    },
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "columns": []
+    },
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "columns": []
+    },
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "columns": []
+    },
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "columns": []
+    },
+    {
+      "source_name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "columns": []
+    }
+  ],
+  "relationships": [],
+  "measures": [
+    {
+      "name": "[Number of Records]",
+      "dax_expression": "1",
+      "confidence": 1.0,
+      "warnings": []
+    }
+  ],
+  "total_calculated_fields": 1,
+  "successfully_translated": 1,
+  "needs_manual_review": 0
+}

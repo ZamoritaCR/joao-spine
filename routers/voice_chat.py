@@ -14,6 +14,8 @@ import httpx
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from services import supabase_client
+
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["voice-chat"])
 
@@ -39,12 +41,37 @@ class TTSRequest(BaseModel):
     text: str
 
 
+async def _persist_voice_session(session_id: str, history: list[dict], assistant_text: str, source: str) -> None:
+    if not history:
+        return
+    user_text = ""
+    for message in reversed(history):
+        if message.get("role") == "user":
+            user_text = str(message.get("content", ""))
+            break
+    summary = assistant_text[:200] if assistant_text else user_text[:200]
+    await supabase_client.upsert_joao_session(
+        session_id=session_id,
+        messages=history[-40:],
+        name="Voice conversation",
+        summary=summary,
+        source=source,
+        metadata={"channel": "voice"},
+    )
+    await supabase_client.insert_joao_memory(
+        source=f"{source}:chat",
+        content=f"User: {user_text[:1000]}\n\nAssistant: {assistant_text[:2000]}",
+        summary=summary,
+        tags=["voice", "chat", source],
+    )
+
+
 # ── REST: text chat ──────────────────────────────────────────────────────────
 
 @router.post("/api/chat")
 async def chat(req: ChatRequest):
     """REST endpoint for text chat with streaming disabled."""
-    session_id = req.session_id or str(uuid.uuid4())
+    session_id = supabase_client.normalize_session_id(req.session_id)
     history = _sessions[session_id]
     history.append({"role": "user", "content": req.message})
 
@@ -61,6 +88,7 @@ async def chat(req: ChatRequest):
     )
     reply = response.content[0].text
     history.append({"role": "assistant", "content": reply})
+    await _persist_voice_session(session_id, history, reply, source="voice-rest")
 
     return {"reply": reply, "session_id": session_id}
 
@@ -158,7 +186,7 @@ async def voice_ws(ws: WebSocket):
                 await ws.send_json({"type": "error", "message": "Empty message"})
                 continue
 
-            session_id = msg.get("session_id", str(uuid.uuid4()))
+            session_id = supabase_client.normalize_session_id(msg.get("session_id", ""))
             history = _sessions[session_id]
             history.append({"role": "user", "content": text})
 
@@ -180,6 +208,7 @@ async def voice_ws(ws: WebSocket):
                         await ws.send_json({"type": "token", "text": token})
 
                 history.append({"role": "assistant", "content": full_text})
+                await _persist_voice_session(session_id, history, full_text, source="voice-websocket")
                 await ws.send_json({"type": "done", "full_text": full_text, "session_id": session_id})
 
                 # Attempt TTS

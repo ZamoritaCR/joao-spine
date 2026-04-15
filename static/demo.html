@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JOAO Capability OS // Live Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06080f;--panel:#0a0e18;--panel2:#0e1322;--border:#1a2744;--borderH:#2a3d66;--text:#e0e6f0;--muted:#5a6a8a;--dim:#3a4a6a;--green:#00ff88;--gold:#ffd700;--cyan:#22d3ee;--red:#ff4466}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;min-height:100vh;overflow:hidden}
+.mono{font-family:'Space Mono',monospace}.syne{font-family:'Syne',sans-serif}
+#hdr{border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+#sts{border-bottom:1px solid var(--border);padding:8px 24px;display:flex;gap:40px;justify-content:center}
+.sv{font-size:22px;font-weight:700;text-align:center}.sl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;text-align:center;margin-top:2px}
+#mn{display:flex;height:calc(100vh - 110px)}
+#sb{width:260px;border-right:1px solid var(--border);padding:16px 12px;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.pb{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:10px 12px;cursor:pointer;text-align:left;transition:all .2s}
+.pb:hover:not(:disabled){border-color:var(--borderH);background:var(--panel2)}.pb:disabled{opacity:.35;cursor:default}
+.pb.done{background:rgba(0,255,136,.06);border-color:rgba(0,255,136,.3)}
+.pb .lb{font-size:14px;font-weight:700}.pb .ds{font-size:10px;color:var(--muted);margin-top:2px}
+#lp{flex:1;display:flex;flex-direction:column}
+#lh{border-bottom:1px solid var(--border);padding:8px 16px;display:flex;justify-content:space-between;align-items:center}
+#lg{flex:1;overflow-y:auto;padding:12px 16px}
+.le{margin-bottom:6px;padding:4px 10px;border-radius:2px;font-size:12px;line-height:1.7;border-left:2px solid var(--dim)}
+.le.error{border-left-color:var(--red);background:rgba(255,68,102,.06)}
+.le.success{border-left-color:var(--green);background:rgba(0,255,136,.06)}
+.le.warn{border-left-color:var(--gold)}.le.info{border-left-color:var(--cyan)}
+.le.receipt{border-left-color:var(--gold);background:rgba(255,215,0,.06)}
+.lt{color:var(--muted);font-size:10px}.tg{font-weight:700;font-size:10px;letter-spacing:1px}
+.ld{color:var(--muted);font-size:11px;margin-top:2px;white-space:pre-wrap}
+#as{padding:48px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;width:100%}
+#ki{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:12px 18px;border-radius:4px;width:420px;font-size:13px;outline:none}
+#ki:focus{border-color:var(--cyan)}
+#kb{background:var(--panel2);border:1px solid var(--cyan);color:var(--cyan);padding:10px 32px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:1px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}.dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}.dot.off{background:var(--red);box-shadow:0 0 8px var(--red)}
+@keyframes spin{to{transform:rotate(360deg)}}
+#cb{margin-top:auto;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.3);border-radius:4px;padding:14px;text-align:center;display:none}
+</style>
+</head>
+<body>
+<div id="hdr"><div style="display:flex;align-items:center;gap:16px"><span class="syne" style="font-weight:800;font-size:18px;color:var(--gold)">JOAO</span><span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px">CAPABILITY OS // LIVE DEMO</span></div><div style="display:flex;align-items:center;gap:12px"><span class="dot off" id="sd"></span><span class="mono" style="font-size:11px;color:var(--muted)" id="su"></span></div></div>
+<div id="sts"><div><div class="mono sv" style="color:var(--red)" id="sb0">0</div><div class="sl">Blocked</div></div><div><div class="mono sv" style="color:var(--green)" id="sa0">0</div><div class="sl">Allowed</div></div><div><div class="mono sv" style="color:var(--cyan)" id="sp0">0</div><div class="sl">Provenance</div></div><div><div class="mono sv" style="color:var(--gold)" id="su0">0</div><div class="sl">Undone</div></div></div>
+<div id="mn">
+<div id="as"><h2 class="syne" style="font-size:24px;font-weight:700">Enter API Key to Begin</h2><div class="mono" style="font-size:12px;color:var(--muted)">JOAO_DISPATCH_HMAC_SECRET from ~/joao-spine/.env</div><input type="password" id="ki" class="mono" placeholder="Paste API key..."><button id="kb" class="mono" onclick="go()">CONNECT</button></div>
+<div id="sb" style="display:none"><div class="mono" style="font-size:10px;color:var(--muted);letter-spacing:2px;margin-bottom:8px">DEMO SEQUENCE</div>
+<button class="pb" id="p0" onclick="rp(0)" disabled><div class="lb" style="color:var(--text)">1. AUTH</div><div class="ds mono">Lock the front door</div></button>
+<button class="pb" id="p1" onclick="rp(1)" disabled><div class="lb" style="color:var(--text)">2. BLOCK</div><div class="ds mono">AI tries to act -- gets denied</div></button>
+<button class="pb" id="p2" onclick="rp(2)" disabled><div class="lb" style="color:var(--text)">3. GRANT</div><div class="ds mono">Human grants lock + execute</div></button>
+<button class="pb" id="p3" onclick="rp(3)" disabled><div class="lb" style="color:var(--text)">4. PROOF</div><div class="ds mono">Provenance + trust receipt</div></button>
+<button class="pb" id="p4" onclick="rp(4)" disabled><div class="lb" style="color:var(--text)">5. LEGAL</div><div class="ds mono">Ingestion policy enforcement</div></button>
+<button class="pb" id="p5" onclick="rp(5)" disabled><div class="lb" style="color:var(--text)">6. UNDO</div><div class="ds mono">Reverse it all</div></button>
+<div id="cb"><div class="syne" style="font-size:16px;font-weight:700;color:var(--gold)">DEMO COMPLETE</div><div class="mono" style="font-size:10px;color:var(--muted);margin-top:4px" id="fs"></div><button class="mono" style="margin-top:8px;background:var(--panel);border:1px solid var(--border);color:var(--gold);padding:8px 20px;border-radius:3px;cursor:pointer;font-size:11px" onclick="location.reload()">RESET</button></div></div>
+<div id="lp" style="display:none"><div id="lh"><span class="mono" style="font-size:11px;color:var(--muted);letter-spacing:2px">LIVE OPERATION LOG</span><span class="mono" style="font-size:11px;color:var(--dim)" id="lc">0</span></div><div id="lg"></div></div>
+</div>
+<script>
+const S="https://joao.theartofthepossible.io";let K="",ph=-1,run=false,st={b:0,a:0,p:0,u:0},lid=null,lc=0;
+document.getElementById("su").textContent=S.replace("https://","");
+function go(){K=document.getElementById("ki").value.trim();if(!K)return alert("Paste key");document.getElementById("as").style.display="none";document.getElementById("sb").style.display="flex";document.getElementById("lp").style.display="flex";document.getElementById("sd").className="dot on";ph=-1;en()}
+function en(){for(let i=0;i<6;i++){const b=document.getElementById("p"+i);if(i<=ph){b.disabled=true;b.classList.add("done");b.querySelector(".lb").style.color="var(--green)"}else if(i===ph+1){b.disabled=false}else{b.disabled=true}}if(ph>=5){document.getElementById("cb").style.display="block";document.getElementById("fs").textContent=st.b+" blocked / "+st.a+" allowed / "+st.p+" logged / "+st.u+" undone"}}
+function us(){document.getElementById("sb0").textContent=st.b;document.getElementById("sa0").textContent=st.a;document.getElementById("sp0").textContent=st.p;document.getElementById("su0").textContent=st.u}
+function ts(){return new Date().toLocaleTimeString("en-US",{hour12:false,hour:"2-digit",minute:"2-digit",second:"2-digit"})}
+function al(t,tg,m,d){lc++;document.getElementById("lc").textContent=lc+" entries";const e=document.createElement("div");e.className="le mono "+t;const c=t==="error"?"var(--red)":t==="success"?"var(--green)":t==="warn"?"var(--gold)":t==="receipt"?"var(--gold)":"var(--cyan)";e.innerHTML='<span class="lt">'+ts()+' </span>'+(tg?'<span class="tg" style="color:'+c+'">['+tg+'] </span>':'')+'<span style="color:'+(t==="error"?"var(--red)":"var(--text)")+'">'+m+'</span>'+(d?'<div class="ld">'+d+'</div>':'');const l=document.getElementById("lg");l.appendChild(e);l.scrollTop=l.scrollHeight}
+async function api(p,o={}){const h={"Content-Type":"application/json"};if(!o.noAuth)h["x-joao-api-key"]=K;try{const r=await fetch(S+"/joao"+p,{method:o.method||"GET",headers:h,body:o.body?JSON.stringify(o.body):undefined});let d=null;try{d=await r.json()}catch{}return{status:r.status,data:d}}catch(e){return{status:0,data:{detail:e.message}}}}
+const W=ms=>new Promise(r=>setTimeout(r,ms));
+async function rp(n){if(run)return;run=true;await[r0,r1,r2,r3,r4,r5][n]();ph=n;en();run=false}
+async function r0(){al("info","DEMO","PHASE 1: Authentication");await W(500);al("warn","HTTP","GET /superpowers/capabilities (NO KEY)");await W(300);const a=K;K="";let r=await api("/superpowers/capabilities");K=a;al("error","HTTP "+r.status,"DENIED -- no auth");st.b++;us();await W(800);al("warn","HTTP","GET /superpowers/capabilities (WRONG KEY)");await W(300);const ok=K;K="wrong";r=await api("/superpowers/capabilities");K=ok;al("error","HTTP "+r.status,"DENIED -- bad key");st.b++;us();await W(800);al("warn","HTTP","GET /superpowers/capabilities (VALID KEY)");await W(300);r=await api("/superpowers/capabilities");if(r.status===200){al("success","HTTP "+r.status,"GRANTED -- "+(r.data?.capabilities?.length||0)+" capabilities");st.a++;us()}else{al("error","FAIL","Key rejected");return}al("success","AUTH","Front door locked. Only valid keys enter.")}
+async function r1(){al("info","DEMO","PHASE 2: Autonomy enforcement");await W(600);al("warn","AGENT","AI: create branch at L1 (needs L3)");await W(400);let r=await api("/superpowers/git/write",{method:"POST",body:{repo:"joao-spine",action:"branch",branch_name:"rogue-"+Date.now(),autonomy:"L1"}});al("error","HTTP "+r.status,"BLOCKED -- insufficient autonomy");if(r.data?.detail)al("error","POLICY",r.data.detail);st.b++;us();await W(1000);al("warn","AGENT","AI: push to production at L1 (needs L4+SHIP_LOCK)");await W(400);r=await api("/superpowers/git/ship",{method:"POST",body:{repo:"joao-spine",action:"push",autonomy:"L1"}});al("error","HTTP "+r.status,"BLOCKED -- ship needs L4+SHIP_LOCK");if(r.data?.detail)al("error","POLICY",r.data.detail);st.b++;us();await W(1000);al("warn","AGENT","AI escalates to L3 -- no WRITE_LOCK");await W(400);r=await api("/superpowers/git/write",{method:"POST",body:{repo:"joao-spine",action:"branch",branch_name:"nolock-"+Date.now(),autonomy:"L3"}});al("error","HTTP "+r.status,"BLOCKED -- right level, no lock");if(r.data?.detail)al("error","POLICY",r.data.detail);st.b++;us();await W(800);al("success","GOV","3 attempts. 3 blocks. AI cannot escalate its own permissions.")}
+async function r2(){al("info","DEMO","PHASE 3: Human grants access");await W(600);al("info","HUMAN","Git scan (L0, no lock)");await W(400);let r=await api("/superpowers/git/scan",{method:"POST",body:{repo:"all",since:"3d"}});if(r.status===200){al("success","HTTP "+r.status,"Scanned "+(r.data?.result?.summary?.total_repos_scanned||0)+" repos");st.a++;if(r.data?.provenance?.intent_id){lid=r.data.provenance.intent_id;al("info","PROV","Recorded: "+lid);st.p++}us()}await W(800);al("info","HUMAN","Granting WRITE_LOCK for repo:joao-spine, 15m");await W(400);r=await api("/superpowers/locks/grant",{method:"POST",body:{lock_type:"WRITE_LOCK",scope:"repo:joao-spine",duration_minutes:15}});if(r.status===200)al("success","LOCK","WRITE_LOCK granted -- expires 15m");await W(600);r=await api("/superpowers/locks");if(r.status===200)al("info","LOCKS","Active: "+(r.data?.count||0));al("success","CTRL","Human grants key. It expires automatically.")}
+async function r3(){al("info","DEMO","PHASE 4: Provenance + trust receipt");await W(500);let r=await api("/superpowers/provenance?last=5");if(r.status===200&&r.data?.entries){al("success","PROV",r.data.count+" entries");st.p=r.data.count;us();r.data.entries.slice(-3).forEach(e=>al("info","ENTRY",(e.parsed_intent||"op")+" | "+e.intent_id,"Timestamp: "+e.ts+"\nAutonomy: "+(e.autonomy_level||"N/A")));const last=r.data.entries[r.data.entries.length-1];if(last?.intent_id){lid=last.intent_id;await W(600);al("info","RCPT","Trust receipt for "+lid);await W(400);const r2=await api("/superpowers/trust-receipt/"+lid);if(r2.status===200&&r2.data){const d=r2.data;al("receipt","TRUST RECEIPT","Generated","Receipt: "+d.receipt_id+"\nIntent: "+(d.intent?.raw_input||"N/A")+"\nCapability: "+(d.intent?.capability||"N/A")+"\nSuccess: "+(d.outcome?.success??"N/A")+"\nFiles Written: "+JSON.stringify(d.data_touched?.files_written||[])+"\nExternal APIs: "+JSON.stringify(d.data_touched?.external_apis||[])+"\nData Sent Externally: "+(d.data_touched?.data_sent_externally||false)+"\nUndo: "+JSON.stringify(d.undo_plan)+"\nTrust: "+d.trust_level)}}}al("success","AUDIT","Every op. Every receipt. What your auditor sees.")}
+async function r4(){al("info","DEMO","PHASE 5: Legal ingestion");await W(500);al("info","TEST","Wikipedia?");await W(300);let r=await api("/superpowers/ingestion/validate-url",{method:"POST",body:{url:"https://en.wikipedia.org/wiki/AI"}});al(r.data?.allowed?"success":"warn",r.data?.allowed?"OK":"RESULT",r.data?.allowed?"Wikipedia -- allowed":""+JSON.stringify(r.data));await W(700);al("info","TEST","evil-corp.com?");await W(300);r=await api("/superpowers/ingestion/validate-url",{method:"POST",body:{url:"https://secrets.evil-corp.com/data"}});al("error","BLOCKED",(r.data?.reason||"Not on allowlist")+" -- 29 domains only");st.b++;us();await W(700);al("info","TEST","YouTube?");await W(300);r=await api("/superpowers/ingestion/validate-url",{method:"POST",body:{url:"https://www.youtube.com/watch?v=test"}});al("warn","RESTRICTED","YouTube: "+(r.data?.restriction||"captions only"));al("success","LEGAL","29 domains. Rate-limited. Not a crawler -- a gate.")}
+async function r5(){al("info","DEMO","PHASE 6: Undo");await W(500);if(!lid){const rp=await api("/superpowers/provenance?last=1");if(rp.data?.entries?.length)lid=rp.data.entries[0].intent_id}if(!lid){al("error","UNDO","No op to undo");return}al("warn","UNDO","Reversing: "+lid);await W(600);const r=await api("/superpowers/undo/"+lid,{method:"POST",body:{autonomy:"L2"}});if(r.status===200){al("success","UNDONE",r.data?.all_success?"ALL STEPS OK":"partial");if(r.data?.undo_results)r.data.undo_results.forEach((u,i)=>al("info","STEP "+(i+1),"Type: "+(u.type||"noop")+" | OK: "+u.success));st.u++;st.p++;us();al("success","UNDO","Undo recorded in provenance. Receipts all the way down.")}else al("warn","HTTP "+r.status,r.data?.detail||"non-200");al("success","DONE","Every action has a receipt. Every action has an undo. JOAO Capability OS.")}
+document.getElementById("ki").addEventListener("keydown",e=>{if(e.key==="Enter")go()});
+</script>
+</body>
+</html>

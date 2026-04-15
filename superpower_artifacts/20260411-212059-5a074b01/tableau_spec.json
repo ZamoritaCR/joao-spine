@@ -1,0 +1,13 @@
+{
+  "type": "tableau_workbook",
+  "version": "",
+  "datasources": [],
+  "worksheets": [],
+  "dashboards": [],
+  "calculated_fields": [],
+  "parameters": [],
+  "filters": [],
+  "relationships": [],
+  "has_hyper": false,
+  "parse_error": "no element found: line 1, column 0"
+}

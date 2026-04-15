@@ -131,7 +131,17 @@
 
   let ws = null;
   let reconnectTimer = null;
-  const RECONNECT_DELAY = 2000;
+  let reconnectAttempts = 0;
+  let lastPongAt = 0;
+  let heartbeatTimer = null;
+  let pingTimer = null;
+  let intentionalClose = false;
+
+  const PING_INTERVAL = 8000;        // send ping every 8s
+  const PONG_TIMEOUT = 25000;        // expect pong within 25s or assume dead
+  const RECONNECT_BASE = 500;        // initial reconnect delay 500ms
+  const RECONNECT_MAX = 10000;       // max reconnect delay 10s
+  const RECONNECT_JITTER = 500;      // random jitter
 
   function setStatus(text, state) {
     statusEl.textContent = text;
@@ -144,6 +154,57 @@
     }
   }
 
+  function getReconnectDelay() {
+    // Exponential backoff with jitter, capped at RECONNECT_MAX
+    const delay = Math.min(RECONNECT_BASE * Math.pow(1.5, reconnectAttempts), RECONNECT_MAX);
+    return delay + Math.random() * RECONNECT_JITTER;
+  }
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    lastPongAt = Date.now();
+
+    // Send pings at regular interval
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } catch (e) {
+          // send failed -- connection is dead
+          forceReconnect('ping send failed');
+        }
+      }
+    }, PING_INTERVAL);
+
+    // Check heartbeat -- if no pong received within timeout, connection is dead
+    heartbeatTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const elapsed = Date.now() - lastPongAt;
+        if (elapsed > PONG_TIMEOUT) {
+          console.warn('[terminal] heartbeat timeout (' + elapsed + 'ms since last pong)');
+          forceReconnect('heartbeat timeout');
+        }
+      }
+    }, 5000);
+  }
+
+  function stopHeartbeat() {
+    if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+    if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  }
+
+  function forceReconnect(reason) {
+    console.warn('[terminal] forcing reconnect: ' + reason);
+    stopHeartbeat();
+    if (ws) {
+      intentionalClose = true;
+      try { ws.close(); } catch (e) {}
+      ws = null;
+    }
+    setStatus('reconnecting (' + reason + ')...', 'reconnecting');
+    scheduleReconnect();
+  }
+
   function connect() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
@@ -153,14 +214,18 @@
     const rows = term.rows;
     const url = `${proto}//${host}/ws/terminal?session_id=${sessionId}&cols=${cols}&rows=${rows}&token=${encodeURIComponent(token)}`;
 
+    setStatus('connecting...', 'reconnecting');
+    intentionalClose = false;
     ws = new WebSocket(url);
 
     ws.onopen = () => {
       setStatus('connected', 'connected');
+      reconnectAttempts = 0;
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
+      startHeartbeat();
     };
 
     ws.onmessage = (event) => {
@@ -169,15 +234,18 @@
         switch (msg.type) {
           case 'output':
             term.write(msg.data);
+            lastPongAt = Date.now(); // any server message counts as alive
             break;
           case 'scrollback':
             term.write(msg.data);
+            lastPongAt = Date.now();
             break;
           case 'exit':
             term.write('\r\n[Process exited with code ' + msg.code + ']\r\n');
             setStatus('exited', 'error');
             break;
           case 'pong':
+            lastPongAt = Date.now();
             break;
           case 'error':
             term.write('\r\n\x1b[31m[Error: ' + msg.message + ']\x1b[0m\r\n');
@@ -189,26 +257,34 @@
     };
 
     ws.onclose = (event) => {
+      stopHeartbeat();
+      ws = null;
       if (event.code === 4001) {
         setStatus('unauthorized', 'error');
         term.write('\r\n\x1b[31m[Unauthorized -- check terminal token]\x1b[0m\r\n');
         return;
       }
-      setStatus('reconnecting...', 'reconnecting');
+      if (!intentionalClose) {
+        setStatus('reconnecting...', 'reconnecting');
+      }
       scheduleReconnect();
     };
 
     ws.onerror = () => {
-      setStatus('connection error', 'error');
+      // onerror is always followed by onclose, so just log
+      console.warn('[terminal] WebSocket error');
     };
   }
 
   function scheduleReconnect() {
     if (reconnectTimer) return;
+    const delay = getReconnectDelay();
+    reconnectAttempts++;
+    console.log('[terminal] reconnecting in ' + Math.round(delay) + 'ms (attempt ' + reconnectAttempts + ')');
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       connect();
-    }, RECONNECT_DELAY);
+    }, delay);
   }
 
   // Terminal input -> WebSocket
@@ -225,12 +301,33 @@
     }
   });
 
-  // Keepalive ping (10s to stay well within Cloudflare tunnel timeouts)
-  setInterval(() => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'ping' }));
+  // Reconnect when tab becomes visible again (covers laptop sleep/wake, tab switch)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.log('[terminal] tab visible -- reconnecting');
+        reconnectAttempts = 0; // reset backoff on visibility
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        connect();
+      } else {
+        // Tab is visible but WS looks open -- verify with immediate heartbeat check
+        lastPongAt = Date.now(); // give it a fresh window
+      }
     }
-  }, 10000);
+  });
+
+  // Reconnect on network recovery
+  window.addEventListener('online', () => {
+    console.log('[terminal] network online -- reconnecting');
+    reconnectAttempts = 0;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    forceReconnect('network came online');
+  });
+
+  window.addEventListener('offline', () => {
+    setStatus('offline', 'error');
+    stopHeartbeat();
+  });
 
   // Boot
   connect();

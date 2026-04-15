@@ -306,6 +306,8 @@ function addMessage(role, text) {
   return div;
 }
 
+var sessionId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'mrdp-' + Date.now();
+
 function callMrDP() {
   streaming = true;
   document.getElementById('send-btn').disabled = true;
@@ -318,7 +320,7 @@ function callMrDP() {
     body: JSON.stringify({
       messages: messages,
       mode: 'mrdp',
-      session_id: 'mrdp-' + Date.now()
+      session_id: sessionId
     })
   }).then(function(resp) {
     var reader = resp.body.getReader();

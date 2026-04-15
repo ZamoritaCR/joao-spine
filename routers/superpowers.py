@@ -12,6 +12,8 @@ import traceback
 from datetime import datetime, timezone
 from typing import Optional
 
+from fastapi.responses import HTMLResponse
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -744,3 +746,13 @@ async def agent_callback(req: AgentCallbackRequest, _auth=Depends(require_superp
         )
 
     return {"received": True, "agent": req.agent, "job_id": req.job_id}
+
+
+@router.get("/demo", response_class=HTMLResponse)
+async def demo_page():
+    """Serve the Capability OS demo tool."""
+    demo_path = Path(__file__).parent.parent / "static" / "demo.html"
+    if demo_path.exists():
+        return HTMLResponse(content=demo_path.read_text())
+    return HTMLResponse(content="<h1>Demo not deployed yet</h1>", status_code=404)
+

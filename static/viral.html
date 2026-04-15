@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Art of The Possible — Built by 1 Human + 16 AI Agents</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050508;color:#fff;font-family:'Segoe UI',sans-serif;overflow-x:hidden;min-height:100vh}
+.grid-bg{position:fixed;top:0;left:0;width:100%;height:100%;background-image:linear-gradient(rgba(99,102,241,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.05) 1px,transparent 1px);background-size:60px 60px;z-index:0}
+.orb{position:fixed;border-radius:50%;filter:blur(120px);z-index:0;animation:pulse 8s ease-in-out infinite}
+.orb1{width:600px;height:600px;background:rgba(99,102,241,0.15);top:-200px;right:-200px}
+.orb2{width:500px;height:500px;background:rgba(168,85,247,0.1);bottom:-200px;left:-200px;animation-delay:4s}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.1);opacity:1}}
+header{position:relative;z-index:10;text-align:center;padding:80px 20px 60px}
+.badge{display:inline-block;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);color:#a5b4fc;padding:8px 20px;border-radius:100px;font-size:13px;letter-spacing:2px;text-transform:uppercase;margin-bottom:30px}
+h1{font-size:clamp(2.5rem,6vw,5rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#fff 0%,#a5b4fc 50%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px}
+.sub{font-size:1.2rem;color:#94a3b8;max-width:600px;margin:0 auto 40px}
+.stats{display:flex;gap:40px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.stat{text-align:center}
+.stat-num{font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,#6366f1,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-label{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px}
+.agents{position:relative;z-index:10;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:0 20px 60px;max-width:800px;margin:0 auto}
+.agent{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);padding:8px 16px;border-radius:100px;font-size:13px;color:#94a3b8}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e;animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.products{position:relative;z-index:10;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;padding:0 40px 80px;max-width:1200px;margin:0 auto}
+.card{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:20px;padding:40px;transition:all 0.3s;cursor:pointer;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(99,102,241,0.05),transparent);opacity:0;transition:opacity 0.3s}
+.card:hover{border-color:rgba(99,102,241,0.4);transform:translateY(-4px);box-shadow:0 20px 60px rgba(99,102,241,0.15)}
+.card:hover::before{opacity:1}
+.card-icon{font-size:2.5rem;margin-bottom:20px}
+.card-tag{font-size:11px;color:#6366f1;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px}
+.card h3{font-size:1.4rem;font-weight:700;margin-bottom:10px;color:#f1f5f9}
+.card p{color:#64748b;line-height:1.6;font-size:14px}
+.card-status{display:inline-flex;align-items:center;gap:6px;margin-top:20px;font-size:12px;color:#22c55e}
+footer{position:relative;z-index:10;text-align:center;padding:40px 20px 60px;border-top:1px solid rgba(255,255,255,0.04)}
+footer p{color:#334155;font-size:14px}
+footer strong{color:#6366f1}
+.live-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(5,5,8,0.9);backdrop-filter:blur(20px);border-top:1px solid rgba(99,102,241,0.2);padding:12px 40px;display:flex;align-items:center;gap:20px;justify-content:center;font-size:13px;color:#64748b}
+.live-indicator{display:flex;align-items:center;gap:8px;color:#22c55e;font-weight:600}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+
+<header>
+  <div class="badge">Live — Denver, CO</div>
+  <h1>The Art of<br>The Possible</h1>
+  <p class="sub">One founder. Sixteen AI agents. Running 24/7 on a home server in Denver. Building what agencies charge millions to build.</p>
+  <div class="stats">
+    <div class="stat"><div class="stat-num">16</div><div class="stat-label">Active AI Agents</div></div>
+    <div class="stat"><div class="stat-num">30+</div><div class="stat-label">Shipped Products</div></div>
+    <div class="stat"><div class="stat-num">25</div><div class="stat-label">Years Building</div></div>
+    <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">Always On</div></div>
+  </div>
+</header>
+
+<div class="agents">
+  <div class="agent"><span class="dot"></span>ARIA — Architect</div>
+  <div class="agent"><span class="dot"></span>BYTE — Full Stack</div>
+  <div class="agent"><span class="dot"></span>DEX — Infrastructure</div>
+  <div class="agent"><span class="dot"></span>SOFIA — UX/UI</div>
+  <div class="agent"><span class="dot"></span>CJ — Product</div>
+  <div class="agent"><span class="dot"></span>GEMMA — Research</div>
+  <div class="agent"><span class="dot"></span>MAX — Multi-LLM</div>
+  <div class="agent"><span class="dot"></span>LEX — Legal</div>
+  <div class="agent"><span class="dot"></span>NOVA — Growth</div>
+  <div class="agent"><span class="dot"></span>SCOUT — Intel</div>
+  <div class="agent"><span class="dot"></span>SAGE — Strategy</div>
+  <div class="agent"><span class="dot"></span>FLUX — Rapid Proto</div>
+  <div class="agent"><span class="dot"></span>CORE — Deep Research</div>
+  <div class="agent"><span class="dot"></span>APEX — Data</div>
+  <div class="agent"><span class="dot"></span>IRIS — Integrations</div>
+  <div class="agent"><span class="dot"></span>VOLT — CI/CD</div>
+</div>
+
+<div class="products">
+  <div class="card">
+    <div class="card-icon">🧠</div>
+    <div class="card-tag">AI Exocortex</div>
+    <h3>JOAO</h3>
+    <p>A second brain that never forgets. Persistent memory, voice interface, multi-agent orchestration — running 24/7 on home hardware.</p>
+    <div class="card-status"><span class="dot"></span> Live — Always On</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">dopamine.watch</div>
+    <div class="card-tag">Neurodivergent OS</div>
+    <h3>dopamine.watch</h3>
+    <p>Feel-First streaming discovery. Pick a mood, get content. Not algorithm-driven — dopamine-driven. Built for ADHD brains.</p>
+    <div class="card-status"><span class="dot"></span> Production</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">Dr. Data</div>
+    <div class="card-tag">Enterprise Analytics</div>
+    <h3>Dr. Data</h3>
+    <p>AI-powered Tableau to Power BI migration. Enterprise scale. Automated dashboard conversion, metadata mapping, validation.</p>
+    <div class="card-status"><span class="dot"></span> Production</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">TAOP Connect</div>
+    <div class="card-tag">AI Contact Center</div>
+    <h3>TAOP Connect</h3>
+    <p>Intelligent routing, real-time agent assist, conversation analytics. Replace your entire contact center with one AI stack.</p>
+    <div class="card-status"><span class="dot"></span> Building</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">FocusFlow</div>
+    <div class="card-tag">ADHD Tools</div>
+    <h3>FocusFlow</h3>
+    <p>Transcribe any lecture or video. Get ADHD-friendly summaries instantly. Designed for neurodivergent learners.</p>
+    <div class="card-status"><span class="dot"></span> Production</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">dopamine.chat</div>
+    <div class="card-tag">Private Messaging</div>
+    <h3>dopamine.chat</h3>
+    <p>Privacy-first messaging. End-to-end encrypted. No tracking, no ads, no data harvesting. Built for humans, not advertisers.</p>
+    <div class="card-status"><span class="dot"></span> MVP Live</div>
+  </div>
+</div>
+
+<footer>
+  <p>Built by <strong>Johan Zamora</strong> — Denver, CO. One human. Sixteen agents. Zero limits.<br>
+  <strong>theartofthepossible.io</strong></p>
+</footer>
+
+<div class="live-bar">
+  <div class="live-indicator"><span class="dot"></span> 16 agents online</div>
+  <span>|</span>
+  <span>ROG Strix — Denver, CO — 192.168.0.55</span>
+  <span>|</span>
+  <span>theartofthepossible.io</span>
+</div>
+
+</body>
+</html>

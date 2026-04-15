@@ -1,0 +1,529 @@
+{
+  "type": "tableau_workbook",
+  "version": "10.4",
+  "datasources": [
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "federated",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [
+        "['Quarterly Sales Data$']"
+      ],
+      "columns": [
+        {
+          "name": "Customer Type",
+          "caption": "",
+          "datatype": "string",
+          "role": "dimension",
+          "type": "nominal"
+        },
+        {
+          "name": "Date",
+          "caption": "",
+          "datatype": "date",
+          "role": "dimension",
+          "type": "ordinal"
+        },
+        {
+          "name": "Number of Records",
+          "caption": "",
+          "datatype": "integer",
+          "role": "measure",
+          "type": "quantitative",
+          "formula": "1"
+        },
+        {
+          "name": "Region",
+          "caption": "",
+          "datatype": "string",
+          "role": "dimension",
+          "type": "nominal"
+        },
+        {
+          "name": "State Code",
+          "caption": "",
+          "datatype": "string",
+          "role": "dimension",
+          "type": "nominal"
+        },
+        {
+          "name": "State Name",
+          "caption": "",
+          "datatype": "string",
+          "role": "dimension",
+          "type": "nominal"
+        },
+        {
+          "name": "Sub-Region",
+          "caption": "",
+          "datatype": "string",
+          "role": "dimension",
+          "type": "nominal"
+        }
+      ]
+    },
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [],
+      "columns": []
+    },
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [],
+      "columns": []
+    },
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [],
+      "columns": []
+    },
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [],
+      "columns": []
+    },
+    {
+      "name": "federated.123kbq9031vxp716n8ghw1bchlgh",
+      "caption": "Quarterly Sales Data (DigitalAds-Sales-Data)",
+      "connection_type": "",
+      "server": "",
+      "dbname": "",
+      "filename": "",
+      "tables": [],
+      "columns": []
+    }
+  ],
+  "worksheets": [
+    {
+      "name": "quaterly sales by customer type and uarter",
+      "chart_type": "automatic",
+      "mark_type": "automatic",
+      "mark_types": [
+        "automatic"
+      ],
+      "is_dual_axis": false,
+      "marks": [
+        "Automatic"
+      ],
+      "rows": "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]",
+      "cols": "[federated.123kbq9031vxp716n8ghw1bchlgh].[tqr:Date:qk]",
+      "rows_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "sum:Sales:qk"
+      ],
+      "cols_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "tqr:Date:qk"
+      ],
+      "dimensions": [],
+      "measures": [],
+      "filters": [],
+      "color_field": "",
+      "size_field": "",
+      "label_fields": [],
+      "tooltip_fields": [],
+      "sort_field": "",
+      "design": {
+        "mark_colors": [],
+        "background_color": "",
+        "title_font": {},
+        "axis_config": [],
+        "mark_style": {},
+        "border": {}
+      }
+    },
+    {
+      "name": "sales by customer type",
+      "chart_type": "bar",
+      "mark_type": "bar",
+      "mark_types": [
+        "bar",
+        "ganttbar"
+      ],
+      "is_dual_axis": true,
+      "marks": [
+        "Bar",
+        "Bar",
+        "GanttBar"
+      ],
+      "rows": "([federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk] + [federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk])",
+      "cols": "[federated.123kbq9031vxp716n8ghw1bchlgh].[yr:Date:ok]",
+      "rows_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "sum:Sales:qk",
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "sum:Sales:qk"
+      ],
+      "cols_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "yr:Date:ok"
+      ],
+      "dimensions": [],
+      "measures": [],
+      "filters": [],
+      "color_field": "",
+      "size_field": "",
+      "label_fields": [],
+      "tooltip_fields": [],
+      "sort_field": "",
+      "design": {
+        "mark_colors": [],
+        "background_color": "",
+        "title_font": {},
+        "axis_config": [
+          {
+            "field": "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]",
+            "scope": "rows",
+            "type": "space",
+            "synchronized": "true"
+          },
+          {
+            "field": "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]",
+            "hidden": true
+          }
+        ],
+        "mark_style": {
+          "labels_cull": true,
+          "labels_visible": true
+        },
+        "border": {}
+      }
+    },
+    {
+      "name": "sales by region and sub regions",
+      "chart_type": "automatic",
+      "mark_type": "automatic",
+      "mark_types": [
+        "automatic"
+      ],
+      "is_dual_axis": false,
+      "marks": [
+        "Automatic"
+      ],
+      "rows": "",
+      "cols": "",
+      "rows_fields": [],
+      "cols_fields": [],
+      "dimensions": [],
+      "measures": [],
+      "filters": [],
+      "color_field": "",
+      "size_field": "",
+      "label_fields": [],
+      "tooltip_fields": [],
+      "sort_field": "",
+      "design": {
+        "mark_colors": [],
+        "background_color": "",
+        "title_font": {},
+        "axis_config": [],
+        "mark_style": {
+          "labels_visible": true,
+          "labels_cull": true,
+          "mark-labels-line-first": true,
+          "mark-labels-line-last": true,
+          "mark-labels-range-min": "true",
+          "mark-labels-range-max": "true",
+          "labels_mode": "all",
+          "mark-labels-range-scope": "pane"
+        },
+        "border": {}
+      }
+    },
+    {
+      "name": "sales by states",
+      "chart_type": "multipolygon",
+      "mark_type": "multipolygon",
+      "mark_types": [
+        "multipolygon"
+      ],
+      "is_dual_axis": false,
+      "marks": [
+        "Multipolygon"
+      ],
+      "rows": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Latitude (generated)]",
+      "cols": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Longitude (generated)]",
+      "rows_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "Latitude (generated)"
+      ],
+      "cols_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "Longitude (generated)"
+      ],
+      "dimensions": [],
+      "measures": [
+        "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]"
+      ],
+      "filters": [],
+      "color_field": "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]",
+      "size_field": "",
+      "label_fields": [],
+      "tooltip_fields": [],
+      "sort_field": "",
+      "design": {
+        "mark_colors": [],
+        "background_color": "",
+        "title_font": {},
+        "axis_config": [],
+        "mark_style": {
+          "color_palette": "red_gold_10_0",
+          "color_type": "interpolated",
+          "labels_cull": true,
+          "labels_visible": true
+        },
+        "border": {}
+      }
+    },
+    {
+      "name": "total sales by states",
+      "chart_type": "multipolygon",
+      "mark_type": "multipolygon",
+      "mark_types": [
+        "multipolygon"
+      ],
+      "is_dual_axis": false,
+      "marks": [
+        "Multipolygon"
+      ],
+      "rows": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Latitude (generated)]",
+      "cols": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Longitude (generated)]",
+      "rows_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "Latitude (generated)"
+      ],
+      "cols_fields": [
+        "federated.123kbq9031vxp716n8ghw1bchlgh",
+        "Longitude (generated)"
+      ],
+      "dimensions": [],
+      "measures": [
+        "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]"
+      ],
+      "filters": [],
+      "color_field": "[federated.123kbq9031vxp716n8ghw1bchlgh].[sum:Sales:qk]",
+      "size_field": "",
+      "label_fields": [],
+      "tooltip_fields": [],
+      "sort_field": "",
+      "design": {
+        "mark_colors": [],
+        "background_color": "",
+        "title_font": {},
+        "axis_config": [],
+        "mark_style": {
+          "color_palette": "",
+          "color_type": "custom-interpolated",
+          "labels_visible": true,
+          "labels_cull": true
+        },
+        "border": {}
+      }
+    }
+  ],
+  "dashboards": [
+    {
+      "name": "Dashboard 1",
+      "size": {
+        "width": "1000",
+        "height": "800"
+      },
+      "worksheets_used": [
+        "total sales by states",
+        "quaterly sales by customer type and uarter",
+        "sales by region and sub regions"
+      ],
+      "zones": [
+        {
+          "name": "total sales by states",
+          "type": "",
+          "x": "3300",
+          "y": "875",
+          "w": "96500",
+          "h": "40625",
+          "layout": {
+            "x": 3300,
+            "y": 875,
+            "w": 96500,
+            "h": 40625
+          },
+          "zone_style": {
+            "border-color": "#000000",
+            "border-style": "none",
+            "border-width": "0",
+            "margin": "4"
+          }
+        },
+        {
+          "name": "quaterly sales by customer type and uarter",
+          "type": "",
+          "x": "55400",
+          "y": "41125",
+          "w": "45000",
+          "h": "33125",
+          "layout": {
+            "x": 55400,
+            "y": 41125,
+            "w": 45000,
+            "h": 33125
+          },
+          "zone_style": {
+            "border-color": "#000000",
+            "border-style": "none",
+            "border-width": "0",
+            "margin": "4"
+          }
+        },
+        {
+          "name": "sales by region and sub regions",
+          "type": "",
+          "x": "3000",
+          "y": "40875",
+          "w": "52100",
+          "h": "33500",
+          "layout": {
+            "x": 3000,
+            "y": 40875,
+            "w": 52100,
+            "h": 33500
+          },
+          "zone_style": {
+            "border-color": "#000000",
+            "border-style": "none",
+            "border-width": "0",
+            "margin": "4"
+          }
+        }
+      ],
+      "canvas": {
+        "width": 1000,
+        "height": 800
+      }
+    }
+  ],
+  "calculated_fields": [
+    {
+      "name": "[Number of Records]",
+      "formula": "1",
+      "datasource": "federated.123kbq9031vxp716n8ghw1bchlgh"
+    }
+  ],
+  "parameters": [],
+  "filters": [
+    {
+      "worksheet": "quaterly sales by customer type and uarter",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (Region,Sub-Region)]"
+    },
+    {
+      "worksheet": "quaterly sales by customer type and uarter",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (State Name)]"
+    },
+    {
+      "worksheet": "sales by region and sub regions",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (Customer Type,QUARTER(Date))]"
+    },
+    {
+      "worksheet": "sales by region and sub regions",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (State Name)]"
+    },
+    {
+      "worksheet": "total sales by states",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (Customer Type,QUARTER(Date))]"
+    },
+    {
+      "worksheet": "total sales by states",
+      "column": "[federated.123kbq9031vxp716n8ghw1bchlgh].[Action (Region,Sub-Region)]"
+    }
+  ],
+  "relationships": [],
+  "has_hyper": false,
+  "design": {
+    "color_palettes": [
+      {
+        "name": "",
+        "type": "ordered-sequential",
+        "colors": [
+          "#f1f1f1",
+          "#d2e9d2",
+          "#b5e2b5",
+          "#99db99",
+          "#7fd47f",
+          "#66cd66",
+          "#4fc64f",
+          "#39bf39",
+          "#24b824",
+          "#11b111",
+          "#00aa00"
+        ]
+      }
+    ],
+    "global_fonts": {},
+    "datasource_color_maps": [
+      {
+        "field": "[none:Region:nk]",
+        "mappings": [
+          {
+            "color": "#4e79a7",
+            "value": "Midwest"
+          },
+          {
+            "color": "#aaff00",
+            "value": "South"
+          },
+          {
+            "color": "#bab0ac",
+            "value": "Northeast"
+          },
+          {
+            "color": "#edc948",
+            "value": "West"
+          }
+        ]
+      },
+      {
+        "field": "[none:Customer Type:nk]",
+        "mappings": [
+          {
+            "color": "#4e79a7",
+            "value": "Government"
+          },
+          {
+            "color": "#76b7b2",
+            "value": "Public"
+          },
+          {
+            "color": "#e15759",
+            "value": "Private"
+          },
+          {
+            "color": "#f28e2b",
+            "value": "Non-Profit"
+          }
+        ]
+      }
+    ]
+  }
+}

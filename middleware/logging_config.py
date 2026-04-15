@@ -86,9 +86,9 @@ class RequestLoggingMiddleware:
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message["status"]
-                headers = dict(message.get("headers", []))
-                headers[b"x-request-id"] = request_id.encode()
-                message = {**message, "headers": list(headers.items())}
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", request_id.encode()))
+                message = {**message, "headers": headers}
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

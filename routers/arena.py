@@ -30,6 +30,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
+from services import supabase_client
 from services.supabase_client import get_client
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ async def _fetch_council_status() -> str:
     """Get live council agent status from the dispatch endpoint."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get("http://localhost:7778/taop/agents")
+            resp = await client.get("http://localhost:8100/agents")
             if resp.status_code == 200:
                 data = resp.json()
                 agents = data.get("agents", {})
@@ -310,6 +311,52 @@ def _sb_insert(table: str, row: dict) -> None:
             logger.warning("%s table not found -- run migration", table)
         else:
             logger.warning("Supabase insert to %s failed: %s", table, err[:200])
+
+
+async def _persist_arena_session(
+    session_id: str,
+    user_input: str,
+    results: dict[str, Any],
+    source: str,
+    system_prompt: str = "",
+    model_map: dict[str, str] | None = None,
+    moderator_text: str = "",
+) -> None:
+    messages = [{"role": "user", "content": user_input}]
+    for brain_key, result in results.items():
+        text = (result or {}).get("text", "") if isinstance(result, dict) else ""
+        if text:
+            messages.append({"role": "assistant", "content": f"[{brain_key}] {text}"})
+    if moderator_text:
+        messages.append({"role": "assistant", "content": f"[moderator] {moderator_text}"})
+
+    summary = moderator_text[:200] if moderator_text else next((m["content"][:200] for m in messages[1:] if m.get("content")), user_input[:200])
+    await supabase_client.upsert_joao_session(
+        session_id=session_id,
+        messages=messages,
+        name=f"Arena: {user_input[:80]}",
+        summary=summary,
+        source=source,
+        metadata={
+            "channel": "arena",
+            "system_prompt": system_prompt[:2000],
+            "models": model_map or {},
+            "active_brains": list(results.keys()),
+        },
+    )
+    memory_lines = [f"User: {user_input[:2000]}"]
+    for brain_key, result in results.items():
+        text = (result or {}).get("text", "") if isinstance(result, dict) else ""
+        if text:
+            memory_lines.append(f"{brain_key.upper()}: {text[:2000]}")
+    if moderator_text:
+        memory_lines.append(f"MODERATOR: {moderator_text[:2000]}")
+    await supabase_client.insert_joao_memory(
+        source=f"{source}:chat",
+        content="\n\n".join(memory_lines),
+        summary=summary,
+        tags=["arena", "chat", source],
+    )
 
 
 # == Models ================================================================
@@ -1012,6 +1059,41 @@ async def _call_gpt(
 
 # == Gemini API call (pure reasoning, no tool loop) ========================
 
+def _sanitize_gemini_contents(messages: list[dict]) -> list[dict]:
+    """Convert messages to Gemini contents format with enforced role alternation.
+
+    Gemini requires strict user/model alternation and cannot start with 'model'.
+    Corrupted session history (two consecutive user messages, orphaned model turns)
+    causes 400 errors that permanently break the session until fixed.
+
+    Strategy:
+    - Skip messages with None/empty content
+    - Merge consecutive same-role messages by joining their text
+    - Drop leading model turns (Gemini must start with user)
+    """
+    contents = []
+    for m in messages:
+        content = m.get("content") or ""
+        if not isinstance(content, str):
+            content = str(content)
+        content = content.strip()
+        if not content:
+            continue
+        role = "model" if m["role"] == "assistant" else "user"
+        if contents and contents[-1]["role"] == role:
+            # Merge consecutive same-role messages
+            existing_text = contents[-1]["parts"][0]["text"]
+            contents[-1]["parts"][0]["text"] = f"{existing_text}\n{content}"
+        else:
+            contents.append({"role": role, "parts": [{"text": content}]})
+
+    # Gemini must start with a user turn
+    while contents and contents[0]["role"] == "model":
+        contents.pop(0)
+
+    return contents
+
+
 async def _call_gemini(
     messages: list[dict],
     system_prompt: str,
@@ -1029,10 +1111,11 @@ async def _call_gemini(
     joao_ctx = await _ensure_joao_context()
     full_system = f"{joao_ctx}\n\n{system_prompt}"
 
-    contents = []
-    for m in messages:
-        role = "model" if m["role"] == "assistant" else "user"
-        contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    # Sanitize history: enforce role alternation to prevent 400 errors from
+    # corrupted sessions (e.g. two consecutive user turns after a timeout/disconnect)
+    contents = _sanitize_gemini_contents(messages)
+    if not contents:
+        return {"text": "[ERROR] No valid messages to send to Gemini", "tool_calls": [], "rate_warning": None}
 
     payload = {
         "system_instruction": {"parts": [{"text": full_system}]},
@@ -1051,39 +1134,65 @@ async def _call_gemini(
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(url, json=payload)
+            # Read body inside context so connection is still open
+            resp_status = resp.status_code
+            resp_text = resp.text
+            resp_data = resp.json() if resp_status == 200 else {}
 
-        if resp.status_code == 429:
+        if resp_status == 429:
             return {
                 "text": "[RATE LIMITED] Gemini API rate limit reached. Try again shortly.",
                 "tool_calls": [],
                 "rate_warning": "Rate limit hit (429)",
             }
 
-        if resp.status_code != 200:
-            logger.error("Gemini API error %d: %s", resp.status_code, resp.text[:500])
+        if resp_status != 200:
+            logger.error("Gemini API error %d: %s", resp_status, resp_text[:500])
             return {
-                "text": f"[ERROR] Gemini API returned {resp.status_code}: {resp.text[:300]}",
+                "text": f"[ERROR] Gemini API returned {resp_status}: {resp_text[:300]}",
                 "tool_calls": [],
                 "rate_warning": None,
             }
 
-        data = resp.json()
-        candidates = data.get("candidates", [])
+        candidates = resp_data.get("candidates", [])
         if not candidates:
-            block_reason = data.get("promptFeedback", {}).get("blockReason", "unknown")
+            block_reason = resp_data.get("promptFeedback", {}).get("blockReason", "unknown")
             return {
                 "text": f"[BLOCKED] Gemini refused to respond (reason: {block_reason})",
                 "tool_calls": [],
                 "rate_warning": None,
             }
 
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text = "\n".join(p.get("text", "") for p in parts if "text" in p)
+        candidate = candidates[0]
+
+        # Handle candidate-level safety/finish issues
+        finish_reason = candidate.get("finishReason", "STOP")
+        if finish_reason == "SAFETY":
+            return {
+                "text": "[BLOCKED] Gemini blocked this response for safety reasons.",
+                "tool_calls": [],
+                "rate_warning": None,
+            }
+
+        # Extract text parts, excluding internal thought tokens (thought: true).
+        # Thinking models (Gemini 2.5 Pro, 3.x) return thought parts that must
+        # not appear in the visible response.
+        raw_parts = candidate.get("content", {}).get("parts", [])
+        text_parts = [
+            p.get("text", "")
+            for p in raw_parts
+            if "text" in p and not p.get("thought", False)
+        ]
+        text = "\n".join(t for t in text_parts if t).strip()
+
+        rate_warning = None
+        if finish_reason == "MAX_TOKENS":
+            rate_warning = "Response truncated (MAX_TOKENS)"
 
         return {
             "text": text or "[No response]",
             "tool_calls": [],
-            "rate_warning": None,
+            "rate_warning": rate_warning,
         }
 
     except httpx.TimeoutException:
@@ -1606,7 +1715,7 @@ BRAINS = {
     "gemini": {
         "name": "GEMINI", "color": "#4488ff", "tag": "GOOGLE ORACLE",
         "caller": _call_gemini, "has_tools": False,
-        "models": ["gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-3-flash-preview"],
+        "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-pro-preview", "gemini-3-flash-preview"],
         "default_model": "gemini-2.5-flash",
         "trainable": False,
     },
@@ -1635,8 +1744,8 @@ BRAINS = {
         "name": "QWEN", "color": "#00bcd4", "tag": "MATH KING",
         "caller": lambda m, s, model, sid: _call_together(m, s, model, sid),
         "has_tools": False,
-        "models": ["Qwen/Qwen3.5-397B-A17B", "Qwen/Qwen2.5-7B-Instruct-Turbo"],
-        "default_model": "Qwen/Qwen3.5-397B-A17B",
+        "models": ["Qwen/Qwen2.5-7B-Instruct-Turbo", "Qwen/Qwen3.5-397B-A17B"],
+        "default_model": "Qwen/Qwen2.5-7B-Instruct-Turbo",
         "trainable": True,
     },
 }
@@ -1665,7 +1774,8 @@ async def arena_brains():
 
 @router.post("/chat")
 async def arena_chat(req: ChatRequest):
-    session = _get_session(req.session_id)
+    normalized_session_id = supabase_client.normalize_session_id(req.session_id)
+    session = _get_session(normalized_session_id)
 
     if req.system_prompt:
         session["system_prompt"] = req.system_prompt
@@ -1693,7 +1803,7 @@ async def arena_chat(req: ChatRequest):
         brain = BRAINS[brain_key]
         model = req.models.get(brain_key, brain["default_model"])
         caller = brain["caller"]
-        tasks[brain_key] = caller(session[brain_key], system_prompt, model, req.session_id)
+        tasks[brain_key] = caller(session[brain_key], system_prompt, model, normalized_session_id)
 
     # Execute all in parallel with per-brain timeout (80s to stay under Cloudflare's 100s)
     async def _with_timeout(coro, brain_key, timeout=80):
@@ -1718,7 +1828,7 @@ async def arena_chat(req: ChatRequest):
     conv_id = str(uuid.uuid4())
     log_row = {
         "id": conv_id,
-        "session_id": req.session_id,
+        "session_id": normalized_session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "user_input": req.message[:5000],
         "system_prompt": system_prompt[:2000],
@@ -1733,8 +1843,9 @@ async def arena_chat(req: ChatRequest):
     _sb_insert("arena_conversations", log_row)
 
     # Build response
+    moderator_text = ""
     response: dict[str, Any] = {
-        "session_id": req.session_id,
+        "session_id": normalized_session_id,
         "conversation_id": conv_id,
         "active_brains": active,
         "responses": {},
@@ -1759,18 +1870,30 @@ async def arena_chat(req: ChatRequest):
             debate_responses=brain_texts,
             original_prompt=req.message,
         )
+        moderator_text = moderator_result["moderator"]
         response["moderator"] = {
-            "response": moderator_result["moderator"],
+            "response": moderator_text,
             "model": moderator_result["model"],
             "status": moderator_result["status"],
         }
     except Exception as e:
         logger.error("Opus moderator crashed: %s", e)
+        moderator_text = f"[ERROR] Moderator failed: {e}"
         response["moderator"] = {
-            "response": f"[ERROR] Moderator failed: {e}",
+            "response": moderator_text,
             "model": OPUS_MODEL,
             "status": "error",
         }
+
+    await _persist_arena_session(
+        session_id=normalized_session_id,
+        user_input=req.message,
+        results=results,
+        source="arena-chat",
+        system_prompt=system_prompt,
+        model_map={k: req.models.get(k, BRAINS[k]["default_model"]) for k in active},
+        moderator_text=moderator_text,
+    )
 
     return response
 
@@ -1778,7 +1901,8 @@ async def arena_chat(req: ChatRequest):
 # == POST /arena/chat/stream -- SSE streaming, each brain emits as it finishes
 @router.post("/chat/stream")
 async def arena_chat_stream(req: ChatRequest):
-    session = _get_session(req.session_id)
+    normalized_session_id = supabase_client.normalize_session_id(req.session_id)
+    session = _get_session(normalized_session_id)
 
     if req.system_prompt:
         session["system_prompt"] = req.system_prompt
@@ -1808,7 +1932,7 @@ async def arena_chat_stream(req: ChatRequest):
             model = req.models.get(key, brain["default_model"])
             try:
                 result = await asyncio.wait_for(
-                    brain["caller"](session[key], system_prompt, model, req.session_id),
+                    brain["caller"](session[key], system_prompt, model, normalized_session_id),
                     timeout=80,
                 )
             except asyncio.TimeoutError:
@@ -1838,15 +1962,17 @@ async def arena_chat_stream(req: ChatRequest):
             yield f"data: {json.dumps(payload)}\n\n"
 
         # Run Opus Moderator after all brains complete
+        moderator_text = ""
         try:
             brain_texts = {k: results_store[k].get("text", "") for k in results_store}
             moderator_result = await _call_opus_moderator(
                 debate_responses=brain_texts,
                 original_prompt=req.message,
             )
+            moderator_text = moderator_result.get("moderator", "")
             mod_payload = {
                 "brain": "__moderator__",
-                "text": moderator_result.get("moderator", ""),
+                "text": moderator_text,
                 "model": moderator_result.get("model", OPUS_MODEL),
                 "status": moderator_result.get("status", "error"),
                 "tool_calls": [],
@@ -1857,9 +1983,10 @@ async def arena_chat_stream(req: ChatRequest):
             yield f"data: {json.dumps(mod_payload)}\n\n"
         except Exception as e:
             logger.error("Moderator stream error: %s", e)
+            moderator_text = f"[ERROR] Moderator failed: {e}"
             mod_payload = {
                 "brain": "__moderator__",
-                "text": f"[ERROR] Moderator failed: {e}",
+                "text": moderator_text,
                 "model": OPUS_MODEL,
                 "status": "error",
                 "tool_calls": [],
@@ -1872,7 +1999,7 @@ async def arena_chat_stream(req: ChatRequest):
         # Log to supabase
         log_row = {
             "id": conv_id,
-            "session_id": req.session_id,
+            "session_id": normalized_session_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "user_input": req.message[:5000],
             "system_prompt": system_prompt[:2000],
@@ -1885,6 +2012,16 @@ async def arena_chat_stream(req: ChatRequest):
         }
         _sb_insert("arena_conversations", log_row)
 
+        await _persist_arena_session(
+            session_id=normalized_session_id,
+            user_input=req.message,
+            results=results_store,
+            source="arena-chat-stream",
+            system_prompt=system_prompt,
+            model_map={k: req.models.get(k, BRAINS[k]["default_model"]) for k in active},
+            moderator_text=moderator_text,
+        )
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_stream(), media_type="text/event-stream")
@@ -1894,7 +2031,8 @@ async def arena_chat_stream(req: ChatRequest):
 
 @router.post("/debate")
 async def arena_debate(req: DebateRequest):
-    session = _get_session(req.session_id)
+    normalized_session_id = supabase_client.normalize_session_id(req.session_id)
+    session = _get_session(normalized_session_id)
     system_prompt = session["system_prompt"]
 
     # Support N-brain debate via `brains` list, fallback to legacy brain_a/brain_b
@@ -1925,7 +2063,7 @@ async def arena_debate(req: DebateRequest):
         )
 
         model = req.models.get(key, brain["default_model"])
-        tasks.append((key, brain["caller"]([{"role": "user", "content": debate_prompt}], system_prompt, model, req.session_id)))
+        tasks.append((key, brain["caller"]([{"role": "user", "content": debate_prompt}], system_prompt, model, normalized_session_id)))
 
     results_raw = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
 
@@ -1938,13 +2076,22 @@ async def arena_debate(req: DebateRequest):
 
     _sb_insert("arena_debates", {
         "id": str(uuid.uuid4()),
-        "session_id": req.session_id,
+        "session_id": normalized_session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "brain_a": debate_brains[0],
         "brain_b": debate_brains[1] if len(debate_brains) > 1 else "",
         "critique_a": critiques[debate_brains[0]]["text"][:10000],
         "critique_b": critiques[debate_brains[1]]["text"][:10000] if len(debate_brains) > 1 else "",
     })
+
+    await _persist_arena_session(
+        session_id=normalized_session_id,
+        user_input=req.original_prompt,
+        results=critiques,
+        source="arena-debate",
+        system_prompt=system_prompt,
+        model_map={k: req.models.get(k, BRAINS[k]["default_model"]) for k in debate_brains},
+    )
 
     # Return both legacy format (for 2-brain compat) and new multi-brain format
     response: dict[str, Any] = {

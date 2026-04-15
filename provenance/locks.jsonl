@@ -1,0 +1,4 @@
+{"lock_id": "lock-20260411-211020-382b9058", "lock_type": "WRITE_LOCK", "scope": "repo:dr-data", "granted_at": "2026-04-11T21:10:20.814025+00:00", "expires_at": "2026-04-11T21:40:20.814025+00:00", "granted_by": "johan", "active": true}
+{"lock_id": "lock-20260411-211142-616c0cdf", "lock_type": "WRITE_LOCK", "scope": "repo:test-repo", "granted_at": "2026-04-11T21:11:42.301652+00:00", "expires_at": "2026-04-11T21:16:42.301652+00:00", "granted_by": "johan", "active": true}
+{"lock_id": "lock-20260411-211340-099684e3", "lock_type": "WRITE_LOCK", "scope": "repo:joao-spine", "granted_at": "2026-04-11T21:13:40.695656+00:00", "expires_at": "2026-04-11T21:18:40.695656+00:00", "granted_by": "johan", "active": true}
+{"lock_id": "lock-20260411-212056-ac2e13b1", "lock_type": "WRITE_LOCK", "scope": "repo:test-e2e", "granted_at": "2026-04-11T21:20:56.336115+00:00", "expires_at": "2026-04-11T21:25:56.336115+00:00", "granted_by": "johan", "active": true}

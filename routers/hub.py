@@ -43,8 +43,19 @@ JOAO_SYSTEM_PROMPT = (
     "dopamine.watch, dopamine.chat, Dr. Data, TAOP site, the Council infrastructure. "
     "You know his ADHD superpower -- keep responses tight. "
     "You can dispatch agents, check system status, and access JOAO memory. "
+    "Do not claim you lack access when hub APIs and tmux are reachable; verify via tools first. "
+    "If a capability is down, report exactly which endpoint failed and why. "
     "You remember context within the conversation. "
     "When asked to dispatch, format your response clearly with the agent name and task."
+)
+
+JOAO_SKILL_STACK_PROMPT = (
+    "\n\nOPERATING POLICY (MANDATORY):\n"
+    "- JOAO runs with full capability inheritance across V1 + V2 + V3 stacks.\n"
+    "- Prefer strongest available skill path, not minimal/demo behavior.\n"
+    "- For coding requests: inspect -> modify -> verify -> report evidence.\n"
+    "- For infrastructure requests: provide concrete endpoint/process evidence.\n"
+    "- Never roleplay execution. Either show real evidence or name the failing dependency.\n"
 )
 
 
@@ -469,6 +480,7 @@ class BrainRequest(BaseModel):
 
 # Load MrDP system prompt once at import, reload on each request for dev convenience
 _MRDP_PROMPT_PATH = Path(__file__).parent.parent / "mrdp_system_prompt.md"
+_DRDATA_PROMPT_PATH = Path(__file__).parent.parent / "drdata_system_prompt.md"
 
 
 def _load_mrdp_prompt() -> str:
@@ -478,15 +490,152 @@ def _load_mrdp_prompt() -> str:
         return "You are MrDP, a neurodivergent life companion built from neuroscience."
 
 
+def _load_drdata_prompt() -> str:
+    try:
+        return _DRDATA_PROMPT_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return (
+            "You are Dr. Data, TAOP's elite data intelligence operator. "
+            "You specialize in BI migration, Tableau to Power BI translation, "
+            "data quality diagnostics, and executive analytics narratives."
+        )
+
+
+def _extract_last_user_text(messages: list[dict]) -> str:
+    if not messages:
+        return ""
+    raw = messages[-1].get("content", "")
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, list):
+        parts = []
+        for item in raw:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text", "")))
+        return "\n".join(parts)
+    return str(raw)
+
+
+def _is_truth_probe_query(text: str) -> bool:
+    t = text.lower()
+    probes = [
+        "access now",
+        "dispatch working",
+        "prove it",
+        "are you connected",
+        "are you live",
+        "do you have access",
+        "status",
+    ]
+    return any(p in t for p in probes)
+
+
+def _build_truth_report() -> str:
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Core process checks
+    try:
+        spine_proc = subprocess.run(
+            ["pgrep", "-f", r"python3 -m uvicorn main:app --host 0.0.0.0 --port 7778"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        spine_alive = spine_proc.returncode == 0
+    except Exception:
+        spine_alive = False
+
+    try:
+        dispatch_probe = subprocess.run(
+            ["curl", "-sS", "-m", "3", "http://127.0.0.1:8100/health"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        dispatch_alive = dispatch_probe.returncode == 0 and "alive" in (dispatch_probe.stdout or "")
+    except Exception:
+        dispatch_alive = False
+
+    # ARIA truth
+    try:
+        aria_tmux = subprocess.run(
+            ["tmux", "has-session", "-t", "ARIA"],
+            capture_output=True,
+            timeout=3,
+        )
+        aria_session = aria_tmux.returncode == 0
+    except Exception:
+        aria_session = False
+
+    try:
+        exec_probe = subprocess.run(
+            ["bash", "-lc", "whoami && hostname && pwd"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        exec_ok = exec_probe.returncode == 0
+        exec_out = (exec_probe.stdout or "").strip()
+    except Exception as exc:
+        exec_ok = False
+        exec_out = str(exc)[:180]
+
+    latest_dispatch = _safe_table_op(
+        "hub_dispatches",
+        "select",
+        columns="id,agent,status,dispatched_at,task",
+        order="dispatched_at",
+        desc=True,
+        limit=1,
+    )
+    d = latest_dispatch[0] if latest_dispatch else {}
+
+    lines = [
+        "Live JOAO truth report (not simulated):",
+        f"- timestamp: {now}",
+        f"- joao_spine: {'live' if spine_alive else 'down'}",
+        f"- dispatch_service: {'live' if dispatch_alive else 'down'}",
+        f"- aria_tmux_session: {'present' if aria_session else 'missing'}",
+        f"- shell_exec_proof: {'ok' if exec_ok else 'failed'} :: {exec_out}",
+        f"- latest_dispatch: {d.get('agent', 'none')} :: {d.get('status', 'n/a')} :: {str(d.get('task', ''))[:80]}",
+    ]
+    return "\n".join(lines)
+
+
 @router.post("/brain")
 async def brain(req: BrainRequest, request: Request, token: str = Query(default="")):
     _check_hub_auth(request, token)
 
     is_mrdp = req.mode == "mrdp"
+    is_drdata = req.mode == "drdata"
+    last_user_text = _extract_last_user_text(req.messages)
+
+    # Hard guardrail for access/proof/status questions: return real runtime evidence.
+    if not is_mrdp and not is_drdata and _is_truth_probe_query(last_user_text):
+        report = _build_truth_report()
+
+        async def truth_stream():
+            yield f"data: {json.dumps({'type': 'token', 'text': report})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'full_text': report})}\n\n"
+
+        _safe_table_op("joao_memory", "insert", data={
+            "source": "brain_truth_probe",
+            "content": f"User: {last_user_text[:220]}\nJOAO: {report[:1200]}",
+            "summary": "Live truth probe response generated from runtime checks.",
+            "tags": ["brain", "truth_probe", "status"],
+        })
+        return StreamingResponse(truth_stream(), media_type="text/event-stream")
 
     if is_mrdp:
-        system_prompt = _load_mrdp_prompt()
+        system_prompt = _load_mrdp_prompt() + JOAO_SKILL_STACK_PROMPT
         model = "claude-opus-4-6"
+    elif is_drdata:
+        system_prompt = (
+            _load_drdata_prompt()
+            + "\n\nYou have priority access to Dr. Data workflows and should reason like a senior analytics architect."
+            + JOAO_SKILL_STACK_PROMPT
+        )
+        model = "claude-sonnet-4-20250514"
     else:
         # Inject context from memory
         context_parts = []
@@ -516,7 +665,7 @@ async def brain(req: BrainRequest, request: Request, token: str = Query(default=
                 f"- {d['agent']}: {d['task'][:100]} [{d['status']}]" for d in recent_dispatches
             ))
 
-        system_prompt = JOAO_SYSTEM_PROMPT
+        system_prompt = JOAO_SYSTEM_PROMPT + JOAO_SKILL_STACK_PROMPT
         if context_parts:
             system_prompt += "\n\nCURRENT CONTEXT:\n" + "\n\n".join(context_parts)
         model = "claude-sonnet-4-20250514"
@@ -804,3 +953,183 @@ async def projects(request: Request, token: str = Query(default="")):
             results.append({**proj, "status": status})
 
     return {"projects": results, "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# -- GET /api/provider-health -------------------------------------------------
+
+@router.get("/provider-health")
+async def provider_health(request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    def _http_probe(url: str, headers: dict[str, str] | None = None, timeout: int = 5) -> dict[str, Any]:
+        try:
+            import httpx
+            with httpx.Client(timeout=timeout, verify=False) as client:
+                response = client.get(url, headers=headers or {})
+                return {
+                    "ok": response.status_code < 500,
+                    "status_code": response.status_code,
+                }
+        except Exception as exc:
+            return {"ok": False, "status_code": 0, "error": str(exc)[:180]}
+
+    providers: dict[str, Any] = {}
+
+    # JOAO core services
+    # Avoid self-HTTP probe for 7778 from within the same request path; use process check.
+    try:
+        spine_proc = subprocess.run(
+            ["pgrep", "-f", r"python3 -m uvicorn main:app --host 0.0.0.0 --port 7778"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        spine_ok = spine_proc.returncode == 0
+    except Exception:
+        spine_ok = False
+
+    dispatch = _http_probe("http://127.0.0.1:8100/health")
+    providers["joao_spine"] = {
+        "status": "live" if spine_ok else "down",
+        "note": "Core exocortex API service",
+        "detail": "process check",
+    }
+    providers["dispatch"] = {
+        "status": "live" if dispatch.get("ok") else "down",
+        "note": "Task dispatch service",
+        "detail": f"HTTP {dispatch.get('status_code', 0)}",
+    }
+
+    # Cloudflare API
+    cf_token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    cf_headers = {"Authorization": f"Bearer {cf_token}"} if cf_token else {}
+    cf_probe = _http_probe("https://api.cloudflare.com/client/v4/accounts", headers=cf_headers)
+    providers["cloudflare"] = {
+        "status": "configured" if cf_probe.get("ok") and cf_probe.get("status_code") == 200 else ("missing-token" if not cf_token else "auth-error"),
+        "note": "DNS, tunnel, edge, WAF, and R2 control plane",
+        "detail": f"HTTP {cf_probe.get('status_code', 0)}",
+    }
+
+    # Supabase
+    sb_url = os.environ.get("SUPABASE_URL", "").strip()
+    sb_service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    if sb_url and sb_service_key:
+        sb_probe = _http_probe(
+            f"{sb_url.rstrip('/')}/rest/v1/",
+            headers={
+                "apikey": sb_service_key,
+                "Authorization": f"Bearer {sb_service_key}",
+            },
+        )
+        sb_status = "configured" if sb_probe.get("status_code") == 200 else "auth-error"
+        sb_detail = f"HTTP {sb_probe.get('status_code', 0)}"
+    else:
+        sb_status = "missing-token"
+        sb_detail = "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing"
+    providers["supabase"] = {
+        "status": sb_status,
+        "note": "Memory/session data plane",
+        "detail": sb_detail,
+    }
+
+    # Neon
+    neon_rest = os.environ.get("NEON_REST_URL", "").strip()
+    neon_db = os.environ.get("NEON_DATABASE_URL", "").strip()
+    neon_rest_probe = _http_probe(neon_rest) if neon_rest else {"ok": False, "status_code": 0}
+    neon_psql_ok = False
+    neon_psql_detail = "psql check skipped"
+    if neon_db:
+        try:
+            p = subprocess.run(
+                ["psql", neon_db, "-c", "select 1;", "-t", "-A"],
+                capture_output=True,
+                text=True,
+                timeout=6,
+            )
+            neon_psql_ok = p.returncode == 0
+            neon_psql_detail = "psql ok" if neon_psql_ok else (p.stderr.strip()[:160] or "psql failed")
+        except Exception as exc:
+            neon_psql_detail = str(exc)[:160]
+    neon_ok = neon_psql_ok or neon_rest_probe.get("ok", False)
+    providers["neon"] = {
+        "status": "configured" if neon_ok else "missing-token",
+        "note": "Postgres production data plane",
+        "detail": f"REST HTTP {neon_rest_probe.get('status_code', 0)} · {neon_psql_detail}",
+    }
+
+    # GitHub
+    gh_token = os.environ.get("GITHUB_TOKEN", "").strip()
+    gh_probe = _http_probe(
+        "https://api.github.com/user",
+        headers={"Authorization": f"Bearer {gh_token}"} if gh_token else {},
+    )
+    providers["github"] = {
+        "status": "configured" if gh_probe.get("status_code") == 200 else ("missing-token" if not gh_token else "auth-error"),
+        "note": "Source control and CI/CD trigger surface",
+        "detail": f"HTTP {gh_probe.get('status_code', 0)}",
+    }
+
+    # Dr. Data availability (deterministic local checks, avoid self HTTP recursion)
+    drdata_v2_index = Path.home() / "taop" / "drdata-v2" / "index.html"
+    drdata_v1_proc = subprocess.run(
+        ["pgrep", "-f", "drdata|streamlit.*8502|8503|8504"],
+        capture_output=True,
+        text=True,
+        timeout=3,
+    )
+    drdata_live = drdata_v2_index.exists() or drdata_v1_proc.returncode == 0
+    drdata_detail = []
+    drdata_detail.append("v2 index present" if drdata_v2_index.exists() else "v2 index missing")
+    drdata_detail.append("v1/v2 process up" if drdata_v1_proc.returncode == 0 else "no drdata process")
+    providers["drdata"] = {
+        "status": "live" if drdata_live else "down",
+        "note": "Dr. Data V1/V2 intelligence surface",
+        "detail": " · ".join(drdata_detail),
+    }
+
+    return {
+        "providers": providers,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# -- GET /api/exec-proof -----------------------------------------------------
+
+@router.get("/exec-proof")
+async def exec_proof(request: Request, token: str = Query(default="")):
+    _check_hub_auth(request, token)
+
+    now = datetime.now(timezone.utc).isoformat()
+    proof_file = Path("/tmp/joao_exec_proof.txt")
+    command = "whoami && hostname && pwd"
+
+    try:
+        result = subprocess.run(
+            ["bash", "-lc", command],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        output = (result.stdout or "").strip()
+        error = (result.stderr or "").strip()
+        proof_line = f"{now} :: {output}\n"
+        proof_file.write_text(proof_line, encoding="utf-8")
+
+        return {
+            "ok": result.returncode == 0,
+            "command": command,
+            "returncode": result.returncode,
+            "output": output,
+            "error": error[:300],
+            "proof_file": str(proof_file),
+            "timestamp": now,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "command": command,
+            "returncode": -1,
+            "output": "",
+            "error": str(exc)[:300],
+            "proof_file": str(proof_file),
+            "timestamp": now,
+        }

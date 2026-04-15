@@ -1,0 +1,120 @@
+{
+  "status": "success",
+  "playlist": {
+    "tracks": [
+      {
+        "name": "Intro",
+        "artist": "The xx",
+        "genre": "indie"
+      },
+      {
+        "name": "Re: Stacks",
+        "artist": "Bon Iver",
+        "genre": "indie-folk"
+      },
+      {
+        "name": "To Build a Home",
+        "artist": "The Cinematic Orchestra",
+        "genre": "ambient"
+      },
+      {
+        "name": "Divenire",
+        "artist": "Ludovico Einaudi",
+        "genre": "classical"
+      },
+      {
+        "name": "Comptine d'un autre ete",
+        "artist": "Yann Tiersen",
+        "genre": "classical"
+      },
+      {
+        "name": "Oblivion",
+        "artist": "M83",
+        "genre": "electronic"
+      },
+      {
+        "name": "Midnight City (slowed)",
+        "artist": "M83",
+        "genre": "electronic"
+      },
+      {
+        "name": "Daylight",
+        "artist": "Joji",
+        "genre": "r-n-b"
+      },
+      {
+        "name": "Flume",
+        "artist": "Bon Iver",
+        "genre": "indie-folk"
+      },
+      {
+        "name": "Opus",
+        "artist": "Eric Prydz",
+        "genre": "electronic"
+      }
+    ],
+    "count": 10,
+    "estimated_duration_minutes": 35,
+    "mood_transition": "stressed -> focused",
+    "seeds": {
+      "genres": [
+        "lo-fi",
+        "study",
+        "classical"
+      ],
+      "energy": 0.45,
+      "valence": 0.5
+    }
+  },
+  "rationale": "When everything's loud, you need a cocoon. Lo-fi and minimal textures that create a pocket of space. Not background noise -- a clean room for your mind to work in.",
+  "links": {
+    "payload": {
+      "action": "play_playlist",
+      "tracks": [
+        {
+          "name": "Intro",
+          "artist": "The xx"
+        },
+        {
+          "name": "Re: Stacks",
+          "artist": "Bon Iver"
+        },
+        {
+          "name": "To Build a Home",
+          "artist": "The Cinematic Orchestra"
+        },
+        {
+          "name": "Divenire",
+          "artist": "Ludovico Einaudi"
+        },
+        {
+          "name": "Comptine d'un autre ete",
+          "artist": "Yann Tiersen"
+        },
+        {
+          "name": "Oblivion",
+          "artist": "M83"
+        },
+        {
+          "name": "Midnight City (slowed)",
+          "artist": "M83"
+        },
+        {
+          "name": "Daylight",
+          "artist": "Joji"
+        },
+        {
+          "name": "Flume",
+          "artist": "Bon Iver"
+        },
+        {
+          "name": "Opus",
+          "artist": "Eric Prydz"
+        }
+      ],
+      "count": 10
+    },
+    "type": "local"
+  },
+  "adapter_used": "curated"
+}

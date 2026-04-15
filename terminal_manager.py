@@ -16,12 +16,12 @@ import ptyprocess
 
 logger = logging.getLogger(__name__)
 
-MAX_SCROLLBACK = 50 * 1024  # 50KB
-IDLE_TIMEOUT = 30 * 60  # 30 minutes
+MAX_SCROLLBACK = 100 * 1024  # 100KB
+IDLE_TIMEOUT = 60 * 60  # 60 minutes
 CLEANUP_INTERVAL = 60  # check every 60s
 
 
-DISCONNECT_GRACE = 60  # seconds to keep PTY alive after WS disconnect
+DISCONNECT_GRACE = 300  # seconds to keep PTY alive after WS disconnect (5 min)
 
 
 @dataclass

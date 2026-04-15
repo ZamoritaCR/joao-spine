@@ -1,0 +1,57 @@
+{
+  "status": "success",
+  "playlist": {
+    "tracks": [
+      {
+        "name": "Intro",
+        "artist": "The xx",
+        "genre": "indie"
+      },
+      {
+        "name": "Re: Stacks",
+        "artist": "Bon Iver",
+        "genre": "indie-folk"
+      },
+      {
+        "name": "To Build a Home",
+        "artist": "The Cinematic Orchestra",
+        "genre": "ambient"
+      }
+    ],
+    "count": 3,
+    "estimated_duration_minutes": 10,
+    "mood_transition": "stressed -> focused",
+    "seeds": {
+      "genres": [
+        "lo-fi",
+        "study",
+        "classical"
+      ],
+      "energy": 0.45,
+      "valence": 0.5
+    }
+  },
+  "rationale": "When everything's loud, you need a cocoon. Lo-fi and minimal textures that create a pocket of space. Not background noise -- a clean room for your mind to work in.",
+  "links": {
+    "payload": {
+      "action": "play_playlist",
+      "tracks": [
+        {
+          "name": "Intro",
+          "artist": "The xx"
+        },
+        {
+          "name": "Re: Stacks",
+          "artist": "Bon Iver"
+        },
+        {
+          "name": "To Build a Home",
+          "artist": "The Cinematic Orchestra"
+        }
+      ],
+      "count": 3
+    },
+    "type": "local"
+  },
+  "adapter_used": "curated"
+}

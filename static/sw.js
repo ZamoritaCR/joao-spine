@@ -1,4 +1,4 @@
-const CACHE_NAME = 'joao-v1';
+const CACHE_NAME = 'joao-v2';
 const STATIC_ASSETS = [
   '/joao/app',
   '/static/manifest.json',
@@ -33,6 +33,18 @@ self.addEventListener('fetch', (event) => {
           headers: { 'Content-Type': 'application/json' },
         })
       )
+    );
+    return;
+  }
+
+  // Network-first for hub shell/assets to avoid stale operator UI.
+  if (
+    url.pathname === '/hub' ||
+    url.pathname === '/static/hub.js' ||
+    url.pathname === '/static/hub.css'
+  ) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
     );
     return;
   }

@@ -1,0 +1,16 @@
+{
+  "type": "tableau_workbook",
+  "version": "unknown",
+  "datasources": [],
+  "worksheets": [],
+  "dashboards": [],
+  "calculated_fields": [],
+  "parameters": [],
+  "filters": [],
+  "relationships": [],
+  "has_hyper": false,
+  "design": {
+    "color_palettes": [],
+    "global_fonts": {}
+  }
+}

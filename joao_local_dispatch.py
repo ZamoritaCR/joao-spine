@@ -18,8 +18,13 @@ import asyncio
 import httpx
 import uvicorn
 
-app = FastAPI(title="JOAO Local Dispatch", version="3.0.0")
+app = FastAPI(title="JOAO Local Dispatch", version="3.1.0")
 logger = logging.getLogger("joao-dispatch")
+
+# Dispatch stagger: the launcher script itself handles rate-limit protection
+# via per-agent hash delay (0-15s) and flock-based per-agent locking.
+# No in-process lock needed since gunicorn runs multiple workers.
+_DISPATCH_STAGGER_SECS = 0  # launcher handles its own stagger
 
 # Security: shared secret between Railway and local listener
 DISPATCH_SECRET = os.getenv("JOAO_DISPATCH_SECRET", "CHANGE_ME_IN_PRODUCTION")
@@ -84,6 +89,7 @@ AGENT_WORKING_DIR = os.path.expanduser("~/joao-interface")
 COUNCIL_TASK_DIR = "/tmp/council/tasks"
 COUNCIL_OUTPUT_DIR = "/tmp/council/outputs"
 COUNCIL_LAUNCHER = os.path.expanduser("~/council/bin/launch_agent.sh")
+COUNCIL_CHECKPOINT_DIR = "/tmp/council/checkpoints"
 
 
 def is_claude_running(session_name: str) -> bool:
@@ -159,13 +165,13 @@ def tmux_session_exists(session_name: str) -> bool:
 
 
 def create_tmux_session(session_name: str):
-    """Create a tmux session if it doesn't exist."""
+    """Create a tmux session if it doesn't exist. Forces bash shell."""
     if not tmux_session_exists(session_name):
         subprocess.run(
-            ["tmux", "new-session", "-d", "-s", session_name],
+            ["tmux", "new-session", "-d", "-s", session_name, "bash"],
             capture_output=True,
         )
-        logger.info(f"Created tmux session: {session_name}")
+        logger.info(f"Created tmux session: {session_name} (bash)")
 
 
 def sanitize_for_tmux(text: str) -> str:
@@ -189,15 +195,60 @@ def sanitize_for_tmux(text: str) -> str:
     return text
 
 
+def _clear_stuck_prompt(session_name: str):
+    """Cancel any stuck prompt, exit pagers, and clear the input line buffer.
+
+    Without this, dispatched commands get typed into stuck prompts (sudo
+    password, confirmation, less/more pagers, etc.) instead of running as
+    intended.
+
+    Sequence:
+    1. 'q' to exit pagers (less, more, git log, man, etc.)
+    2. Ctrl-C x2 to cancel any running process
+    3. Ctrl-U to kill any partial text in readline buffer
+    """
+    # Exit pagers first (q exits less/more/man; harmless at a shell prompt
+    # because it just prints 'q: command not found' which gets overwritten)
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "q"],
+        capture_output=True,
+    )
+    time.sleep(0.2)
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "Enter"],
+        capture_output=True,
+    )
+    time.sleep(0.3)
+    # Cancel running processes
+    for _ in range(2):
+        subprocess.run(
+            ["tmux", "send-keys", "-t", session_name, "C-c"],
+            capture_output=True,
+        )
+        time.sleep(0.2)
+    # Kill any leftover text in the line buffer
+    subprocess.run(
+        ["tmux", "send-keys", "-t", session_name, "C-u"],
+        capture_output=True,
+    )
+    # Small delay for the shell prompt to reappear clean
+    time.sleep(0.3)
+
+
 def send_to_tmux(session_name: str, command: str):
     """Send a command string to a tmux session, then press Enter.
 
-    Uses two-step approach: literal text first (-l flag), then Enter as a
-    separate key press after a brief pause.  The pause is critical for
-    interactive Claude Code sessions: without it, Enter arrives while the
-    terminal is still buffering the paste and gets swallowed into the paste
-    buffer instead of triggering submission.
+    Always clears any stuck prompt first (sudo password, confirmation, etc.)
+    before sending the command. Uses two-step approach: literal text first
+    (-l flag), then Enter as a separate key press after a brief pause.
+    The pause is critical for interactive Claude Code sessions: without it,
+    Enter arrives while the terminal is still buffering the paste and gets
+    swallowed into the paste buffer instead of triggering submission.
     """
+    # Cancel any stuck prompt before sending the new command
+    if not is_claude_running(session_name):
+        _clear_stuck_prompt(session_name)
+
     safe_command = sanitize_for_tmux(command)
     # Send the command text first (literal, no key interpretation)
     subprocess.run(
@@ -242,6 +293,187 @@ def write_task_file(agent: str, task: str, context: str = None, project: str = N
         f.write(prompt_text)
 
     return task_file
+
+
+# ---------------------------------------------------------------------------
+# Long-horizon task models (paper: arXiv:2604.11978 — HORIZON framework)
+# ---------------------------------------------------------------------------
+
+class HorizonStep(BaseModel):
+    """One step in a long-horizon task sequence."""
+    index: int
+    agent: str
+    description: str
+    success_criteria: str
+    state_assertions: list[str] = []  # what must be true before this step runs
+
+
+class LongHorizonTask(BaseModel):
+    """Multi-step orchestration with explicit constraint tracking.
+
+    Mitigates: Catastrophic Forgetting, Planning Error, History Error Accumulation,
+    Memory Limitation (arXiv:2604.11978).
+    """
+    task_id: str
+    title: str
+    constraints: list[str]           # hard invariants enforced across ALL steps
+    steps: list[HorizonStep]
+    priority: str = "normal"
+    project: Optional[str] = None
+    lane: str = "claude"
+
+
+class CheckpointReport(BaseModel):
+    """Agent self-report at the end of each step.
+
+    The compressed_state becomes the constraint reminder injected into
+    subsequent steps, preventing Catastrophic Forgetting across steps.
+    """
+    task_id: str
+    step_index: int
+    agent: str
+    status: str                       # "success" | "partial" | "failed"
+    compressed_state: str             # 2-5 sentence summary of what is now true
+    constraints_violated: list[str] = []
+    next_step_notes: str = ""         # hints for the next agent in the chain
+
+
+class HorizonTaskResponse(BaseModel):
+    task_id: str
+    title: str
+    total_steps: int
+    first_step_dispatched_to: str
+    task_file: str
+    checkpoint_dir: str
+
+
+# ---------------------------------------------------------------------------
+# Structured task file writer — addresses Instruction Error + False Assumptions
+# ---------------------------------------------------------------------------
+
+def write_task_file_structured(
+    agent: str,
+    step: HorizonStep,
+    task: "LongHorizonTask",
+    prior_checkpoint: Optional[dict] = None,
+) -> str:
+    """Write a structured task file with explicit constraint and state blocks.
+
+    Structure (top-to-bottom):
+      1. CRITICAL CONSTRAINTS  — hard invariants, repeated every step
+      2. PRIOR STATE SNAPSHOT  — compressed state from previous step (if any)
+      3. TASK DESCRIPTION      — what this step must accomplish
+      4. SUCCESS CRITERIA      — exact conditions that mark this step done
+      5. STATE ASSERTIONS      — preconditions to verify before acting
+      6. NEXT AGENT NOTES      — what the next step expects from you
+
+    Prepending constraints first prevents Catastrophic Forgetting — the model
+    sees the invariants before any task text, not buried hundreds of tokens in.
+    """
+    os.makedirs(COUNCIL_TASK_DIR, exist_ok=True)
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    safe_agent = re.sub(r'[^a-zA-Z0-9]', '_', agent.upper())
+    task_file = f"{COUNCIL_TASK_DIR}/{safe_agent}_{timestamp}_h{step.index}.md"
+
+    total_steps = len(task.steps)
+
+    lines = [
+        f"# HORIZON TASK: {task.title}",
+        f"# Task ID: {task.task_id} | Step {step.index + 1} of {total_steps} | Agent: {agent}",
+        "",
+        "## CRITICAL CONSTRAINTS (apply to ALL steps — do not deviate)",
+    ]
+    for c in task.constraints:
+        lines.append(f"- {c}")
+
+    if prior_checkpoint:
+        lines += [
+            "",
+            "## PRIOR STATE SNAPSHOT (what was true after the last step)",
+            prior_checkpoint.get("compressed_state", "No prior state available."),
+        ]
+        if prior_checkpoint.get("next_step_notes"):
+            lines += [
+                "",
+                "## NOTES FROM PREVIOUS AGENT",
+                prior_checkpoint["next_step_notes"],
+            ]
+
+    lines += [
+        "",
+        "## YOUR TASK (Step {}/{})".format(step.index + 1, total_steps),
+        step.description,
+        "",
+        "## SUCCESS CRITERIA",
+        step.success_criteria,
+    ]
+
+    if step.state_assertions:
+        lines += [
+            "",
+            "## STATE ASSERTIONS — verify these before acting",
+        ]
+        for assertion in step.state_assertions:
+            lines.append(f"- [ ] {assertion}")
+
+    if task.project:
+        lines += ["", f"## PROJECT CONTEXT", f"Project: {task.project}"]
+
+    remaining = total_steps - step.index - 1
+    if remaining > 0:
+        next_step = task.steps[step.index + 1]
+        lines += [
+            "",
+            f"## NEXT STEP PREVIEW (step {step.index + 2}/{total_steps} — do NOT execute, just be aware)",
+            f"Agent: {next_step.agent} | Task: {next_step.description[:200]}",
+            "",
+            "When you finish, write a 2-5 sentence COMPRESSED STATE SUMMARY of what is now true.",
+            "The next agent depends on this to avoid re-doing your work or making false assumptions.",
+        ]
+    else:
+        lines += [
+            "",
+            "## FINAL STEP",
+            "This is the last step. Confirm all CRITICAL CONSTRAINTS were honored throughout.",
+        ]
+
+    with open(task_file, "w") as f:
+        f.write("\n".join(lines))
+
+    return task_file
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint state persistence
+# ---------------------------------------------------------------------------
+
+def _checkpoint_file(task_id: str) -> str:
+    os.makedirs(COUNCIL_CHECKPOINT_DIR, exist_ok=True)
+    safe_id = re.sub(r'[^a-zA-Z0-9_-]', '_', task_id)
+    return f"{COUNCIL_CHECKPOINT_DIR}/{safe_id}.json"
+
+
+def _load_checkpoints(task_id: str) -> list[dict]:
+    path = _checkpoint_file(task_id)
+    if not os.path.exists(path):
+        return []
+    with open(path) as f:
+        return _json.load(f)
+
+
+def _append_checkpoint(task_id: str, report: "CheckpointReport"):
+    checkpoints = _load_checkpoints(task_id)
+    checkpoints.append({
+        "step_index": report.step_index,
+        "agent": report.agent,
+        "status": report.status,
+        "compressed_state": report.compressed_state,
+        "constraints_violated": report.constraints_violated,
+        "next_step_notes": report.next_step_notes,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+    with open(_checkpoint_file(task_id), "w") as f:
+        _json.dump(checkpoints, f, indent=2)
 
 
 def build_automated_command(
@@ -329,6 +561,9 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
       permission prompts.
     - claude: One-shot Claude Code invocation via temp file pipe.
       Uses -p --dangerously-skip-permissions. No permission prompts.
+
+    On-demand agents (claude lane, no Claude running) are serialized through
+    a lock with an 8-second stagger to prevent API rate-limit thundering herd.
     """
     verify_secret(authorization)
 
@@ -342,6 +577,8 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
     lane = cmd.lane or "automated"
     session = AGENT_SESSIONS[agent]
     create_tmux_session(session)
+
+    needs_stagger = False
 
     if lane in ("interactive", "claude"):
         claude_alive = is_claude_running(session)
@@ -360,6 +597,7 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
             command = build_claude_task_command(
                 agent, cmd.task, cmd.priority, cmd.context, cmd.project
             )
+            needs_stagger = True
             logger.info(f"[{lane}->print] No Claude in {session}, launching: {cmd.task[:100]}")
     else:
         # Automated lane: bash-only, no interactive processes
@@ -375,6 +613,8 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
         )
         logger.info(f"[automated] Dispatched to {agent}: {cmd.task[:100]}")
 
+    # Stagger for on-demand agents is handled inside launch_agent.sh v2
+    # (per-agent hash delay 0-15s + flock). No dispatcher-side delay needed.
     send_to_tmux(session, command)
 
     return DispatchResponse(
@@ -384,6 +624,194 @@ async def dispatch(cmd: DispatchCommand, authorization: str | None = Header(None
         timestamp=datetime.now(timezone.utc).isoformat(),
         message=f"Task sent to {agent} via tmux session '{session}' [lane={lane}]",
     )
+
+
+@app.post("/dispatch/horizon", response_model=HorizonTaskResponse)
+async def dispatch_horizon(
+    task: LongHorizonTask,
+    background_tasks: BackgroundTasks,
+    authorization: str | None = Header(None),
+):
+    """Dispatch a multi-step long-horizon task to the Council.
+
+    Implements mitigations from arXiv:2604.11978 (HORIZON framework):
+    - Constraint blocks prepended to every step (Catastrophic Forgetting)
+    - Explicit success criteria per step (Instruction Error)
+    - State assertions checked before each step (Environment Error, False Assumptions)
+    - Sequential step dispatch gated on checkpoint reports (History Error Accumulation)
+    - Compressed state summaries injected forward (Memory Limitation)
+
+    Only the FIRST step is dispatched immediately. Subsequent steps are triggered
+    via POST /council/checkpoint once the prior step files a success checkpoint.
+    """
+    verify_secret(authorization)
+
+    if not task.steps:
+        raise HTTPException(status_code=422, detail="LongHorizonTask requires at least one step")
+
+    # Validate all agents exist upfront — catches planning errors early
+    for step in task.steps:
+        agent_upper = step.agent.upper()
+        if agent_upper not in AGENT_SESSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Step {step.index}: unknown agent '{step.agent}'. "
+                       f"Available: {list(AGENT_SESSIONS.keys())}",
+            )
+
+    # Initialize checkpoint file (empty — no prior state for step 0)
+    _load_checkpoints(task.task_id)  # ensures checkpoint dir exists
+
+    first_step = task.steps[0]
+    agent = first_step.agent.upper()
+    session = AGENT_SESSIONS[agent]
+    create_tmux_session(session)
+
+    task_file = write_task_file_structured(agent, first_step, task, prior_checkpoint=None)
+    command = f"bash {COUNCIL_LAUNCHER} {agent} {task_file} {AGENT_WORKING_DIR}"
+
+    send_to_tmux(session, command)
+    logger.info(
+        "[horizon] Task '%s' (id=%s) step 0/%d dispatched to %s",
+        task.title, task.task_id, len(task.steps) - 1, agent,
+    )
+
+    return HorizonTaskResponse(
+        task_id=task.task_id,
+        title=task.title,
+        total_steps=len(task.steps),
+        first_step_dispatched_to=agent,
+        task_file=task_file,
+        checkpoint_dir=COUNCIL_CHECKPOINT_DIR,
+    )
+
+
+@app.post("/council/checkpoint")
+async def council_checkpoint(
+    report: CheckpointReport,
+    background_tasks: BackgroundTasks,
+    authorization: str | None = Header(None),
+):
+    """Accept a step-completion checkpoint from a Council agent.
+
+    When an agent completes a horizon step it POSTs here with a compressed
+    state summary. This endpoint:
+    1. Persists the checkpoint state
+    2. If status == 'success', loads the next step and dispatches it with
+       the prior state injected as a constraint reminder
+    3. If constraints_violated, stops the chain and logs the failure
+
+    This closes the History Error Accumulation loop — each step is gated
+    on an explicit success signal, not assumed to have succeeded.
+    """
+    verify_secret(authorization)
+
+    _append_checkpoint(report.task_id, report)
+    logger.info(
+        "[checkpoint] task=%s step=%d agent=%s status=%s",
+        report.task_id, report.step_index, report.agent, report.status,
+    )
+
+    if report.constraints_violated:
+        logger.warning(
+            "[checkpoint] CONSTRAINT VIOLATION in task=%s step=%d: %s",
+            report.task_id, report.step_index, report.constraints_violated,
+        )
+        return {
+            "accepted": True,
+            "action": "chain_halted",
+            "reason": "constraints_violated",
+            "violated": report.constraints_violated,
+        }
+
+    if report.status != "success":
+        return {
+            "accepted": True,
+            "action": "chain_halted",
+            "reason": f"step status={report.status} — manual review required",
+        }
+
+    # Load the task definition to find the next step.
+    # Task metadata is stored alongside the checkpoint.
+    meta_path = _checkpoint_file(report.task_id) + ".meta.json"
+    if not os.path.exists(meta_path):
+        return {
+            "accepted": True,
+            "action": "no_next_step",
+            "reason": "task metadata not found — horizon chain not available for auto-advance",
+        }
+
+    with open(meta_path) as f:
+        task_dict = _json.load(f)
+
+    task = LongHorizonTask(**task_dict)
+    next_index = report.step_index + 1
+
+    if next_index >= len(task.steps):
+        logger.info("[checkpoint] task=%s COMPLETE — all %d steps done", report.task_id, len(task.steps))
+        return {"accepted": True, "action": "task_complete", "total_steps": len(task.steps)}
+
+    next_step = task.steps[next_index]
+    agent = next_step.agent.upper()
+    session = AGENT_SESSIONS[agent]
+    create_tmux_session(session)
+
+    prior = {
+        "compressed_state": report.compressed_state,
+        "next_step_notes": report.next_step_notes,
+    }
+    task_file = write_task_file_structured(agent, next_step, task, prior_checkpoint=prior)
+    command = f"bash {COUNCIL_LAUNCHER} {agent} {task_file} {AGENT_WORKING_DIR}"
+    send_to_tmux(session, command)
+
+    logger.info(
+        "[checkpoint] task=%s dispatching step %d/%d to %s",
+        report.task_id, next_index, len(task.steps) - 1, agent,
+    )
+    return {
+        "accepted": True,
+        "action": "next_step_dispatched",
+        "step": next_index,
+        "agent": agent,
+        "task_file": task_file,
+    }
+
+
+@app.post("/dispatch/horizon/register")
+async def register_horizon_task(
+    task: LongHorizonTask,
+    authorization: str | None = Header(None),
+):
+    """Store task metadata so /council/checkpoint can auto-advance steps.
+
+    Call this BEFORE /dispatch/horizon when you want fully automated
+    sequential execution. Without this, /council/checkpoint returns
+    'no_next_step' and steps must be manually dispatched.
+    """
+    verify_secret(authorization)
+    meta_path = _checkpoint_file(task.task_id) + ".meta.json"
+    os.makedirs(os.path.dirname(meta_path), exist_ok=True)
+    with open(meta_path, "w") as f:
+        _json.dump(task.model_dump(), f, indent=2)
+    return {"registered": True, "task_id": task.task_id, "steps": len(task.steps)}
+
+
+@app.get("/council/checkpoints/{task_id}")
+async def get_checkpoints(task_id: str, authorization: str | None = Header(None)):
+    """Retrieve the full checkpoint history for a horizon task."""
+    verify_secret(authorization)
+    checkpoints = _load_checkpoints(task_id)
+    meta_path = _checkpoint_file(task_id) + ".meta.json"
+    meta = None
+    if os.path.exists(meta_path):
+        with open(meta_path) as f:
+            meta = _json.load(f)
+    return {
+        "task_id": task_id,
+        "checkpoints": checkpoints,
+        "steps_completed": len(checkpoints),
+        "task_meta": meta,
+    }
 
 
 @app.post("/dispatch/raw")

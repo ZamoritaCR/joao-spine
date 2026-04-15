@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOÃO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'Lexend', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #header {
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+
+    #header h1 {
+      font-size: 14px;
+      font-weight: 300;
+      letter-spacing: 4px;
+      color: #888;
+    }
+
+    #loading {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 2px solid #222;
+      border-top-color: #666;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #loading p {
+      font-size: 13px;
+      font-weight: 300;
+      color: #555;
+    }
+
+    #chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 24px 16px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: 72%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 300;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: #1a1a1a;
+      border: 1px solid #222;
+      color: #ccc;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #1c2a1c;
+      border: 1px solid #2a3a2a;
+      color: #d0e0d0;
+    }
+
+    .message img.chat-image {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .thinking-indicator {
+      align-self: flex-start;
+      font-size: 13px;
+      font-weight: 300;
+      color: #555;
+      padding: 8px 0;
+    }
+
+    #input-area {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      border-top: 1px solid #161616;
+      display: none;
+    }
+
+    #input-area form {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #input-area input {
+      flex: 1;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: 'Lexend', sans-serif;
+      font-size: 14px;
+      font-weight: 300;
+      color: #e0e0e0;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #input-area input:focus {
+      border-color: #333;
+    }
+
+    #input-area input::placeholder {
+      color: #444;
+    }
+
+    #input-area button {
+      background: #1a1a1a;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-family: 'Lexend', sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    #input-area button:hover {
+      background: #222;
+      color: #aaa;
+    }
+
+    #input-area button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Icon-only input row buttons */
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0 !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: #555;
+      pointer-events: none;
+      transition: fill 0.2s;
+    }
+
+    .icon-btn:hover svg { fill: #aaa; }
+
+    #hold-mic-btn.recording {
+      border-color: #5a2a2a;
+      background: #1f0f0f;
+      animation: rec-pulse 1s ease-in-out infinite;
+    }
+
+    #hold-mic-btn.recording svg { fill: #e55; }
+
+    @keyframes rec-pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(200,60,60,.3); }
+      50%      { box-shadow: 0 0 0 5px rgba(200,60,60,0); }
+    }
+
+    /* File staging bar — multi-image */
+    #file-staging {
+      display: none;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 300;
+      align-items: flex-end;
+    }
+
+    #file-staging.visible { display: flex; }
+
+    .staged-thumb {
+      position: relative;
+      display: inline-block;
+    }
+
+    .staged-thumb img {
+      max-width: 64px;
+      max-height: 48px;
+      border-radius: 4px;
+      display: block;
+      border: 1px solid #333;
+    }
+
+    .staged-thumb .thumb-remove {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 16px;
+      height: 16px;
+      background: #333;
+      border: none;
+      border-radius: 50%;
+      color: #ccc;
+      font-size: 10px;
+      line-height: 16px;
+      text-align: center;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .staged-thumb .thumb-remove:hover { background: #c44; color: #fff; }
+
+    #staging-count {
+      color: #666;
+      font-size: 11px;
+      margin-left: auto;
+    }
+
+    #staging-clear-all {
+      background: none;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #666;
+      font-size: 11px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-family: 'Lexend', sans-serif;
+    }
+
+    #staging-clear-all:hover { border-color: #c44; color: #c44; }
+
+    /* Multi-image in chat messages */
+    .message .chat-images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    /* Mobile 390px */
+    @media (max-width: 390px) {
+      #input-area { padding: 12px 16px; }
+      #input-area form { gap: 8px; }
+      .icon-btn { width: 40px; height: 40px; }
+      #input-area input { padding: 10px 12px; font-size: 13px; }
+      #send-btn { padding: 10px 14px; font-size: 12px; }
+      .message { max-width: 88%; font-size: 13px; }
+    }
+
+    /* Mobile 375px */
+    @media (max-width: 375px) {
+      #input-area { padding: 10px 12px; }
+      #input-area form { gap: 6px; }
+      .icon-btn { width: 38px; height: 38px; }
+      .icon-btn svg { width: 15px; height: 15px; }
+      #input-area input { padding: 9px 10px; font-size: 13px; }
+      #send-btn { padding: 9px 12px; font-size: 12px; }
+      #header { padding: 12px 16px; }
+      #header h1 { font-size: 12px; }
+      .message { max-width: 92%; font-size: 13px; }
+    }
+
+    #chat-container::-webkit-scrollbar { width: 4px; }
+    #chat-container::-webkit-scrollbar-track { background: transparent; }
+    #chat-container::-webkit-scrollbar-thumb { background: #222; border-radius: 2px; }
+
+    /* Superpowers bar */
+    #superpowers-bar {
+      display: flex;
+      gap: 8px;
+      padding: 8px 24px;
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .sp-btn {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: 'Lexend', sans-serif;
+      font-size: 12px;
+      font-weight: 400;
+      color: #666;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .sp-btn:hover { border-color: #444; color: #aaa; background: #1a1a1a; }
+    .sp-btn.active { border-color: #3a6a3a; color: #8c8; background: #121e12; }
+
+    /* Superpower result cards */
+    .sp-result {
+      background: #111;
+      border: 1px solid #1e2e1e;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 88%;
+      align-self: flex-start;
+    }
+
+    .sp-result h3 {
+      font-size: 13px;
+      font-weight: 500;
+      color: #8c8;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+
+    .sp-result .sp-stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+      border-bottom: 1px solid #1a1a1a;
+      color: #999;
+    }
+
+    .sp-result .sp-stat span:last-child { color: #ccc; font-weight: 400; }
+
+    .sp-result .sp-artifacts {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .sp-result .sp-artifact-link {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 4px 10px;
+      color: #8c8;
+      font-size: 11px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .sp-result .sp-artifact-link:hover { background: #222; border-color: #3a6a3a; }
+
+    .sp-track {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .sp-track-name { color: #ccc; }
+    .sp-track-artist { color: #666; font-size: 12px; }
+
+    .sp-rationale {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #0d1a0d;
+      border-left: 2px solid #3a6a3a;
+      border-radius: 0 6px 6px 0;
+      color: #aaa;
+      font-size: 12px;
+      font-style: italic;
+      line-height: 1.5;
+    }
+
+    .sp-progress {
+      color: #666;
+      font-size: 12px;
+      padding: 8px 0;
+    }
+
+    .sp-progress .spinner-inline {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #333;
+      border-top-color: #666;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    #error-banner {
+      display: none;
+      padding: 12px 24px;
+      background: #1a1212;
+      border-bottom: 1px solid #2a1a1a;
+      color: #cc6666;
+      font-size: 13px;
+      font-weight: 300;
+    }
+
+    /* Voice button */
+    #voice-wrapper {
+      position: fixed;
+      top: 12px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 100;
+    }
+
+    #mic-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid #333;
+      background: #1a1a1a;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+
+    #mic-btn svg {
+      width: 20px;
+      height: 20px;
+      fill: #666;
+      transition: fill 0.3s;
+    }
+
+    #mic-btn:hover {
+      background: #222;
+      border-color: #444;
+    }
+
+    #mic-btn.connecting {
+      animation: pulse 1.2s ease-in-out infinite;
+      border-color: #555;
+    }
+
+    #mic-btn.active {
+      background: #1a2e1a;
+      border-color: #3a6a3a;
+      box-shadow: 0 0 12px rgba(80, 200, 80, 0.25);
+    }
+
+    #mic-btn.active svg {
+      fill: #5c5;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    #voice-status {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 1.5px;
+      color: #555;
+      display: none;
+      text-align: center;
+      max-width: 100px;
+    }
+
+    #voice-status.visible {
+      display: block;
+    }
+
+    #voice-status.listening { color: #5c5; }
+    #voice-status.processing { color: #cc5; }
+    #voice-status.speaking { color: #5cc; }
+    #voice-status.error { color: #c55; }
+
+    #mic-btn.error {
+      background: #2a1a1a;
+      border-color: #6a3a3a;
+    }
+    #mic-btn.error svg { fill: #c55; }
+
+    #mic-btn.speaking {
+      background: #1a2a2e;
+      border-color: #3a6a8a;
+      box-shadow: 0 0 12px rgba(80, 180, 220, 0.25);
+    }
+    #mic-btn.speaking svg { fill: #5cc; }
+
+    #model-toggle {
+      -webkit-appearance: none;
+      appearance: none;
+      position: fixed;
+      top: 14px;
+      right: 76px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 14px;
+      padding: 6px 12px;
+      font-family: 'Lexend', sans-serif;
+      font-size: 11px;
+      font-weight: 400;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.2s;
+      z-index: 100;
+      letter-spacing: 0.5px;
+    }
+
+    #model-toggle:hover { border-color: #444; color: #aaa; }
+
+    #model-toggle.sonnet {
+      border-color: #4a3a6a;
+      background: #1a152a;
+      color: #a88cda;
+    }
+
+    /* Password gate */
+    #pw-gate {
+      position: fixed; inset: 0; background: #0a0a0a;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; z-index: 9999;
+    }
+    #pw-gate.hidden { display: none; }
+    #pw-gate h2 { font-size: 12px; font-weight: 300; letter-spacing: 4px; color: #555; }
+    #pw-gate input {
+      background: #111; border: 1px solid #222; border-radius: 8px;
+      padding: 12px 20px; font-family: 'Lexend', sans-serif;
+      font-size: 14px; font-weight: 300; color: #e0e0e0;
+      outline: none; width: 260px; text-align: center;
+    }
+    #pw-gate input:focus { border-color: #3a6a3a; }
+    #pw-gate button {
+      background: #1a1a1a; border: 1px solid #2a3a2a; border-radius: 8px;
+      padding: 10px 28px; font-family: 'Lexend', sans-serif;
+      font-size: 13px; font-weight: 400; color: #8c8; cursor: pointer;
+    }
+    #pw-gate button:hover { background: #121e12; }
+    #pw-gate .pw-error { font-size: 12px; color: #c55; font-weight: 300; display: none; }
+    #pw-gate .pw-error.visible { display: block; }
+  </style>
+</head>
+<body>
+
+  <div id="pw-gate">
+    <h2>J O A O</h2>
+    <input type="password" id="pw-input" placeholder="access key" autocomplete="off" />
+    <button id="pw-submit">ENTER</button>
+    <p class="pw-error" id="pw-error">invalid key</p>
+  </div>
+
+  <div id="header"><h1>JOÃO</h1></div>
+
+  <select id="model-toggle" title="Select model">
+      <option value="claude-haiku-4-5">Claude Haiku</option>
+      <option value="claude-sonnet-4-20250514" selected>Claude Sonnet 4</option>
+      <option value="claude-opus-4-20250514">Claude Opus 4</option>
+      <option value="gpt-4o">GPT-4o</option>
+      <option value="gpt-4o-mini">GPT-4o Mini</option>
+      <option value="gpt-4.1">GPT-4.1</option>
+      <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+      <option value="gemini-2.5-pro-preview-06-05">Gemini 2.5 Pro</option>
+    </select>
+
+  <div id="voice-wrapper">
+    <button id="mic-btn" title="Voice chat">
+      <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+    </button>
+    <span id="voice-status">VOICE ACTIVE</span>
+  </div>
+
+  <div id="error-banner"></div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading context...</p>
+  </div>
+
+  <div id="chat-container"></div>
+
+  <div id="superpowers-bar">
+    <button class="sp-btn" id="sp-tableau" title="Upload Tableau workbook for Power BI migration">Tableau -> PBI</button>
+    <button class="sp-btn" id="sp-playlist" title="Generate a mood playlist">Mood Playlist</button>
+  </div>
+
+  <div id="input-area">
+    <div id="file-staging">
+      <div id="staging-thumbs"></div>
+      <span id="staging-count"></span>
+      <button id="staging-clear-all" type="button">Clear all</button>
+    </div>
+    <form id="chat-form">
+      <button type="button" class="icon-btn" id="attach-btn" title="Attach image">
+        <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+      </button>
+      <button type="button" class="icon-btn" id="hold-mic-btn" title="Hold to transcribe">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+      <input type="text" id="user-input" placeholder="Message JOÃO..." autocomplete="off">
+      <button type="submit" id="send-btn">Send</button>
+    </form>
+  </div>
+
+  <input type="file" id="file-input" hidden accept="*/*" multiple>
+  <input type="file" id="twb-file-input" hidden accept=".twb,.twbx">
+
+  <script>
+    // ============================================================
+    // CONFIG — No secrets here. All API calls go through the
+    // Railway backend proxy which holds the Anthropic key.
+    // ============================================================
+    // Tunnel redirect removed — serve directly from Railway
+    const CONFIG = {
+      RAILWAY_URL: window.location.origin,
+      TUNNEL_URL: window.location.origin,
+    };
+    // ============================================================
+
+    const $ = (sel) => document.querySelector(sel);
+    const loadingEl   = $("#loading");
+    const chatEl      = $("#chat-container");
+    const inputArea   = $("#input-area");
+    const chatForm    = $("#chat-form");
+    const userInput   = $("#user-input");
+    const sendBtn     = $("#send-btn");
+    const errorBanner = $("#error-banner");
+
+    // ── Chat History Persistence (localStorage) ──
+    const STORAGE_KEY = "joao_chat_history";
+    const MAX_STORED_MESSAGES = 200;
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return [];
+        const msgs = JSON.parse(raw);
+        return Array.isArray(msgs) ? msgs.slice(-MAX_STORED_MESSAGES) : [];
+      } catch { return []; }
+    }
+
+    function saveHistory(msgs) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs.slice(-MAX_STORED_MESSAGES)));
+      } catch (e) { console.warn("Failed to save chat history:", e); }
+    }
+
+    let conversationMessages = loadHistory();
+    let currentModel = "haiku";
+
+    const modelToggle = document.getElementById("model-toggle");
+    modelToggle.addEventListener("click", () => {
+      if (currentModel === "haiku") {
+        currentModel = "sonnet";
+        modelToggle.textContent = "SONNET";
+        modelToggle.classList.add("sonnet");
+      } else {
+        currentModel = "haiku";
+        modelToggle.textContent = "HAIKU";
+        modelToggle.classList.remove("sonnet");
+      }
+    });
+
+    // Log message via tunnel (fire and forget)
+    function logToTunnel(role, content) {
+      fetch(`${CONFIG.TUNNEL_URL}/joao/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role, content }),
+      }).catch((e) => console.warn("Tunnel log failed:", e));
+    }
+
+    function showError(msg) {
+      errorBanner.textContent = msg;
+      errorBanner.style.display = "block";
+    }
+
+    function clearError() {
+      errorBanner.style.display = "none";
+    }
+
+    function addMessage(role, text, imageDataUrls) {
+      const div = document.createElement("div");
+      div.className = `message ${role}`;
+      if (imageDataUrls && imageDataUrls.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "chat-images";
+        for (const src of imageDataUrls) {
+          const img = document.createElement("img");
+          img.src = src;
+          img.className = "chat-image";
+          wrap.appendChild(img);
+        }
+        div.appendChild(wrap);
+      }
+      if (text) {
+        const span = document.createElement("span");
+        span.textContent = text;
+        div.appendChild(span);
+      }
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return div;
+    }
+
+    function showThinking() {
+      const div = document.createElement("div");
+      div.className = "thinking-indicator";
+      div.id = "thinking";
+      div.textContent = "JOÃO is thinking...";
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function hideThinking() {
+      const el = $("#thinking");
+      if (el) el.remove();
+    }
+
+    // Verify backend is reachable on load
+    async function loadContext() {
+      try {
+        const res = await fetch(`${CONFIG.TUNNEL_URL}/joao/context`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await res.json(); // context exists — backend is live
+      } catch (e) {
+        console.warn("Context check failed:", e);
+        showError("Backend unavailable — chat may not work.");
+      }
+
+      loadingEl.style.display = "none";
+      chatEl.style.display = "flex";
+      inputArea.style.display = "block";
+
+      // Restore previous messages to the UI
+      for (const msg of conversationMessages) {
+        addMessage(msg.role, msg.content);
+      }
+
+      userInput.focus();
+    }
+
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const text = userInput.value.trim();
+      const images = stagedImages.slice(); // snapshot
+
+      if (!text && !images.length) return;
+
+      clearError();
+      userInput.value = "";
+      sendBtn.disabled = true;
+
+      // Clear staged images UI
+      if (images.length) {
+        stagedImages = [];
+        renderStagingBar();
+      }
+
+      // Build display and API content
+      const displayText = text || (images.length ? `[${images.length} image(s)]` : "");
+      const displayUrls = images.map(i => i.dataUrl);
+      addMessage("user", displayText, displayUrls.length ? displayUrls : null);
+
+      let apiContent;
+      if (images.length) {
+        // Each image becomes its own content block, text block at end
+        apiContent = images.map(img => ({
+          type: "image",
+          source: { type: "base64", media_type: img.mimeType, data: img.base64 }
+        }));
+        apiContent.push({
+          type: "text",
+          text: text || "Analyze these images. Compare them, identify issues, and suggest fixes with code."
+        });
+      } else {
+        apiContent = text;
+      }
+
+      conversationMessages.push({ role: "user", content: apiContent });
+      // Store text-only version for localStorage (avoid base64 bloat)
+      const storableMessages = conversationMessages.map(m => {
+        if (Array.isArray(m.content)) {
+          const textBlock = m.content.find(b => b.type === "text");
+          const imgCount = m.content.filter(b => b.type === "image").length;
+          return { role: m.role, content: (textBlock ? textBlock.text : "[images]") + ` [${imgCount} image(s) attached]` };
+        }
+        return m;
+      });
+      saveHistory(storableMessages);
+      logToTunnel("user", typeof apiContent === "string" ? apiContent : `[message with ${images.length} image(s)]`);
+
+      showThinking();
+
+      try {
+        // Only send last 20 messages to avoid huge payloads that timeout
+        const recentMessages = conversationMessages.slice(-20);
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+
+        const res = await fetch(`${CONFIG.TUNNEL_URL}/joao/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: recentMessages,
+            session_id: "web-" + Date.now(),
+            model: currentModel,
+          }),
+        });
+
+        clearTimeout(timeout);
+
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`Backend error ${res.status}: ${errText}`);
+        }
+
+        hideThinking();
+
+        const msgDiv = addMessage("assistant", "");
+        let fullResponse = "";
+        let statusDiv = null; // separate div for tool status
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let streamTimeout = null;
+
+        const resetStreamTimeout = () => {
+          if (streamTimeout) clearTimeout(streamTimeout);
+          streamTimeout = setTimeout(() => {
+            if (!fullResponse) {
+              showError("Response timed out — JOAO may still be processing. Try again.");
+            }
+          }, 60000);
+        };
+        resetStreamTimeout();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          resetStreamTimeout();
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6);
+            if (payload === "[DONE]") continue;
+            if (payload.startsWith("[ERROR]")) {
+              showError(payload);
+              continue;
+            }
+
+            // Tool status messages (don't add to response text)
+            if (payload.startsWith("[Executing:") || payload.startsWith("[Tools done")) {
+              if (!statusDiv) {
+                statusDiv = document.createElement("div");
+                statusDiv.className = "thinking-indicator";
+                chatEl.appendChild(statusDiv);
+              }
+              statusDiv.textContent = payload.trim().replace(/[\[\]]/g, '');
+              chatEl.scrollTop = chatEl.scrollHeight;
+              continue;
+            }
+
+            // Remove status div once real content arrives
+            if (statusDiv && payload.trim()) {
+              statusDiv.remove();
+              statusDiv = null;
+            }
+
+            // Decode JSON-encoded text (preserves newlines in SSE)
+            let text = payload;
+            try { text = JSON.parse(payload); } catch(_) {}
+
+            fullResponse += text;
+            msgDiv.innerText = fullResponse;
+            chatEl.scrollTop = chatEl.scrollHeight;
+          }
+        }
+
+        if (streamTimeout) clearTimeout(streamTimeout);
+        if (statusDiv) statusDiv.remove();
+
+        conversationMessages.push({ role: "assistant", content: fullResponse });
+        // Strip base64 images from localStorage to avoid bloat
+        const storableMsgs = conversationMessages.map(m => {
+          if (Array.isArray(m.content)) {
+            const textBlock = m.content.find(b => b.type === "text");
+            const imgCount = m.content.filter(b => b.type === "image").length;
+            return { role: m.role, content: (textBlock ? textBlock.text : "[images]") + ` [${imgCount} image(s) attached]` };
+          }
+          return m;
+        });
+        saveHistory(storableMsgs);
+        if (fullResponse) logToTunnel("assistant", fullResponse);
+
+      } catch (err) {
+        hideThinking();
+        showError(err.message);
+        console.error("Chat error:", err);
+      }
+
+      sendBtn.disabled = false;
+      userInput.focus();
+    }
+
+    // ── Multi-image staging ──────────────────────────────────────────────
+
+    const attachBtn      = document.getElementById("attach-btn");
+    const fileInput      = document.getElementById("file-input");
+    const fileStaging    = document.getElementById("file-staging");
+    const stagingThumbs  = document.getElementById("staging-thumbs");
+    const stagingCount   = document.getElementById("staging-count");
+    const stagingClearAll = document.getElementById("staging-clear-all");
+
+    let stagedImages = []; // [{dataUrl, base64, mimeType, filename}, ...]
+    const MAX_IMAGES = 10;
+    const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB per image
+
+    function renderStagingBar() {
+      stagingThumbs.innerHTML = "";
+      if (!stagedImages.length) {
+        fileStaging.classList.remove("visible");
+        return;
+      }
+      fileStaging.classList.add("visible");
+      stagedImages.forEach((img, idx) => {
+        const thumb = document.createElement("div");
+        thumb.className = "staged-thumb";
+        thumb.innerHTML = `<img src="${img.dataUrl}" alt="${img.filename}"><button class="thumb-remove" data-idx="${idx}">x</button>`;
+        stagingThumbs.appendChild(thumb);
+      });
+      stagingCount.textContent = stagedImages.length + " image" + (stagedImages.length > 1 ? "s" : "");
+      // Wire up individual remove buttons
+      stagingThumbs.querySelectorAll(".thumb-remove").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const i = parseInt(e.target.dataset.idx);
+          stagedImages.splice(i, 1);
+          renderStagingBar();
+        });
+      });
+    }
+
+    function stageImageFile(file) {
+      // All file types supported -- images go to vision, everything else to /ingest
+      if (false) {
+        showError("Only image files supported.");
+        return;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        showError("Image too large (max 20MB): " + file.name);
+        return;
+      }
+      if (stagedImages.length >= MAX_IMAGES) {
+        showError("Max " + MAX_IMAGES + " images per message.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const base64 = dataUrl.split(",")[1];
+        stagedImages.push({ dataUrl, base64, mimeType: file.type, filename: file.name });
+        renderStagingBar();
+        userInput.focus();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    chatForm.addEventListener("submit", handleSubmit);
+
+    attachBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files);
+      fileInput.value = "";
+      files.forEach(f => stageImageFile(f));
+    });
+
+    stagingClearAll.addEventListener("click", () => {
+      stagedImages = [];
+      renderStagingBar();
+    });
+
+    // ── Clipboard paste for screenshots (adds to staging queue) ──────────
+    document.addEventListener("paste", (e) => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const item of items) {
+        if (!item.type.startsWith("image/")) continue;
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) stageImageFile(file);
+      }
+    });
+
+    // ── Drag and drop images ─────────────────────────────────────────────
+    const dropTarget = document.getElementById("input-area");
+    dropTarget.addEventListener("dragover", (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+    dropTarget.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(f => stageImageFile(f));
+    });
+
+    // ── Hold-to-record -> /joao/transcribe ────────────────────────────────
+
+    const holdMicBtn   = document.getElementById("hold-mic-btn");
+    let holdRecorder   = null;
+    let holdChunks     = [];
+    let holdRecording  = false;
+
+    function startHoldRecording() {
+      if (holdRecording) return;
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        holdChunks = [];
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4");
+        holdRecorder = new MediaRecorder(stream, { mimeType });
+        holdRecorder.ondataavailable = e => { if (e.data.size > 0) holdChunks.push(e.data); };
+        holdRecorder.onstop = () => {
+          stream.getTracks().forEach(t => t.stop());
+          submitHoldAudio(new Blob(holdChunks, { type: mimeType }), mimeType);
+        };
+        holdRecorder.start();
+        holdRecording = true;
+        holdMicBtn.classList.add("recording");
+        holdMicBtn.title = "Release to transcribe";
+      }).catch(err => { showError("Microphone access denied: " + err.message); });
+    }
+
+    function stopHoldRecording() {
+      if (!holdRecording || !holdRecorder) return;
+      holdRecorder.stop();
+      holdRecording = false;
+      holdMicBtn.classList.remove("recording");
+      holdMicBtn.title = "Hold to transcribe";
+    }
+
+    async function submitHoldAudio(blob, mimeType) {
+      const ext = mimeType.includes("webm") ? "webm" : "mp4";
+      const fd  = new FormData();
+      fd.append("audio", blob, "recording." + ext);
+      showThinking();
+      try {
+        const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/transcribe`, {
+          method: "POST",
+          body: fd,
+        });
+        hideThinking();
+        if (!resp.ok) { showError("Transcription failed (" + resp.status + ")"); return; }
+        const data = await resp.json();
+        const text = (data.text || "").trim();
+        if (text) {
+          userInput.value = text;
+          userInput.focus();
+        } else {
+          showError("No speech detected.");
+        }
+      } catch (err) {
+        hideThinking();
+        showError("Transcription error: " + err.message);
+      }
+    }
+
+    holdMicBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); startHoldRecording(); });
+    holdMicBtn.addEventListener("pointerup",   () => stopHoldRecording());
+    holdMicBtn.addEventListener("pointerleave",() => { if (holdRecording) stopHoldRecording(); });
+    holdMicBtn.addEventListener("pointercancel",()=> { if (holdRecording) stopHoldRecording(); });
+
+    // ── SUPERPOWERS ─────────────────────────────────────────────────
+    const spTableauBtn  = document.getElementById("sp-tableau");
+    const spPlaylistBtn = document.getElementById("sp-playlist");
+    const twbFileInput  = document.getElementById("twb-file-input");
+
+    let superpowerMode = null; // null | "tableau" | "playlist"
+
+    function setSuperpowerMode(mode) {
+      superpowerMode = (superpowerMode === mode) ? null : mode;
+      spTableauBtn.classList.toggle("active", superpowerMode === "tableau");
+      spPlaylistBtn.classList.toggle("active", superpowerMode === "playlist");
+
+      if (superpowerMode === "tableau") {
+        userInput.placeholder = "Drop a .twb/.twbx here or click to upload...";
+        twbFileInput.click();
+      } else if (superpowerMode === "playlist") {
+        userInput.placeholder = "How are you feeling? (e.g. stressed -> focused)";
+        userInput.focus();
+      } else {
+        userInput.placeholder = "Message JOAO...";
+      }
+    }
+
+    spTableauBtn.addEventListener("click", () => setSuperpowerMode("tableau"));
+    spPlaylistBtn.addEventListener("click", () => setSuperpowerMode("playlist"));
+
+    // Tableau file upload handler
+    twbFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      twbFileInput.value = "";
+      if (!file) return;
+
+      const fname = file.name.toLowerCase();
+      if (!fname.endsWith(".twb") && !fname.endsWith(".twbx")) {
+        showError("Please upload a .twb or .twbx file");
+        return;
+      }
+
+      addMessage("user", "Migrate to Power BI: " + file.name);
+      const progressDiv = document.createElement("div");
+      progressDiv.className = "sp-result";
+      progressDiv.innerHTML = '<div class="sp-progress"><span class="spinner-inline"></span>Parsing Tableau workbook and generating migration artifacts...</div>';
+      chatEl.appendChild(progressDiv);
+      chatEl.scrollTop = chatEl.scrollHeight;
+
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("intent", "migrate to power bi");
+
+        const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/superpowers/tableau`, {
+          method: "POST",
+          body: fd,
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        progressDiv.remove();
+
+        // Render rich result card
+        const s = data.summary || {};
+        const artifactLinks = (data.artifacts || []).map(a =>
+          `<a class="sp-artifact-link" href="/joao/superpowers/artifacts/${data.job_id}/${a}" target="_blank">${a}</a>`
+        ).join("");
+
+        const resultDiv = document.createElement("div");
+        resultDiv.className = "sp-result";
+        resultDiv.innerHTML = `
+          <h3>TABLEAU -> POWER BI MIGRATION</h3>
+          <div class="sp-stat"><span>Workbook version</span><span>${s.workbook_version || "?"}</span></div>
+          <div class="sp-stat"><span>Datasources</span><span>${s.datasources || 0}</span></div>
+          <div class="sp-stat"><span>Worksheets</span><span>${s.worksheets || 0}</span></div>
+          <div class="sp-stat"><span>Dashboards</span><span>${s.dashboards || 0}</span></div>
+          <div class="sp-stat"><span>Calculated fields</span><span>${s.calculated_fields_total || 0}</span></div>
+          <div class="sp-stat"><span>DAX translated</span><span>${s.dax_translated_ok || 0} / ${s.calculated_fields_total || 0}</span></div>
+          <div class="sp-stat"><span>Needs manual review</span><span>${s.dax_needs_review || 0}</span></div>
+          <div class="sp-stat"><span>PBIP config</span><span>${s.has_pbip_config ? "Yes" : "No"}</span></div>
+          <div class="sp-artifacts">${artifactLinks}</div>
+        `;
+        chatEl.appendChild(resultDiv);
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        // Store in conversation
+        conversationMessages.push({
+          role: "assistant",
+          content: `Migration complete for ${file.name}. ${s.worksheets} worksheets, ${s.dashboards} dashboards, ${s.dax_translated_ok}/${s.calculated_fields_total} DAX translations. Artifacts: ${(data.artifacts || []).join(", ")}`
+        });
+        saveHistory(conversationMessages);
+
+      } catch (err) {
+        progressDiv.remove();
+        showError("Tableau migration failed: " + err.message);
+      }
+
+      superpowerMode = null;
+      spTableauBtn.classList.remove("active");
+      userInput.placeholder = "Message JOAO...";
+    });
+
+    // Intercept playlist commands in handleSubmit
+    const originalHandleSubmit = handleSubmit;
+    handleSubmit = async function(e) {
+      e.preventDefault();
+      const text = userInput.value.trim();
+
+      // Detect playlist intent
+      if (superpowerMode === "playlist" && text) {
+        userInput.value = "";
+        sendBtn.disabled = true;
+        addMessage("user", text);
+
+        const progressDiv = document.createElement("div");
+        progressDiv.className = "sp-result";
+        progressDiv.innerHTML = '<div class="sp-progress"><span class="spinner-inline"></span>Generating your playlist...</div>';
+        chatEl.appendChild(progressDiv);
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        // Parse "feeling -> desired" pattern
+        let current = "neutral", desired = "happy";
+        const arrowMatch = text.match(/(.+?)\s*(?:->|-->|to|=>)\s*(.+)/i);
+        if (arrowMatch) {
+          current = arrowMatch[1].trim();
+          desired = arrowMatch[2].trim();
+        } else {
+          // Try to use the whole text as desired feeling
+          const feelWords = ["stressed","sad","angry","anxious","tired","happy","chill","focused","energetic","pumped","peaceful","melancholy","romantic"];
+          const found = feelWords.find(w => text.toLowerCase().includes(w));
+          if (found) {
+            // If it's a negative feeling, they probably want the opposite
+            const negFeelings = {"stressed":"focused","sad":"happy","angry":"chill","anxious":"peaceful","tired":"energetic"};
+            if (negFeelings[found]) {
+              current = found;
+              desired = negFeelings[found];
+            } else {
+              desired = found;
+            }
+          } else {
+            desired = text;
+          }
+        }
+
+        try {
+          const resp = await fetch(`${CONFIG.TUNNEL_URL}/joao/superpowers/playlist`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current_feeling: current, desired_feeling: desired }),
+          });
+
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          progressDiv.remove();
+
+          const tracks = (data.playlist?.tracks || []).map(t =>
+            `<div class="sp-track"><span class="sp-track-name">${t.name}</span><span class="sp-track-artist">${t.artist}</span></div>`
+          ).join("");
+
+          const resultDiv = document.createElement("div");
+          resultDiv.className = "sp-result";
+          resultDiv.innerHTML = `
+            <h3>MOOD PLAYLIST: ${current.toUpperCase()} -> ${desired.toUpperCase()}</h3>
+            ${tracks}
+            <div class="sp-stat" style="margin-top:8px"><span>Tracks</span><span>${data.playlist?.count || 0}</span></div>
+            <div class="sp-stat"><span>Duration</span><span>~${data.playlist?.estimated_duration_minutes || "?"} min</span></div>
+            <div class="sp-rationale">${data.rationale || ""}</div>
+          `;
+          chatEl.appendChild(resultDiv);
+          chatEl.scrollTop = chatEl.scrollHeight;
+
+          conversationMessages.push({
+            role: "assistant",
+            content: `Playlist: ${current} -> ${desired}. ${data.playlist?.count || 0} tracks. ${data.rationale || ""}`
+          });
+          saveHistory(conversationMessages);
+
+        } catch (err) {
+          progressDiv.remove();
+          showError("Playlist failed: " + err.message);
+        }
+
+        sendBtn.disabled = false;
+        superpowerMode = null;
+        spPlaylistBtn.classList.remove("active");
+        userInput.placeholder = "Message JOAO...";
+        userInput.focus();
+        return;
+      }
+
+      // Also detect TWB file in the regular attach flow
+      if (stagedImages.length === 0 && !text) return sendBtn.disabled = false;
+
+      // Default: pass to original handler
+      return originalHandleSubmit.call(this, e);
+    };
+
+    // Re-bind submit with superpower-aware version
+    chatForm.removeEventListener("submit", originalHandleSubmit);
+    chatForm.addEventListener("submit", handleSubmit);
+
+    // Allow drag-drop of TWB files too
+    dropTarget.addEventListener("drop", (e) => {
+      const files = Array.from(e.dataTransfer.files);
+      for (const f of files) {
+        const fname = f.name.toLowerCase();
+        if (fname.endsWith(".twb") || fname.endsWith(".twbx")) {
+          e.stopImmediatePropagation();
+          // Trigger Tableau upload
+          const dt = new DataTransfer();
+          dt.items.add(f);
+          twbFileInput.files = dt.files;
+          twbFileInput.dispatchEvent(new Event("change"));
+          return;
+        }
+      }
+    }, true); // capture phase to beat the image drop handler
+
+    // Also handle TWB files from the regular attach button
+    fileInput.addEventListener("change", (e) => {
+      const files = Array.from(e.target.files);
+      for (const f of files) {
+        const fname = f.name.toLowerCase();
+        if (fname.endsWith(".twb") || fname.endsWith(".twbx")) {
+          const dt = new DataTransfer();
+          dt.items.add(f);
+          twbFileInput.files = dt.files;
+          twbFileInput.dispatchEvent(new Event("change"));
+          // Remove it from the file input so images still process
+          return;
+        }
+      }
+    }, true);
+
+    // Boot
+    loadContext();
+  </script>
+
+  <!-- LiveKit Client SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.js"></script>
+
+  <script>
+    // ============================================================
+    // VOICE — LiveKit WebRTC voice chat with full state feedback
+    // ============================================================
+    const micBtn = document.getElementById("mic-btn");
+    const voiceStatus = document.getElementById("voice-status");
+
+    let voiceRoom = null;
+    let voiceState = "idle"; // idle | connecting | listening | speaking | error
+
+    function setVoiceState(state, label) {
+      voiceState = state;
+      micBtn.classList.remove("connecting", "active", "speaking", "error");
+      voiceStatus.classList.remove("visible", "listening", "processing", "speaking", "error");
+
+      if (state === "idle") {
+        voiceStatus.textContent = "";
+      } else if (state === "connecting") {
+        micBtn.classList.add("connecting");
+        voiceStatus.textContent = "CONNECTING...";
+        voiceStatus.classList.add("visible", "processing");
+      } else if (state === "listening") {
+        micBtn.classList.add("active");
+        voiceStatus.textContent = label || "LISTENING";
+        voiceStatus.classList.add("visible", "listening");
+      } else if (state === "speaking") {
+        micBtn.classList.add("speaking");
+        voiceStatus.textContent = "JOAO SPEAKING";
+        voiceStatus.classList.add("visible", "speaking");
+      } else if (state === "error") {
+        micBtn.classList.add("error");
+        voiceStatus.textContent = label || "ERROR";
+        voiceStatus.classList.add("visible", "error");
+        // Auto-clear error after 4s
+        setTimeout(() => { if (voiceState === "error") setVoiceState("idle"); }, 4000);
+      }
+    }
+
+    async function startVoice() {
+      setVoiceState("connecting");
+
+      try {
+        // 1. Get token from backend
+        const tokenRes = await fetch(`${CONFIG.TUNNEL_URL}/joao/voice/token`, {
+          method: "POST",
+        });
+        if (!tokenRes.ok) throw new Error(`Token ${tokenRes.status}`);
+        const { token, room: roomName, livekit_url } = await tokenRes.json();
+
+        if (!livekit_url) throw new Error("No LiveKit URL");
+
+        // 2. Connect to LiveKit room
+        const room = new LivekitClient.Room({
+          adaptiveStream: true,
+          dynacast: true,
+        });
+
+        room.on(LivekitClient.RoomEvent.Disconnected, () => {
+          console.log("Voice disconnected");
+          voiceRoom = null;
+          setVoiceState("idle");
+        });
+
+        // Track when JOAO agent joins
+        room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+          console.log("Agent joined:", participant.identity);
+          setVoiceState("listening", "JOAO CONNECTED");
+          setTimeout(() => { if (voiceState === "listening") setVoiceState("listening", "LISTENING"); }, 2000);
+        });
+
+        // Track when agent starts/stops speaking (audio track)
+        room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === "audio") {
+            const el = track.attach();
+            el.id = "agent-audio";
+            document.body.appendChild(el);
+            setVoiceState("speaking");
+          }
+        });
+
+        room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((el) => el.remove());
+          if (voiceRoom) setVoiceState("listening", "LISTENING");
+        });
+
+        // Track active speaker changes for visual feedback
+        room.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          if (!voiceRoom) return;
+          const agentSpeaking = speakers.some(s => s.identity !== room.localParticipant.identity);
+          const userSpeaking = speakers.some(s => s.identity === room.localParticipant.identity);
+          if (agentSpeaking) {
+            setVoiceState("speaking");
+          } else if (userSpeaking) {
+            setVoiceState("listening", "HEARING YOU...");
+          } else {
+            setVoiceState("listening", "LISTENING");
+          }
+        });
+
+        await room.connect(livekit_url, token);
+
+        // 3. Publish microphone
+        await room.localParticipant.setMicrophoneEnabled(true);
+
+        voiceRoom = room;
+        setVoiceState("listening", "MIC ON — WAITING FOR JOAO");
+        console.log("Voice connected to room:", roomName);
+
+      } catch (err) {
+        console.error("Voice connection failed:", err);
+        setVoiceState("error", err.message.toUpperCase());
+      }
+    }
+
+    async function stopVoice() {
+      if (voiceRoom) {
+        await voiceRoom.disconnect();
+        voiceRoom = null;
+      }
+      const agentAudio = document.getElementById("agent-audio");
+      if (agentAudio) agentAudio.remove();
+      setVoiceState("idle");
+    }
+
+    micBtn.addEventListener("click", () => {
+      if (voiceState === "idle" || voiceState === "error") {
+        startVoice();
+      } else if (voiceState === "listening" || voiceState === "speaking") {
+        stopVoice();
+      }
+    });
+  </script>
+
+  <script>
+    // PASSWORD GATE
+    (function() {
+      const GATE_KEY = 'joao_auth';
+      const CORRECT = '18AG7tTrlOl_xXSgS_QYKw';
+      const gate = document.getElementById('pw-gate');
+      const input = document.getElementById('pw-input');
+      const btn = document.getElementById('pw-submit');
+      const err = document.getElementById('pw-error');
+
+      function unlock() {
+        gate.classList.add('hidden');
+      }
+
+      if (localStorage.getItem(GATE_KEY) === CORRECT) {
+        unlock();
+        return;
+      }
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') attempt();
+      });
+      btn.addEventListener('click', attempt);
+
+      function attempt() {
+        if (input.value === CORRECT) {
+          localStorage.setItem(GATE_KEY, CORRECT);
+          err.classList.remove('visible');
+          unlock();
+        } else {
+          err.classList.add('visible');
+          input.value = '';
+          input.focus();
+        }
+      }
+    })();
+
+    // INGEST ROUTING — non-image files go to /joao/ingest
+    (function() {
+      const originalFileInput = document.getElementById('file-input');
+      if (!originalFileInput) return;
+
+      const TUNNEL = (window.CONFIG && CONFIG.TUNNEL_URL) ? CONFIG.TUNNEL_URL : '';
+
+      originalFileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        const nonImage = files.filter(f => !f.type.startsWith('image/'));
+        if (nonImage.length === 0) return; // images handled by existing code
+
+        nonImage.forEach(async (file) => {
+          const form = new FormData();
+          form.append('file', file);
+          const chat = document.getElementById('chat-container');
+
+          // Show progress
+          const prog = document.createElement('div');
+          prog.className = 'thinking-indicator';
+          prog.textContent = 'Processing ' + file.name + '...';
+          chat.appendChild(prog);
+          chat.scrollTop = chat.scrollHeight;
+
+          try {
+            const res = await fetch(TUNNEL + '/joao/ingest', { method: 'POST', body: form });
+            const data = await res.json();
+            prog.remove();
+
+            const msg = document.createElement('div');
+            msg.className = 'message assistant';
+            msg.textContent = data.summary || data.result || JSON.stringify(data);
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+          } catch (err2) {
+            prog.remove();
+            const msg = document.createElement('div');
+            msg.className = 'message assistant';
+            msg.textContent = 'Ingest failed: ' + err2.message;
+            chat.appendChild(msg);
+          }
+        });
+
+        // Clear non-image files from input so image handler doesn't choke
+        const dt = new DataTransfer();
+        files.filter(f => f.type.startsWith('image/')).forEach(f => dt.items.add(f));
+        originalFileInput.files = dt.files;
+      }, true); // capture phase
+    })();
+  </script>
+
+</body>
+</html>

@@ -36,7 +36,15 @@ from models.schemas import (
     VisionRequest,
 )
 from services import ai_processor, content_intelligence, dispatch, supabase_client, telegram
-from services.llm_router import health_check as llm_health_check, OLLAMA_MODELS, OPENROUTER_MODELS, USE_OPENROUTER
+from services.llm_router import (
+    health_check as llm_health_check,
+    complete as llm_complete,
+    summarize as llm_summarize,
+    generate_code as llm_generate_code,
+    council_task as llm_council_task,
+    stream_complete as llm_stream_complete,
+    OLLAMA_MODELS, OPENROUTER_MODELS, USE_OPENROUTER, resolve_model
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/joao", tags=["joao"])
@@ -534,6 +542,71 @@ def _auto_grow_context(user_msg: str, response: str) -> None:
     except Exception as e:
         logger.warning("Failed to auto-grow context: %s", e)
 
+
+
+class SessionSyncRequest(BaseModel):
+    session_id: str
+    name: str = ""
+    messages: list[dict]
+    source: str = "joao-app"
+    model: str = ""
+    mode: str = "joao"
+
+
+def _session_messages_payload(row: dict | None) -> dict:
+    row = row or {}
+    payload = row.get("messages") or {}
+    if isinstance(payload, list):
+        payload = {"messages": payload}
+    if not isinstance(payload, dict):
+        payload = {"messages": []}
+    payload.setdefault("messages", [])
+    payload.setdefault("name", "")
+    payload.setdefault("source", "unknown")
+    payload.setdefault("metadata", {})
+    return payload
+
+
+async def _persist_chat_session(session_id: str, messages: list[dict], assistant_text: str, source: str, session_name: str = "", model: str = "", mode: str = "joao") -> None:
+    if not session_id:
+        return
+    full_messages = list(messages)
+    if assistant_text:
+        full_messages.append({"role": "assistant", "content": assistant_text})
+    user_text = ""
+    for msg in reversed(messages):
+        if msg.get("role") == "user":
+            content = msg.get("content", "")
+            user_text = content if isinstance(content, str) else str(content)
+            break
+    summary = assistant_text[:200] if assistant_text else user_text[:200]
+    await supabase_client.upsert_joao_session(session_id=session_id, messages=full_messages, name=session_name, summary=summary, source=source, metadata={"model": model, "mode": mode})
+    await supabase_client.insert_joao_memory(source=f"{source}:chat", content=f"User: {user_text[:1000]}\n\nAssistant: {assistant_text[:2000]}", summary=summary, tags=[source, "chat", mode or "joao"])
+
+
+@router.get('/sessions')
+async def list_sessions(limit: int = 50):
+    rows = await supabase_client.list_joao_sessions(limit=limit)
+    items = []
+    for row in rows:
+        payload = _session_messages_payload(row)
+        items.append({'id': row.get('id'), 'name': payload.get('name') or row.get('summary') or 'New conversation', 'source': payload.get('source') or 'unknown', 'messages': payload.get('messages', []), 'created_at': row.get('created_at'), 'summary': row.get('summary', '')})
+    return {'sessions': items}
+
+
+@router.get('/session/{session_id}')
+async def get_session(session_id: str):
+    row = await supabase_client.get_joao_session(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail='Session not found')
+    payload = _session_messages_payload(row)
+    return {'id': row.get('id'), 'name': payload.get('name', ''), 'source': payload.get('source', 'unknown'), 'messages': payload.get('messages', []), 'metadata': payload.get('metadata', {}), 'summary': row.get('summary', ''), 'created_at': row.get('created_at')}
+
+
+@router.post('/session')
+async def sync_session(req: SessionSyncRequest):
+    row = await supabase_client.upsert_joao_session(session_id=req.session_id, messages=req.messages, name=req.name, summary=(req.messages[-1].get('content', '') if req.messages else '')[:200], source=req.source, metadata={'model': req.model, 'mode': req.mode})
+    return {'status': 'ok', 'id': row.get('id', req.session_id)}
 
 # ── Council Tools for Chat ──────────────────────────────────────────────
 
@@ -1883,6 +1956,14 @@ async def chat_proxy(req: ChatRequest):
             _append_chat_feed(user_msg, full_response)
             # Auto-grow context: append exchange summary to session log
             _auto_grow_context(user_msg, full_response)
+            await _persist_chat_session(
+                session_id=req.session_id,
+                messages=[{"role": m.role, "content": m.content} for m in req.messages],
+                assistant_text=full_response,
+                source="joao-chat",
+                model=model,
+                mode=("mrdp" if is_mrdp else "joao"),
+            )
 
         yield "data: [DONE]\n\n"
 
@@ -2059,13 +2140,12 @@ async def _run_learning_analysis(url: str, content_type: str, content: str) -> t
     )
 
     try:
-        client = _anthropic.AsyncAnthropic(api_key=api_key)
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
+        # Route through LLMRouter — uses Ollama locally, OpenRouter when key set
+        raw = await llm_complete(
             messages=[{"role": "user", "content": prompt}],
+            task_type="summarization",
+            max_tokens=512,
         )
-        raw = response.content[0].text if response.content else ""
 
         # Parse structured fields
         key_insights: list[str] = []
@@ -2257,6 +2337,65 @@ async def outputs_index():
 
 # ── DR DATA BROWSER TOOL ENDPOINTS ──────────────────────────────────────────
 
+def _extract_session_hint(request: Request, payload: dict, prefix: str) -> tuple[str, str]:
+    session_id = (
+        request.headers.get("x-session-id")
+        or payload.get("session_id")
+        or payload.get("conversation_id")
+        or f"{prefix}-{int(time.time() * 1000)}"
+    )
+    source = request.headers.get("x-client-source") or payload.get("source") or prefix
+    return session_id, source
+
+
+def _coerce_message_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+                else:
+                    parts.append(str(item))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
+
+def _extract_last_user_text(payload: dict) -> str:
+    messages = payload.get("messages") or []
+    if isinstance(messages, list):
+        for msg in reversed(messages):
+            if isinstance(msg, dict) and msg.get("role") == "user":
+                return _coerce_message_text(msg.get("content", ""))
+    prompt = payload.get("prompt")
+    return prompt if isinstance(prompt, str) else str(prompt or "")
+
+
+async def _persist_proxy_session(request: Request, payload: dict, response_text: str, prefix: str, model_hint: str = "") -> None:
+    session_id, source = _extract_session_hint(request, payload, prefix)
+    user_text = _extract_last_user_text(payload)
+    messages = payload.get("messages") or []
+    normalized = []
+    if isinstance(messages, list) and messages:
+        for msg in messages:
+            if isinstance(msg, dict):
+                normalized.append({"role": msg.get("role", "user"), "content": _coerce_message_text(msg.get("content", ""))})
+    elif user_text:
+        normalized.append({"role": "user", "content": user_text})
+    await _persist_chat_session(
+        session_id=session_id,
+        messages=normalized,
+        assistant_text=response_text,
+        source=source,
+        model=model_hint,
+        mode=prefix,
+    )
+
+
 @router.options("/claude-proxy")
 async def claude_proxy_options(request: Request):
     from fastapi.responses import Response
@@ -2269,13 +2408,18 @@ async def claude_proxy_options(request: Request):
 @router.post("/claude-proxy")
 async def claude_proxy(request: Request):
     """Streaming Claude CORS proxy for Dr. Data browser tool."""
-    import httpx, os
+    import httpx, os, json
     from fastapi.responses import StreamingResponse
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
     body_bytes = await request.body()
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        payload = {}
     async def stream():
+        full_text = ""
         async with httpx.AsyncClient(timeout=180) as client:
             async with client.stream(
                 "POST", "https://api.anthropic.com/v1/messages",
@@ -2283,7 +2427,21 @@ async def claude_proxy(request: Request):
                 content=body_bytes,
             ) as resp:
                 async for chunk in resp.aiter_bytes():
+                    try:
+                        decoded = chunk.decode("utf-8", errors="ignore")
+                        for line in decoded.splitlines():
+                            if line.startswith("data: "):
+                                data = line[6:]
+                                if data and data != "[DONE]":
+                                    obj = json.loads(data)
+                                    if obj.get("type") == "content_block_delta":
+                                        delta = obj.get("delta", {})
+                                        full_text += delta.get("text", "")
+                    except Exception:
+                        pass
                     yield chunk
+        if full_text:
+            await _persist_proxy_session(request, payload, full_text, prefix="claude-proxy", model_hint=payload.get("model", "claude"))
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
@@ -2343,13 +2501,18 @@ async def gpt_proxy_options(request: Request):
 @router.post("/gpt-proxy")
 async def gpt_proxy(request: Request):
     """Streaming GPT-4o CORS proxy for Dr. Data. Server-side OPENAI_API_KEY."""
-    import httpx, os
+    import httpx, os, json
     from fastapi.responses import StreamingResponse
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
     body_bytes = await request.body()
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        payload = {}
     async def stream():
+        full_text = ""
         async with httpx.AsyncClient(timeout=180) as client:
             async with client.stream(
                 "POST", "https://api.openai.com/v1/chat/completions",
@@ -2357,7 +2520,22 @@ async def gpt_proxy(request: Request):
                 content=body_bytes,
             ) as resp:
                 async for chunk in resp.aiter_bytes():
+                    try:
+                        decoded = chunk.decode("utf-8", errors="ignore")
+                        for line in decoded.splitlines():
+                            if line.startswith("data: "):
+                                data = line[6:]
+                                if data and data != "[DONE]":
+                                    obj = json.loads(data)
+                                    choices = obj.get("choices") or []
+                                    if choices:
+                                        delta = choices[0].get("delta", {})
+                                        full_text += delta.get("content", "") or ""
+                    except Exception:
+                        pass
                     yield chunk
+        if full_text:
+            await _persist_proxy_session(request, payload, full_text, prefix="gpt-proxy", model_hint=payload.get("model", "gpt"))
     return StreamingResponse(stream(), media_type="text/event-stream", headers={
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
@@ -2394,6 +2572,9 @@ async def ollama_proxy(request: Request):
                 json={"model": model, "prompt": prompt, "stream": stream_flag},
             )
             result = resp.json()
+        response_text = result.get("response", "") if isinstance(result, dict) else str(result)
+        if response_text:
+            await _persist_proxy_session(request, body, response_text, prefix="ollama-proxy", model_hint=model)
         return JSONResponse(content=result, headers={
             "Access-Control-Allow-Origin": "*",
         })

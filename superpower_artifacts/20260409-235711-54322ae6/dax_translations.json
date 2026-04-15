@@ -1,0 +1,10 @@
+[
+  {
+    "name": "[Number of Records]",
+    "tableau_formula": "1",
+    "dax": "1",
+    "confidence": 1.0,
+    "warnings": [],
+    "parse_success": true
+  }
+]
