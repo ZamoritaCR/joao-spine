@@ -36,6 +36,7 @@ from models.schemas import (
     VisionRequest,
 )
 from services import ai_processor, content_intelligence, dispatch, supabase_client, telegram
+from services.llm_router import health_check as llm_health_check, OLLAMA_MODELS, OPENROUTER_MODELS, USE_OPENROUTER
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/joao", tags=["joao"])
@@ -99,6 +100,16 @@ async def _content_pipeline(
 @router.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse()
+
+
+@router.get("/llm/health")
+async def llm_health():
+    return await llm_health_check()
+
+
+@router.get("/llm/models")
+async def llm_models():
+    return {"provider": "openrouter" if USE_OPENROUTER else "ollama", "active_models": OPENROUTER_MODELS if USE_OPENROUTER else OLLAMA_MODELS}
 
 
 @router.get("/status", response_model=StatusResponse)
