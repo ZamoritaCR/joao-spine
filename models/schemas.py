@@ -227,3 +227,13 @@ class QAConsensus(BaseModel):
     consensus_verdict: str = Field(..., description="deploy, review, or reject")
     avg_score: float = Field(0.0)
     deploy_ready: bool = Field(False)
+
+
+# ── Briefing Email Models ─────────────────────────────────────────────────────
+
+class BriefingEmailRequest(BaseModel):
+    subject: str = Field(..., description="Email subject line")
+    body_html: str = Field(..., description="HTML body of the briefing email")
+    to_email: str | None = Field(None, description="Recipient address; falls back to SENDGRID_TO env var")
+    from_name: str = Field("JOAO", description="Sender display name")
+

@@ -6,6 +6,7 @@ import json
 import logging
 import os
 
+from groq import AsyncGroq
 from openai import AsyncOpenAI
 
 from models.schemas import AIResult, VoiceIntent
@@ -13,6 +14,7 @@ from models.schemas import AIResult, VoiceIntent
 logger = logging.getLogger(__name__)
 
 _client: AsyncOpenAI | None = None
+_groq_client: AsyncGroq | None = None
 
 
 def _get_client() -> AsyncOpenAI:
@@ -20,6 +22,16 @@ def _get_client() -> AsyncOpenAI:
     if _client is None:
         _client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
     return _client
+
+
+def _get_groq_client() -> AsyncGroq | None:
+    global _groq_client
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        return None
+    if _groq_client is None:
+        _groq_client = AsyncGroq(api_key=api_key)
+    return _groq_client
 
 
 _JSON_SCHEMA_INSTRUCTION = (
@@ -100,18 +112,32 @@ _MIME_MAP = {
 
 
 async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
-    """Transcribe audio using OpenAI Whisper API."""
-    client = _get_client()
+    """Transcribe audio using Groq Whisper (primary) with OpenAI Whisper fallback."""
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ".webm"
     content_type = _MIME_MAP.get(ext, "audio/webm")
+
+    groq = _get_groq_client()
+    if groq is not None:
+        try:
+            resp = await groq.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=(filename, audio_bytes, content_type),
+                response_format="json",
+            )
+            return {"text": resp.text, "language": getattr(resp, "language", "en"), "provider": "groq"}
+        except Exception as e:
+            logger.warning("Groq Whisper transcription failed, falling back to OpenAI: %s", e)
+
+    # OpenAI fallback
+    client = _get_client()
     try:
         resp = await client.audio.transcriptions.create(
             model="whisper-1",
             file=(filename, audio_bytes, content_type),
         )
-        return {"text": resp.text, "language": "en"}
+        return {"text": resp.text, "language": "en", "provider": "openai"}
     except Exception as e:
-        logger.error("Whisper transcription failed: %s", e)
+        logger.error("OpenAI Whisper transcription failed: %s", e)
         raise
 
 

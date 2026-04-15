@@ -24,6 +24,8 @@ from typing import Any
 
 import httpx
 
+from services import llm_router
+
 logger = logging.getLogger(__name__)
 
 _DB_PATH = Path(__file__).resolve().parent.parent / "scout_intel.db"
@@ -31,6 +33,12 @@ _DB_PATH = Path(__file__).resolve().parent.parent / "scout_intel.db"
 # ---------------------------------------------------------------------------
 # Claude API
 # ---------------------------------------------------------------------------
+try:
+    from services.llm_router import reason as _llm_reason
+    _LLM_ROUTER_AVAILABLE = True
+except Exception:
+    _LLM_ROUTER_AVAILABLE = False
+
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 _MODEL = "claude-sonnet-4-20250514"
 
@@ -135,7 +143,16 @@ async def _generate_moderate_summary(items: list[dict[str, Any]]) -> str:
             f"   Source: {item.get('source', '')} | {item.get('summary', '')[:120]}"
         )
     user_msg = "Assess these signals:\n\n" + "\n".join(lines)
-    return await _call_claude(_MODERATE_SYSTEM_PROMPT, user_msg)
+    messages = [
+        {"role": "system", "content": _MODERATE_SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+    try:
+        result = await llm_router.complete(messages, task_type="summarization", max_tokens=1024)
+        return result
+    except Exception:
+        logger.warning("LLMRouter moderate summary failed — falling back to Claude", exc_info=True)
+        return await _call_claude(_MODERATE_SYSTEM_PROMPT, user_msg)
 
 
 # ---------------------------------------------------------------------------

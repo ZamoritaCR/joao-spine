@@ -15,6 +15,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
+from services.llm_router import summarize as llm_summarize
 
 router = APIRouter()
 
@@ -307,24 +308,9 @@ async def process_text(file_bytes: bytes, filename: str) -> dict:
 # ─────────────────────────────────────────────
 
 async def summarize_text(text: str, instruction: str) -> str:
-    """Send text to Claude for summarization/analysis."""
-    import anthropic
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return "[No Anthropic key — summary unavailable]"
-
+    """Route summarization through LLMRouter (Ollama local or OpenRouter cloud)."""
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=2048,
-            messages=[{
-                "role": "user",
-                "content": f"{instruction}\n\n---\n\n{text}"
-            }]
-        )
-        return message.content[0].text
+        return await llm_summarize(text, context=instruction)
     except Exception as e:
         return f"[Summary error: {str(e)}]"
 

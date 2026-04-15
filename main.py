@@ -73,6 +73,7 @@ from routers.superpowers import router as superpowers_router
 from routers.exocortex import router as exocortex_router
 from routers.inspector import router as inspector_router
 from routers.ingest import router as ingest_router
+from routers.stripe_webhook import router as stripe_router
 
 # Dr. Data (original) -- Tableau parser, DAX transpiler, direct mapper for superpowers
 import sys as _sys
@@ -188,6 +189,7 @@ app.include_router(superpowers_router)
 app.include_router(exocortex_router)
 app.include_router(inspector_router)
 app.include_router(ingest_router)
+app.include_router(stripe_router)
 app.mount("/os", os_autonomy_app)
 
 

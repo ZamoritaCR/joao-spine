@@ -1,0 +1,599 @@
+INFO:     Started server process [946646]
+INFO:     Waiting for application startup.
+{"message": "joao-spine starting up", "timestamp": "2026-04-15T20:08:37.300463+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SUPABASE_DB_PASSWORD not set \u2014 skipping startup migrations. Set this env var in Railway to auto-apply schema changes on next deploy.", "timestamp": "2026-04-15T20:08:37.300846+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT scheduler task created", "timestamp": "2026-04-15T20:08:37.300915+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT scheduler started in lifespan", "timestamp": "2026-04-15T20:08:37.300943+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "TerminalManager started", "timestamp": "2026-04-15T20:08:37.300977+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT scheduler started", "timestamp": "2026-04-15T20:08:37.301108+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT scan starting...", "timestamp": "2026-04-15T20:08:37.301152+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT DB initialized at /home/zamoritacr/joao-spine/scout_intel.db", "timestamp": "2026-04-15T20:08:37.302234+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "StreamableHTTP session manager started", "timestamp": "2026-04-15T20:08:37.302454+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "StreamableHTTP session manager started", "timestamp": "2026-04-15T20:08:37.454573+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "MCP streamable-HTTP session managers started", "timestamp": "2026-04-15T20:08:37.454652+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Arena startup: loading JOAO context...", "timestamp": "2026-04-15T20:08:37.454719+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://techcrunch.com/tag/artificial-intelligence/feed/ \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.496606+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://raw.githubusercontent.com/taobojlen/anthropic-rss-feed/main/anthropic_news_rss.xml \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.497427+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://rss.arxiv.org/rss/cs.AI \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.497858+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://www.producthunt.com/feed \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.516847+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://hn.algolia.com/api/v1/search_by_date?query=AI+LLM&tags=story&hitsPerPage=20 \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.703737+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://hnrss.org/newest?q=AI+LLM+Claude \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.771776+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.github.com/search/repositories?q=language:python+created:%3E2026-04-15&sort=stars&order=desc&per_page=15 \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:37.854861+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT scan complete: 95 fetched, 0 new", "timestamp": "2026-04-15T20:08:37.856451+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Pipeline: no new items to process", "timestamp": "2026-04-15T20:08:37.856511+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "SCOUT_INTEL.md updated with 20 items", "timestamp": "2026-04-15T20:08:37.857285+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "No email transport configured (set SENDGRID_API_KEY or SMTP_HOST)", "timestamp": "2026-04-15T20:08:37.858136+00:00", "level": "WARNING", "service": "joao-spine"}
+{"message": "HTTP Request: GET http://localhost:8100/agents \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:38.061424+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "JOAO context refreshed (25540 chars)", "timestamp": "2026-04-15T20:08:38.061844+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "JOAO context loaded (25540 chars)", "timestamp": "2026-04-15T20:08:38.061883+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:7778 (Press CTRL+C to quit)
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:38.511044+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (134x43)", "timestamp": "2026-04-15T20:08:38.523734+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:38.540848+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:38.540958+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:39.565801+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:39.565852+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     192.168.0.73:53611 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:39.577639+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:39.577685+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:39.577712+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (80x24)", "timestamp": "2026-04-15T20:08:39.589024+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:39.590485+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:39.590551+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53612 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:39.692500+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:39.692550+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:39.696118+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:39.696206+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:39.701075+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:39.701172+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "67badf72-5a89-4dba-88cd-dc224990dfc5", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:39.996228+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 404 Not Found
+{"message": "request_end", "request_id": "67badf72-5a89-4dba-88cd-dc224990dfc5", "method": "GET", "path": "/mcp-http/mcp", "status_code": 404, "latency_ms": 1.0, "timestamp": "2026-04-15T20:08:39.997160+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "d4b8061a-fa37-4b21-bbd8-c9aa3a7a3bea", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:40.050391+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 404 Not Found
+{"message": "request_end", "request_id": "d4b8061a-fa37-4b21-bbd8-c9aa3a7a3bea", "method": "POST", "path": "/mcp-http/mcp", "status_code": 404, "latency_ms": 0.9, "timestamp": "2026-04-15T20:08:40.051221+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:40.331776+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:40.331831+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:40.352078+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:40.352206+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "745772f2-df45-467f-a0de-8f6e2abd95b3", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:40.412717+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Created new transport with session ID: c9b459992ffb468fa6f8edc75b4b0677", "timestamp": "2026-04-15T20:08:40.413297+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "745772f2-df45-467f-a0de-8f6e2abd95b3", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 3.9, "timestamp": "2026-04-15T20:08:40.416547+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:40.459141+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:40.459190+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:40.477141+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:40.477287+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53613 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:40.575083+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:40.575270+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:40.584249+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:40.584451+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53614 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:40.598138+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:40.598199+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "2e94068a-2f20-4dcb-b7f7-4062840edc00", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:40.598603+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.37:0 - "POST /mcp-http/mcp HTTP/1.1" 202 Accepted
+{"message": "request_end", "request_id": "2e94068a-2f20-4dcb-b7f7-4062840edc00", "method": "POST", "path": "/mcp-http/mcp", "status_code": 202, "latency_ms": 0.5, "timestamp": "2026-04-15T20:08:40.599107+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:40.608232+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:40.608356+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "fbeffaca-91f3-4a14-b8b7-80f952b9cc6a", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:40.622311+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_start", "request_id": "a7b1d96b-b669-40f3-ba45-411397df18d4", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:40.797207+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Processing request of type CallToolRequest", "timestamp": "2026-04-15T20:08:40.798574+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.191936+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.191982+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.213030+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.213244+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "6028478d-475c-41c7-8534-ca7752f3d45d", "method": "GET", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:41.225397+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /taop/mcp-http/mcp HTTP/1.1" 404 Not Found
+{"message": "request_end", "request_id": "6028478d-475c-41c7-8534-ca7752f3d45d", "method": "GET", "path": "/taop/mcp-http/mcp", "status_code": 404, "latency_ms": 0.8, "timestamp": "2026-04-15T20:08:41.226131+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://dispatch.theartofthepossible.io/dispatch/raw \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:41.438998+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.473609+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.473673+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "a83fa8bf-6a3d-4052-9c16-0c3b3681f817", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:41.477220+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 404 Not Found
+{"message": "request_end", "request_id": "a83fa8bf-6a3d-4052-9c16-0c3b3681f817", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 404, "latency_ms": 0.7, "timestamp": "2026-04-15T20:08:41.477895+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.500770+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.500926+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53615 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.573719+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.573767+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.582372+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.582492+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53616 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.597564+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.597613+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.606077+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.606165+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53617 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.619733+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.619775+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.628320+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.628451+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:41.784800+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:41.784852+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "61fffbc0-7d47-4131-b2b9-c9a90628e2d3", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:41.810187+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Created new transport with session ID: 8f7c20967ea5432987bdc14addaeae26", "timestamp": "2026-04-15T20:08:41.810979+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:41.813987+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:41.814083+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_end", "request_id": "61fffbc0-7d47-4131-b2b9-c9a90628e2d3", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 200, "latency_ms": 4.5, "timestamp": "2026-04-15T20:08:41.814677+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "520b3a69-f4b7-4b15-bc0d-16f49587d8f2", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:42.000123+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 202 Accepted
+{"message": "request_end", "request_id": "520b3a69-f4b7-4b15-bc0d-16f49587d8f2", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 202, "latency_ms": 0.8, "timestamp": "2026-04-15T20:08:42.000878+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "ba7b7d1d-c366-4e7a-9a3b-f08d26b993e1", "method": "GET", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:42.051359+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.37:0 - "GET /taop/mcp-http/mcp HTTP/1.1" 200 OK
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:42.496080+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:42.496135+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:42.511325+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:42.511437+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53618 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:42.575835+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:42.575887+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:42.584107+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:42.584199+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53619 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:42.598827+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:42.598896+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:42.607079+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:42.607236+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53620 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:42.620891+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:42.620931+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:42.629114+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:42.629203+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:42.769872+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:42.769922+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:42.806748+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:42.806874+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "aab25bf6-651a-49f7-8ff3-fd9135d4d084", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:43.241596+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Processing request of type CallToolRequest", "timestamp": "2026-04-15T20:08:43.242973+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53621 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:43.573342+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:43.573392+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:43.583359+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:43.583435+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:43.583497+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (116x43)", "timestamp": "2026-04-15T20:08:43.597262+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:43.598755+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:43.598815+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53622 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:43.701303+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:43.701354+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:43.710540+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:43.710722+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:43.719032+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:43.719178+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "518e33a0-6e2a-4439-a6d9-8b5e1f86bdc6", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:43.815708+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Created new transport with session ID: fcf8dae5e25d4dc2a8e1dc2af1c9b087", "timestamp": "2026-04-15T20:08:43.816496+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "518e33a0-6e2a-4439-a6d9-8b5e1f86bdc6", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 3.1, "timestamp": "2026-04-15T20:08:43.818745+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "a5f37728-ac54-4581-94e6-fb848475a809", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:43.948625+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_start", "request_id": "f5d350ad-db98-47eb-85f1-5500183a96e8", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:43.968993+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Created new transport with session ID: d9d444a25d0a43548010d1a153111de5", "timestamp": "2026-04-15T20:08:43.969564+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "f5d350ad-db98-47eb-85f1-5500183a96e8", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 200, "latency_ms": 2.5, "timestamp": "2026-04-15T20:08:43.971401+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyD3lnjj8r7i7nvOdceooLWPEmCrOx8A81g \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:44.021270+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "96633b31-d18e-411a-b7a8-a977741dbaf1", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:44.043787+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 202 Accepted
+{"message": "request_end", "request_id": "96633b31-d18e-411a-b7a8-a977741dbaf1", "method": "POST", "path": "/mcp-http/mcp", "status_code": 202, "latency_ms": 0.8, "timestamp": "2026-04-15T20:08:44.044542+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "5442aca1-6386-4694-acb5-9a56f7873c0d", "method": "GET", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:44.133040+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /taop/mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_start", "request_id": "d87dad71-ebfb-4623-a867-245093692c56", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:44.136928+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 202 Accepted
+{"message": "request_end", "request_id": "d87dad71-ebfb-4623-a867-245093692c56", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 202, "latency_ms": 1.1, "timestamp": "2026-04-15T20:08:44.137996+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "da0c2464-bf42-4fe0-88cd-f56513a3cc1c", "method": "GET", "path": "/api/provider-health", "timestamp": "2026-04-15T20:08:44.146738+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET http://127.0.0.1:8100/health \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:44.179386+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.cloudflare.com/client/v4/accounts \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:44.315882+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/ \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:44.509764+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://ep-fancy-sky-anluoqxn.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1 \"HTTP/1.1 400 Bad Request\"", "timestamp": "2026-04-15T20:08:44.638652+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.github.com/user \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:45.220493+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/provider-health?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "da0c2464-bf42-4fe0-88cd-f56513a3cc1c", "method": "GET", "path": "/api/provider-health", "status_code": 200, "latency_ms": 1103.7, "timestamp": "2026-04-15T20:08:45.250403+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://api.anthropic.com/v1/messages \"HTTP/1.1 500 Internal Server Error\"", "timestamp": "2026-04-15T20:08:45.251662+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://api.mistral.ai/v1/chat/completions \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:45.252341+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://api.together.xyz/v1/chat/completions \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:45.252857+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://api.together.xyz/v1/chat/completions \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:45.253297+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://dispatch.theartofthepossible.io/dispatch \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:45.253652+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "2472bf0f-3552-4ef2-b687-cae595286199", "method": "GET", "path": "/api/agent-output/BYTE", "timestamp": "2026-04-15T20:08:45.268798+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/agent-output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "2472bf0f-3552-4ef2-b687-cae595286199", "method": "GET", "path": "/api/agent-output/BYTE", "status_code": 200, "latency_ms": 10.8, "timestamp": "2026-04-15T20:08:45.279639+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Claude error with MCP (status 500), retrying with fallback MCP: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"Internal server error\"},\"request_id\":\"req_011Ca6AMNetfFdQ119dWriZW\"}", "timestamp": "2026-04-15T20:08:45.280367+00:00", "level": "WARNING", "service": "joao-spine"}
+{"message": "request_start", "request_id": "8af3d1df-8999-40a4-8663-4d39b38fed31", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:45.296993+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=12 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:45.468798+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/dispatches?limit=12&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "8af3d1df-8999-40a4-8663-4d39b38fed31", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 175.7, "timestamp": "2026-04-15T20:08:45.472715+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "1ecde594-cf24-4bde-a190-bba2e9f8e07a", "method": "GET", "path": "/api/output/BYTE", "timestamp": "2026-04-15T20:08:45.473527+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=id%2Cstatus&order=dispatched_at.desc&limit=1&agent=eq.BYTE&status=eq.dispatched \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:45.547126+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "1ecde594-cf24-4bde-a190-bba2e9f8e07a", "method": "GET", "path": "/api/output/BYTE", "status_code": 200, "latency_ms": 74.4, "timestamp": "2026-04-15T20:08:45.547938+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "5442aca1-6386-4694-acb5-9a56f7873c0d", "method": "GET", "path": "/taop/mcp-http/mcp", "status_code": 200, "latency_ms": 1415.3, "timestamp": "2026-04-15T20:08:45.548312+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "a5f37728-ac54-4581-94e6-fb848475a809", "method": "GET", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 1599.9, "timestamp": "2026-04-15T20:08:45.548417+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "eaa1a595-e3f4-4e42-b2ee-3572d6ab9e10", "method": "GET", "path": "/api/system", "timestamp": "2026-04-15T20:08:45.548760+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/system?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "eaa1a595-e3f4-4e42-b2ee-3572d6ab9e10", "method": "GET", "path": "/api/system", "status_code": 200, "latency_ms": 514.9, "timestamp": "2026-04-15T20:08:46.063670+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "16e2b6a9-bada-46e3-bbfc-fb9f8e9c16b9", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:46.064501+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=1 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:46.132550+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/dispatches?limit=1&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "16e2b6a9-bada-46e3-bbfc-fb9f8e9c16b9", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 69.2, "timestamp": "2026-04-15T20:08:46.133738+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://api.openai.com/v1/chat/completions \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:46.134202+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:46.135671+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:46.135721+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:46.136746+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:46.136779+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:46.136801+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (134x43)", "timestamp": "2026-04-15T20:08:46.149444+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     192.168.0.73:53623 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:46.153472+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:46.153514+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:46.153541+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (80x24)", "timestamp": "2026-04-15T20:08:46.165492+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "bb008926-b6c2-4977-8d2f-9fbbc4de3fa2", "method": "GET", "path": "/health", "timestamp": "2026-04-15T20:08:46.166190+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     127.0.0.1:40314 - "GET /health HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "bb008926-b6c2-4977-8d2f-9fbbc4de3fa2", "method": "GET", "path": "/health", "status_code": 200, "latency_ms": 1.3, "timestamp": "2026-04-15T20:08:46.167430+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_end", "request_id": "aab25bf6-651a-49f7-8ff3-fd9135d4d084", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 200, "latency_ms": 2928.4, "timestamp": "2026-04-15T20:08:46.169977+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "efbf294b-edcc-4c3b-a3af-b31443414a09", "method": "GET", "path": "/joao/llm/health", "timestamp": "2026-04-15T20:08:46.176134+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "a0c21b3e-dcc2-4ad2-98eb-999e6fcac52e", "method": "POST", "path": "/taop/mcp-http/mcp", "timestamp": "2026-04-15T20:08:46.544898+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /taop/mcp-http/mcp HTTP/1.1" 200 OK
+INFO:     192.168.0.73:53624 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:46.547667+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:46.547710+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:46.547737+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (117x43)", "timestamp": "2026-04-15T20:08:46.560373+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:46.562611+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:46.562674+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Processing request of type ListToolsRequest", "timestamp": "2026-04-15T20:08:46.663984+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:46.664518+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:46.664556+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: GET https://dispatch.theartofthepossible.io/session/MAX \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:46.766217+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:46.767628+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:46.767673+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: POST https://wkfewpynskakgbetscsa.supabase.co/rest/v1/session_log \"HTTP/2 404 Not Found\"", "timestamp": "2026-04-15T20:08:46.933062+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://wkfewpynskakgbetscsa.supabase.co/rest/v1/joao_memory \"HTTP/2 201 Created\"", "timestamp": "2026-04-15T20:08:47.020243+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "joao_memory insert id=745b32e2-f56e-4413-8350-692443a73373 source=session_log:dispatch", "timestamp": "2026-04-15T20:08:47.021089+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://wkfewpynskakgbetscsa.supabase.co/rest/v1/agent_outputs \"HTTP/2 404 Not Found\"", "timestamp": "2026-04-15T20:08:47.097744+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches \"HTTP/2 201 Created\"", "timestamp": "2026-04-15T20:08:47.182390+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "hub_dispatches fallback insert id=52cfc36e-9669-47b9-b9f0-f084f56bcca0", "timestamp": "2026-04-15T20:08:47.183020+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53625 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:47.184486+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:47.184528+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "8b146c58-2fe0-4e9c-9466-ec7ad110ad76", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:47.185362+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Created new transport with session ID: fd083d8267c64195b945042eb65a7613", "timestamp": "2026-04-15T20:08:47.188231+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:47.189903+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:47.189942+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:47.189969+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (116x43)", "timestamp": "2026-04-15T20:08:47.202760+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:47.207168+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:47.207234+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_end", "request_id": "a0c21b3e-dcc2-4ad2-98eb-999e6fcac52e", "method": "POST", "path": "/taop/mcp-http/mcp", "status_code": 200, "latency_ms": 663.3, "timestamp": "2026-04-15T20:08:47.208168+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "a7b1d96b-b669-40f3-ba45-411397df18d4", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 6411.2, "timestamp": "2026-04-15T20:08:47.208370+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "8b146c58-2fe0-4e9c-9466-ec7ad110ad76", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 23.2, "timestamp": "2026-04-15T20:08:47.208559+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:47.212242+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:47.212342+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:47.316131+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:47.316205+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_start", "request_id": "e04da2ba-e469-4f60-8ca5-d6b3dcdcb6bd", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:47.335513+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "request_start", "request_id": "91192ee0-bbe5-4c55-a1f0-148f4342c727", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:47.340715+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 202 Accepted
+{"message": "request_end", "request_id": "91192ee0-bbe5-4c55-a1f0-148f4342c727", "method": "POST", "path": "/mcp-http/mcp", "status_code": 202, "latency_ms": 0.8, "timestamp": "2026-04-15T20:08:47.341506+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "9283c6c5-876e-40c0-8fb7-107b1f1471c1", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:47.482649+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Processing request of type ListToolsRequest", "timestamp": "2026-04-15T20:08:47.484469+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "9283c6c5-876e-40c0-8fb7-107b1f1471c1", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 3.1, "timestamp": "2026-04-15T20:08:47.485676+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "24329f7a-0bb5-4943-88ce-515dcaeaf99d", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:47.489110+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Processing request of type ListToolsRequest", "timestamp": "2026-04-15T20:08:47.490902+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "24329f7a-0bb5-4943-88ce-515dcaeaf99d", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 2.6, "timestamp": "2026-04-15T20:08:47.491684+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:47.563260+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Retrying request to /chat/completions in 0.404539 seconds", "timestamp": "2026-04-15T20:08:47.564069+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53626 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:47.576700+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:47.576760+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:47.585211+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:47.585290+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.014815+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.014895+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.045699+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.045768+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:48.173355+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Retrying request to /chat/completions in 0.872554 seconds", "timestamp": "2026-04-15T20:08:48.173796+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.467181+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.467267+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.488668+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.488777+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53627 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.575171+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.575244+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.584285+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.584374+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53628 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.597924+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.597991+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.607261+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.607339+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53629 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.620930+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.621013+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.629238+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.629324+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:48.952406+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:48.952476+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:48.972058+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:48.972170+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:49.224593+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     127.0.0.1:40320 - "GET /joao/llm/health HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "efbf294b-edcc-4c3b-a3af-b31443414a09", "method": "GET", "path": "/joao/llm/health", "status_code": 200, "latency_ms": 3049.7, "timestamp": "2026-04-15T20:08:49.225773+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "7bd2affc-1808-4ee0-b6eb-ea2207d49f1f", "method": "GET", "path": "/joao/services/health", "timestamp": "2026-04-15T20:08:49.234510+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:49.432998+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Retrying request to /chat/completions in 0.483116 seconds", "timestamp": "2026-04-15T20:08:49.433638+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:49.468262+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:49.468317+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:49.484024+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:49.484155+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:49.558430+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:49.558515+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "HTTP Request: POST https://api.anthropic.com/v1/messages \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:49.562237+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_end", "request_id": "e04da2ba-e469-4f60-8ca5-d6b3dcdcb6bd", "method": "GET", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 2228.2, "timestamp": "2026-04-15T20:08:49.563722+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:49.591329+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:49.591440+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53630 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:49.671282+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:49.671331+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "c02ae66d-6756-40d7-ba02-3395e20e91d8", "method": "GET", "path": "/api/provider-health", "timestamp": "2026-04-15T20:08:49.681552+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET http://127.0.0.1:8100/health \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:49.714270+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.cloudflare.com/client/v4/accounts \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:49.850217+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/ \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:50.003241+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://ep-fancy-sky-anluoqxn.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1 \"HTTP/1.1 400 Bad Request\"", "timestamp": "2026-04-15T20:08:50.139541+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.github.com/user \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:50.735658+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53631 - "GET /api/provider-health?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "c02ae66d-6756-40d7-ba02-3395e20e91d8", "method": "GET", "path": "/api/provider-health", "status_code": 200, "latency_ms": 1085.7, "timestamp": "2026-04-15T20:08:50.767255+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "ae2ac7b7-0a64-4022-9f66-fed54f2df873", "method": "GET", "path": "/joao/llm/health", "timestamp": "2026-04-15T20:08:50.767770+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "ebdbeb40-fd5d-4b3f-a8c1-f0567dfe92d9", "method": "GET", "path": "/api/agent-output/BYTE", "timestamp": "2026-04-15T20:08:50.783128+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53632 - "GET /api/agent-output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "ebdbeb40-fd5d-4b3f-a8c1-f0567dfe92d9", "method": "GET", "path": "/api/agent-output/BYTE", "status_code": 200, "latency_ms": 8.1, "timestamp": "2026-04-15T20:08:50.791245+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "e06119fc-68b0-4ed3-8a15-a9326bb8ef5e", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:50.792353+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=12 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:50.905304+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53633 - "GET /api/dispatches?limit=12&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "e06119fc-68b0-4ed3-8a15-a9326bb8ef5e", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 115.7, "timestamp": "2026-04-15T20:08:50.908060+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "4068e37d-887c-4e3d-b623-948faf2fed0d", "method": "GET", "path": "/api/agent-output/BYTE", "timestamp": "2026-04-15T20:08:50.908693+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53631 - "GET /api/agent-output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "4068e37d-887c-4e3d-b623-948faf2fed0d", "method": "GET", "path": "/api/agent-output/BYTE", "status_code": 200, "latency_ms": 9.4, "timestamp": "2026-04-15T20:08:50.918138+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "ac5dfa48-3528-4ea7-afb0-e951726140e9", "method": "GET", "path": "/api/system", "timestamp": "2026-04-15T20:08:50.918286+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53634 - "GET /api/system?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "ac5dfa48-3528-4ea7-afb0-e951726140e9", "method": "GET", "path": "/api/system", "status_code": 200, "latency_ms": 513.6, "timestamp": "2026-04-15T20:08:51.431875+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "f588343f-3a47-49d2-b70c-424236f81eec", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:51.432791+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=12 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:51.538955+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53632 - "GET /api/dispatches?limit=12&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "f588343f-3a47-49d2-b70c-424236f81eec", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 109.7, "timestamp": "2026-04-15T20:08:51.542530+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "d5fb5d69-b94f-4b16-b239-88d8d6c2feee", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:51.542641+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 409 Conflict
+{"message": "request_end", "request_id": "d5fb5d69-b94f-4b16-b239-88d8d6c2feee", "method": "GET", "path": "/mcp-http/mcp", "status_code": 409, "latency_ms": 0.4, "timestamp": "2026-04-15T20:08:51.543038+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "25b99336-f66f-473d-8bea-e670c514158f", "method": "POST", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:51.543161+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "9954b1d5-48f7-4ee1-a613-46f63144bea4", "method": "GET", "path": "/api/output/BYTE", "timestamp": "2026-04-15T20:08:51.543518+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=id%2Cstatus&order=dispatched_at.desc&limit=1&agent=eq.BYTE&status=eq.dispatched \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:51.619216+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53635 - "GET /api/output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "9954b1d5-48f7-4ee1-a613-46f63144bea4", "method": "GET", "path": "/api/output/BYTE", "status_code": 200, "latency_ms": 76.2, "timestamp": "2026-04-15T20:08:51.619751+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "ba1874b1-9da5-488c-a9f6-72df742887b7", "method": "GET", "path": "/api/system", "timestamp": "2026-04-15T20:08:51.620361+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53633 - "GET /api/system?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "ba1874b1-9da5-488c-a9f6-72df742887b7", "method": "GET", "path": "/api/system", "status_code": 200, "latency_ms": 514.3, "timestamp": "2026-04-15T20:08:52.134680+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "8921c3a4-5d8c-42ad-83cc-cc205b29fb73", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:52.134838+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=12 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:52.240483+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53631 - "GET /api/dispatches?limit=12&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "8921c3a4-5d8c-42ad-83cc-cc205b29fb73", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 108.4, "timestamp": "2026-04-15T20:08:52.243247+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:52.243504+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "7b8f6f6c-9ab0-4ae7-9e3e-fdd59f8b5994", "method": "GET", "path": "/api/agent-output/APEX", "timestamp": "2026-04-15T20:08:52.243733+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53636 - "GET /api/agent-output/APEX?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "7b8f6f6c-9ab0-4ae7-9e3e-fdd59f8b5994", "method": "GET", "path": "/api/agent-output/APEX", "status_code": 200, "latency_ms": 12.2, "timestamp": "2026-04-15T20:08:52.256005+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "POST /mcp-http/mcp HTTP/1.1" 200 OK
+{"message": "Retrying request to /chat/completions in 0.938889 seconds", "timestamp": "2026-04-15T20:08:52.257018+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "9b3ecf8c-78b8-4e88-bf49-2add1f53e1d6", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:52.257140+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=1 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:52.333304+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53635 - "GET /api/dispatches?limit=1&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "9b3ecf8c-78b8-4e88-bf49-2add1f53e1d6", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 77.2, "timestamp": "2026-04-15T20:08:52.334361+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "be6fa71c-5558-4b92-9acc-5c4b014cc182", "method": "GET", "path": "/api/provider-health", "timestamp": "2026-04-15T20:08:52.334465+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET http://127.0.0.1:8100/health \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:52.365997+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.cloudflare.com/client/v4/accounts \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:52.603265+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/ \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:52.749845+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://ep-fancy-sky-anluoqxn.apirest.c-6.us-east-1.aws.neon.tech/neondb/rest/v1 \"HTTP/1.1 400 Bad Request\"", "timestamp": "2026-04-15T20:08:52.879145+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://api.github.com/user \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:53.486315+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/provider-health?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "be6fa71c-5558-4b92-9acc-5c4b014cc182", "method": "GET", "path": "/api/provider-health", "status_code": 200, "latency_ms": 1181.2, "timestamp": "2026-04-15T20:08:53.515698+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:53.516484+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:53.516529+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     192.168.0.73:53637 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:53.517015+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:53.517046+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "e8fe5682-c912-4658-be44-2b1867f5f755", "method": "GET", "path": "/api/system", "timestamp": "2026-04-15T20:08:53.517161+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53632 - "GET /api/system?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "e8fe5682-c912-4658-be44-2b1867f5f755", "method": "GET", "path": "/api/system", "status_code": 200, "latency_ms": 512.0, "timestamp": "2026-04-15T20:08:54.029163+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:54.030894+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:54.030929+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:54.030953+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (116x43)", "timestamp": "2026-04-15T20:08:54.043393+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Processing request of type CallToolRequest", "timestamp": "2026-04-15T20:08:54.044701+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "council_session_output called: agent=SCOUT", "timestamp": "2026-04-15T20:08:54.044920+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     163.116.147.31:0 - "WebSocket /ws/terminal?session_id=default&cols=134&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:54.061194+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:54.061231+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:54.061257+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (134x43)", "timestamp": "2026-04-15T20:08:54.071437+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "0c6f68ba-d755-46d9-96b2-32fef6ee4868", "method": "GET", "path": "/api/agent-output/BYTE", "timestamp": "2026-04-15T20:08:54.073139+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/agent-output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "0c6f68ba-d755-46d9-96b2-32fef6ee4868", "method": "GET", "path": "/api/agent-output/BYTE", "status_code": 200, "latency_ms": 10.2, "timestamp": "2026-04-15T20:08:54.083345+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "request_start", "request_id": "e5ad17be-ee09-4326-a9e8-3752378f322b", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:54.084998+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=12 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:54.202588+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/dispatches?limit=12&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "e5ad17be-ee09-4326-a9e8-3752378f322b", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 121.0, "timestamp": "2026-04-15T20:08:54.206009+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "8e1beba3-5205-4e1a-8f59-b80baf75385f", "method": "GET", "path": "/api/output/BYTE", "timestamp": "2026-04-15T20:08:54.206993+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=id%2Cstatus&order=dispatched_at.desc&limit=1&agent=eq.BYTE&status=eq.dispatched \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:54.278903+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/output/BYTE?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "8e1beba3-5205-4e1a-8f59-b80baf75385f", "method": "GET", "path": "/api/output/BYTE", "status_code": 200, "latency_ms": 73.0, "timestamp": "2026-04-15T20:08:54.279977+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "db7f091e-7823-483f-b72d-e488145f762d", "method": "GET", "path": "/api/system", "timestamp": "2026-04-15T20:08:54.280908+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/system?token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "db7f091e-7823-483f-b72d-e488145f762d", "method": "GET", "path": "/api/system", "status_code": 200, "latency_ms": 514.6, "timestamp": "2026-04-15T20:08:54.795570+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "c5de41f0-9a72-4443-b289-4000393e9936", "method": "GET", "path": "/api/dispatches", "timestamp": "2026-04-15T20:08:54.797979+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: GET https://wkfewpynskakgbetscsa.supabase.co/rest/v1/hub_dispatches?select=%2A&order=dispatched_at.desc&limit=1 \"HTTP/2 200 OK\"", "timestamp": "2026-04-15T20:08:54.954654+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     163.116.147.30:0 - "GET /api/dispatches?limit=1&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "c5de41f0-9a72-4443-b289-4000393e9936", "method": "GET", "path": "/api/dispatches", "status_code": 200, "latency_ms": 157.5, "timestamp": "2026-04-15T20:08:54.955441+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:54.955770+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "464842d7-0d2b-4997-9c18-f9c1a647cd45", "method": "GET", "path": "/mcp-http/mcp", "timestamp": "2026-04-15T20:08:54.956058+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     160.79.106.35:0 - "GET /mcp-http/mcp HTTP/1.1" 409 Conflict
+{"message": "request_end", "request_id": "464842d7-0d2b-4997-9c18-f9c1a647cd45", "method": "GET", "path": "/mcp-http/mcp", "status_code": 409, "latency_ms": 0.6, "timestamp": "2026-04-15T20:08:54.956625+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53653 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:54.971488+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:54.971538+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:54.971562+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (80x24)", "timestamp": "2026-04-15T20:08:54.983036+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:54.985160+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:54.985210+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.086758+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.086846+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: POST https://openrouter.ai/api/v1/chat/completions \"HTTP/1.1 429 Too Many Requests\"", "timestamp": "2026-04-15T20:08:55.189085+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.189877+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.189918+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Retrying request to /chat/completions in 0.460568 seconds", "timestamp": "2026-04-15T20:08:55.290899+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53654 - "WebSocket /ws/terminal?session_id=default&cols=117&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:55.291397+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:55.291431+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+INFO:     163.116.147.30:0 - "WebSocket /ws/terminal?session_id=default&cols=116&rows=43&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:55.292212+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default pty is dead, cleaning up", "timestamp": "2026-04-15T20:08:55.292244+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session killed: default", "timestamp": "2026-04-15T20:08:55.292268+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal session created: default (116x43)", "timestamp": "2026-04-15T20:08:55.304577+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.308765+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.308850+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.316460+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.316555+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "HTTP Request: GET https://dispatch.theartofthepossible.io/session/SCOUT \"HTTP/1.1 200 OK\"", "timestamp": "2026-04-15T20:08:55.418709+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "council_session_output got 8279 bytes", "timestamp": "2026-04-15T20:08:55.419750+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.421084+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.421140+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+{"message": "request_end", "request_id": "25b99336-f66f-473d-8bea-e670c514158f", "method": "POST", "path": "/mcp-http/mcp", "status_code": 200, "latency_ms": 3878.8, "timestamp": "2026-04-15T20:08:55.421939+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Neon pool connected", "timestamp": "2026-04-15T20:08:55.555378+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     192.168.0.73:53655 - "WebSocket /ws/terminal?session_id=default&cols=80&rows=24&token=4S1nLyumC1MfqZ1HDx20Z-MSkWu-sUIdT9IEm18DMXE" [accepted]
+{"message": "Terminal WebSocket connected: session=default", "timestamp": "2026-04-15T20:08:55.574511+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Session default reconnected", "timestamp": "2026-04-15T20:08:55.574553+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection open
+{"message": "Session default WS disconnected, grace period started (300s)", "timestamp": "2026-04-15T20:08:55.582459+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "Terminal WebSocket disconnected: session=default (PTY preserved for reconnect)", "timestamp": "2026-04-15T20:08:55.582560+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     connection closed
+INFO:     127.0.0.1:40356 - "GET /joao/services/health HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "7bd2affc-1808-4ee0-b6eb-ea2207d49f1f", "method": "GET", "path": "/joao/services/health", "status_code": 200, "latency_ms": 6443.7, "timestamp": "2026-04-15T20:08:55.678206+00:00", "level": "INFO", "service": "joao-spine"}
+{"message": "request_start", "request_id": "1bf9ca25-5be4-4e65-96b9-dffbf54c7c1f", "method": "GET", "path": "/stripe/health", "timestamp": "2026-04-15T20:08:55.692387+00:00", "level": "INFO", "service": "joao-spine"}
+INFO:     127.0.0.1:42994 - "GET /stripe/health HTTP/1.1" 200 OK
+{"message": "request_end", "request_id": "1bf9ca25-5be4-4e65-96b9-dffbf54c7c1f", "method": "GET", "path": "/stripe/health", "status_code": 200, "latency_ms": 1.2, "timestamp": "2026-04-15T20:08:55.693506+00:00", "level": "INFO", "service": "joao-spine"}

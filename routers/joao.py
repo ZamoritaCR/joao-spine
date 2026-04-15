@@ -16,6 +16,7 @@ from middleware.auth import require_api_key, require_dispatch_auth, validate_age
 from models.schemas import (
     AIResult,
     AudioRequest,
+    BriefingEmailRequest,
     ChatRequest,
     ContentResponse,
     ContextResponse,
@@ -295,6 +296,18 @@ async def council_dispatch(req: CouncilDispatchRequest):
         logger.exception("Council dispatch failed")
         raise HTTPException(status_code=503, detail=f"Dispatch failed: {e}")
 
+    # LLM council task — generate immediate AI response for this dispatch
+    llm_response: str = ""
+    try:
+        llm_response = await llm_council_task(
+            agent_name=req.agent,
+            task=req.task,
+            context=req.context or "",
+        )
+        result["llm_response"] = llm_response
+    except Exception as e:
+        logger.warning("llm_council_task failed for agent=%s: %s", req.agent, e)
+
     # Log to Supabase
     try:
         await supabase_client.insert_dispatch_log(
@@ -319,7 +332,7 @@ async def council_dispatch(req: CouncilDispatchRequest):
             "task_summary": req.task[:120],
             "model_used": "ollama" if req.agent.upper() in _ollama_agents else "claude",
             "tokens_used": 0,
-            "qa_result": "PENDING",
+            "qa_result": llm_response[:500] if llm_response else "PENDING",
             "dispatch_id": result.get("session", ""),
         }).execute()
     except Exception as e:
@@ -2649,3 +2662,52 @@ async def brain_memory_get():
     except Exception as e:
         logger.error("Brain memory get error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Briefing Email ────────────────────────────────────────────────────────────
+
+@router.post("/briefing/email")
+async def send_briefing_email(
+    req: BriefingEmailRequest,
+    _auth: None = Depends(require_api_key),
+):
+    """Send an HTML briefing email via SendGrid."""
+    from services.sendgrid_service import send_email
+
+    ok = await send_email(
+        subject=req.subject,
+        html_body=req.body_html,
+        to_email=req.to_email,
+        from_name=req.from_name,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="Email delivery failed — check SENDGRID_API_KEY and SENDGRID_TO")
+    return {"status": "sent", "subject": req.subject}
+
+
+@router.get("/services/health")
+async def all_services_health():
+    """Unified health map for all JOAO integrations."""
+    import asyncio as _asyncio
+    results = {}
+    try:
+        results["llm_router"] = await llm_health_check()
+    except Exception as e:
+        results["llm_router"] = {"ok": False, "error": str(e)}
+    for svc_name, import_path, fn_name in [
+        ("twilio",  "services.twilio_service",  "health_check"),
+        ("daily",   "services.daily_service",   "health_check"),
+        ("neon",    "services.neon_client",      "health_check"),
+    ]:
+        try:
+            import importlib
+            mod = importlib.import_module(import_path)
+            results[svc_name] = await getattr(mod, fn_name)()
+        except Exception as e:
+            results[svc_name] = {"ok": False, "error": str(e)}
+    results["sendgrid"]  = {"ok": bool(os.environ.get("SENDGRID_API_KEY")),  "configured": bool(os.environ.get("SENDGRID_API_KEY"))}
+    results["stripe"]    = {"ok": bool(os.environ.get("STRIPE_SECRET_KEY")), "mode": "test" if os.environ.get("STRIPE_SECRET_KEY","").startswith("sk_test_") else "live"}
+    results["groq"]      = {"ok": bool(os.environ.get("GROQ_API_KEY")),      "configured": bool(os.environ.get("GROQ_API_KEY"))}
+    results["openrouter"]= {"ok": bool(os.environ.get("OPENROUTER_API_KEY")), "active": USE_OPENROUTER}
+    healthy = sum(1 for v in results.values() if v.get("ok"))
+    return {"healthy": healthy, "total": len(results), "services": results}

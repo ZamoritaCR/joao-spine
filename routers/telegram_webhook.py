@@ -1,4 +1,4 @@
-"""Telegram webhook endpoints — inbound updates → Claude Haiku → reply.
+"""Telegram webhook endpoints — inbound updates → LLMRouter (Haiku fallback) → reply.
 
 Routes:
   POST /joao/telegram/webhook   — Telegram sends updates here
@@ -9,6 +9,10 @@ Slash commands handled:
   /status  — GreenGeeks health + spine uptime
   /radar   — latest SCOUT radar intel
   /spark   — Spark brief summary
+
+AI routing:
+  Primary: LLMRouter chat task (Ollama phi4 or OpenRouter, env-driven)
+  Fallback: Claude Haiku (Anthropic API) if LLMRouter fails
 """
 
 from __future__ import annotations
@@ -25,6 +29,8 @@ import anthropic
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+
+from services import llm_router
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +77,7 @@ async def _send_reply(chat_id: int | str, text: str) -> None:
 
 
 def _haiku_client() -> anthropic.AsyncAnthropic:
+    """Fallback Haiku client (used only when LLMRouter fails)."""
     return anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
 
@@ -209,19 +216,30 @@ async def _process_message(text: str, chat_id: int | str) -> None:
         await _send_reply(chat_id, reply)
         return
 
-    # Pass to Claude Haiku
+    # Primary: LLMRouter chat task (Ollama or OpenRouter, env-driven)
+    messages = [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user", "content": text},
+    ]
     try:
-        client = _haiku_client()
-        resp = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text}],
-        )
-        reply = resp.content[0].text if resp.content else "No response."
-    except Exception as e:
-        logger.exception("Claude Haiku error")
-        reply = f"AI error: {e}"
+        reply = await llm_router.complete(messages, task_type="chat", max_tokens=512)
+        if not reply:
+            reply = "No response."
+    except Exception as router_err:
+        logger.warning("LLMRouter failed (%s), falling back to Claude Haiku", router_err)
+        # Fallback: Claude Haiku via Anthropic API
+        try:
+            client = _haiku_client()
+            resp = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": text}],
+            )
+            reply = resp.content[0].text if resp.content else "No response."
+        except Exception as haiku_err:
+            logger.exception("Claude Haiku fallback also failed")
+            reply = f"AI error: {haiku_err}"
 
     await _send_reply(chat_id, reply)
 
