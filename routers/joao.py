@@ -2558,28 +2558,37 @@ async def ollama_proxy_options(request: Request):
 
 @router.post("/ollama-proxy")
 async def ollama_proxy(request: Request):
-    """Ollama proxy — routes to localhost:11434/api/generate. Free, local."""
-    import httpx
-    from fastapi.responses import JSONResponse
+    """Ollama proxy — routes through LLMRouter. Ollama local or OpenRouter cloud."""
+    from fastapi.responses import JSONResponse, StreamingResponse
     body = await request.json()
-    model = body.get("model", "deepseek-coder-v2")
-    prompt = body.get("prompt", "")
+    # Support both legacy prompt-style and messages-style
+    messages = body.get("messages")
+    if not messages:
+        prompt = body.get("prompt", "")
+        messages = [{"role": "user", "content": prompt}]
+    task_type = body.get("task_type", "fallback")
+    max_tokens = int(body.get("max_tokens", 512))
     stream_flag = body.get("stream", False)
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                "http://localhost:11434/api/generate",
-                json={"model": model, "prompt": prompt, "stream": stream_flag},
-            )
-            result = resp.json()
-        response_text = result.get("response", "") if isinstance(result, dict) else str(result)
-        if response_text:
-            await _persist_proxy_session(request, body, response_text, prefix="ollama-proxy", model_hint=model)
-        return JSONResponse(content=result, headers={
-            "Access-Control-Allow-Origin": "*",
-        })
+        if stream_flag:
+            async def gen():
+                async for chunk in llm_stream_complete(messages, task_type=task_type, max_tokens=max_tokens):
+                    yield (b"data: " + chunk.encode() + b"\n\n")
+                yield b"data: [DONE]\n\n"
+            return StreamingResponse(gen(), media_type="text/event-stream",
+                headers={"Access-Control-Allow-Origin": "*"})
+        result = await llm_complete(messages, task_type=task_type, max_tokens=max_tokens)
+        await _persist_proxy_session(request, body, result, prefix="ollama-proxy",
+            model_hint=resolve_model(task_type))
+        return JSONResponse(content={
+            "response": result,
+            "provider": "openrouter" if USE_OPENROUTER else "ollama",
+            "model": resolve_model(task_type),
+            "done": True,
+        }, headers={"Access-Control-Allow-Origin": "*"})
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Ollama error: {e}")
+        logger.error("ollama-proxy error: %s", e)
+        raise HTTPException(status_code=502, detail=f"LLMRouter error: {e}")
 
 
 # ------------------------------------------------------------------ #
