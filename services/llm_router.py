@@ -15,7 +15,7 @@ USE_OPENROUTER = os.getenv("USE_OPENROUTER", "").strip().lower() in {"1", "true"
 OLLAMA_MODELS = {
     "code_generation":  "qwen2.5-coder:latest",
     "code_review":      "deepseek-coder-v2:latest",
-    "reasoning":        "qwen2.5-coder:latest",
+    "reasoning":        "llama3.1:8b",
     "summarization":    "llama3.1:8b",
     "classification":   "llama3.1:8b",
     "chat":             "llama3.1:8b",
@@ -71,16 +71,16 @@ async def classify(text: str, categories: list) -> str:
 
 async def generate_code(prompt: str, language: str = "python") -> str:
     msgs = [{"role":"system","content":f"Expert {language} engineer. Clean production code. No explanations unless asked."},{"role":"user","content":prompt}]
-    return await complete(msgs, task_type="code_generation", max_tokens=4096, temperature=0.1)
+    return await complete(msgs, task_type="code_generation", max_tokens=1024, temperature=0.1)
 
 async def reason(prompt: str, context: str = "") -> str:
     msgs = [{"role":"system","content":"Precise analytical reasoner. Step by step. Factual. Concise."}]
     msgs.append({"role":"user","content":f"Context:\n{context}\n\nTask:\n{prompt}" if context else prompt})
-    return await complete(msgs, task_type="reasoning", max_tokens=2048)
+    return await complete(msgs, task_type="reasoning", max_tokens=512)
 
 async def council_task(agent_name: str, task: str, context: str = "") -> str:
     msgs = [{"role":"system","content":f"You are {agent_name}, expert AI agent on the JOAO Council at The Art of The Possible. Complete tasks with precision. No filler."},{"role":"user","content":f"Context:\n{context}\n\nTask:\n{task}" if context else task}]
-    return await complete(msgs, task_type="council_dispatch", max_tokens=3072)
+    return await complete(msgs, task_type="council_dispatch", max_tokens=512)
 
 async def health_check() -> dict:
     try:
