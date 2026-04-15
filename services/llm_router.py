@@ -7,7 +7,13 @@ import logging
 from typing import Optional, AsyncGenerator
 from openai import AsyncOpenAI
 
+import time as _time
 logger = logging.getLogger("joao.llm_router")
+try:
+    from services.neon_client import log_llm_call as _neon_log
+    _NEON_OK = True
+except Exception:
+    _NEON_OK = False
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 USE_OPENROUTER = os.getenv("USE_OPENROUTER", "").strip().lower() in {"1", "true", "yes", "on"} and bool(OPENROUTER_API_KEY)
@@ -15,11 +21,11 @@ USE_OPENROUTER = os.getenv("USE_OPENROUTER", "").strip().lower() in {"1", "true"
 OLLAMA_MODELS = {
     "code_generation":  "qwen2.5-coder:latest",
     "code_review":      "deepseek-coder-v2:latest",
-    "reasoning":        "llama3.1:8b",
-    "summarization":    "llama3.1:8b",
-    "classification":   "llama3.1:8b",
-    "chat":             "llama3.1:8b",
-    "council_dispatch": "llama3.1:8b",
+    "reasoning":        "phi4:latest",
+    "summarization":    "phi4:latest",
+    "classification":   "phi4:latest",
+    "chat":             "phi4:latest",
+    "council_dispatch": "phi4:latest",
     "bulk_processing":  "deepseek-coder-v2:latest",
     "fallback":         "llama3.1:8b",
 }
@@ -48,8 +54,24 @@ def resolve_model(task_type: str) -> str:
 async def complete(messages: list, task_type: str = "fallback", model: str = None, temperature: float = 0.3, max_tokens: int = 2048) -> str:
     c = _client()
     m = model or resolve_model(task_type)
+    _t0 = _time.monotonic()
     r = await c.chat.completions.create(model=m, messages=messages, temperature=temperature, max_tokens=max_tokens)
-    return r.choices[0].message.content or ""
+    _ms = int((_time.monotonic() - _t0) * 1000)
+    content = r.choices[0].message.content or ""
+    if _NEON_OK:
+        try:
+            import asyncio as _asyncio
+            _asyncio.ensure_future(_neon_log(
+                task_type=task_type,
+                provider="openrouter" if USE_OPENROUTER else "ollama",
+                model=m,
+                tokens_in=r.usage.prompt_tokens if r.usage else 0,
+                tokens_out=r.usage.completion_tokens if r.usage else 0,
+                latency_ms=_ms, ok=True,
+            ))
+        except Exception:
+            pass
+    return content
 
 async def stream_complete(messages: list, task_type: str = "chat", model: str = None, temperature: float = 0.3, max_tokens: int = 2048) -> AsyncGenerator[str, None]:
     c = _client()
