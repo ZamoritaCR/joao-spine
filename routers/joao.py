@@ -36,6 +36,15 @@ from models.schemas import (
     VisionRequest,
 )
 from services import ai_processor, content_intelligence, dispatch, supabase_client, telegram
+from services.llm_router import (
+    CLAUDE_MODELS,
+    OLLAMA_MODELS,
+    OPENROUTER_MODELS,
+    USE_OPENROUTER,
+    health_check as llm_health_check,
+    select_provider as llm_select_provider,
+    stream_complete as llm_stream_complete,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/joao", tags=["joao"])
@@ -99,6 +108,21 @@ async def _content_pipeline(
 @router.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse()
+
+
+@router.get("/llm/health")
+async def llm_health():
+    return await llm_health_check()
+
+
+@router.get("/llm/models")
+async def llm_models():
+    return {
+        "provider": "ollama",
+        "active_models": OLLAMA_MODELS,
+        "fallback_models": OPENROUTER_MODELS if USE_OPENROUTER else {},
+        "claude_models": CLAUDE_MODELS,
+    }
 
 
 @router.get("/status", response_model=StatusResponse)
@@ -1642,6 +1666,12 @@ async def _execute_focusflow_tool(tool_name: str, tool_input: dict) -> str:
 
 
 _TAOP_CONTEXT_FILE = Path.home() / "council" / "brain" / "TAOP_MASTER_CONTEXT_v3.md"
+SKILL_STACK_PROMPT = (
+    "OPERATING POLICY (MANDATORY): JOAO runs with full capability inheritance. "
+    "Prefer strongest available skill path. For coding: inspect, modify, verify, "
+    "report evidence. For infrastructure: provide concrete endpoint/process evidence. "
+    "Never roleplay execution."
+)
 
 
 async def _load_context() -> tuple[str, str]:
@@ -1694,16 +1724,17 @@ async def _load_context() -> tuple[str, str]:
 
 @router.post("/chat")
 async def chat_proxy(req: ChatRequest):
-    """Proxy chat to Claude with persistent memory context and council tools. Streams SSE."""
-    import anthropic
+    """Proxy chat through the JOAO LLM router with persistent memory context. Streams SSE."""
     import json as _json
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
 
     # MrDP mode: neurodivergent companion, no tools, opus model
     is_mrdp = getattr(req, "mode", "joao") == "mrdp"
+    router_task_type = "reasoning" if is_mrdp else "chat"
+    explicit_model = "model" in getattr(req, "model_fields_set", set())
+    requested_model = (req.model or "").strip() if explicit_model else "auto"
+    if is_mrdp and not explicit_model:
+        requested_model = "opus"
+    provider, model = llm_select_provider(task_type=router_task_type, requested_model=requested_model)
 
     if is_mrdp:
         _mrdp_prompt_path = Path(__file__).parent.parent / "mrdp_system_prompt.md"
@@ -1717,8 +1748,9 @@ async def chat_proxy(req: ChatRequest):
         system_prompt = context_text or "You are JOÃO, a persistent AI companion."
         if session_log_text:
             system_prompt += f"\n\n---\n\n## Session Log (recent)\n\n{session_log_text}"
+        system_prompt += f"\n\n---\n\n## Operating Policy\n\n{SKILL_STACK_PROMPT}"
 
-    if not is_mrdp:
+    if not is_mrdp and provider == "claude":
         system_prompt += (
         "\n\n---\n\n## Your Tools (MANDATORY -- USE THEM)\n\n"
         "### Council Tools\n"
@@ -1765,6 +1797,13 @@ async def chat_proxy(req: ChatRequest):
         "- Key paths: ~/joao-spine/ (spine), ~/joao-interface/ (interface), ~/council/ (agents), "
         "~/projects/ (projects), ~/taop-site/ (hub), ~/logs/ (all logs)\n"
         )
+    elif not is_mrdp:
+        system_prompt += (
+            "\n\n---\n\n## Tooling Availability\n\n"
+            "You are in direct chat mode on the local/cloud router path. Do not claim that "
+            "you ran tools, commands, endpoint checks, file edits, or deployments unless the "
+            "results are present in the conversation."
+        )
 
     if req.messages:
         last_msg = req.messages[-1]
@@ -1773,90 +1812,27 @@ async def chat_proxy(req: ChatRequest):
             _append_log_sync("user", log_content)
 
     api_messages = [{"role": m.role, "content": m.content} for m in req.messages]
-    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0)
-    # MrDP uses Opus for depth; JOAO uses Sonnet for tool reliability
-    model = "claude-opus-4-6" if is_mrdp else "claude-sonnet-4-6"
-
     async def event_stream():
-        import asyncio
-
         full_response = ""
-        messages = list(api_messages)
-        max_tool_rounds = 5
+        llm_messages = [{"role": "system", "content": system_prompt}, *api_messages]
 
         try:
-            for _round in range(max_tool_rounds):
-                logger.info("Chat round %d starting (messages=%d)", _round, len(messages))
-                create_kwargs = dict(
-                    model=model,
-                    max_tokens=4096,
-                    system=[
-                        {
-                            "type": "text",
-                            "text": system_prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        }
-                    ],
-                    messages=messages,
-                )
-                if not is_mrdp:
-                    create_kwargs["tools"] = COUNCIL_TOOLS
-                response = await client.messages.create(**create_kwargs)
-
-                # Separate text blocks and tool_use blocks
-                has_tool_use = False
-                tool_calls = []
-
-                for block in response.content:
-                    if block.type == "text":
-                        full_response += block.text
-                        # SSE requires each line to start with "data: "
-                        # Send as single JSON-encoded line to preserve newlines
-                        import json as _json
-                        yield f"data: {_json.dumps(block.text)}\n\n"
-                    elif block.type == "tool_use":
-                        has_tool_use = True
-                        tool_calls.append(block)
-
-                if not has_tool_use:
-                    break
-
-                # Show what tools are being called
-                tool_names = [tc.name for tc in tool_calls]
-                yield f"data: [Executing: {', '.join(tool_names)}...]\n\n"
-
-                # Run ALL tool calls in parallel
-                async def _run_tool(block):
-                    try:
-                        result = await asyncio.wait_for(
-                            _execute_council_tool(block.name, block.input),
-                            timeout=60.0,
-                        )
-                    except asyncio.TimeoutError:
-                        result = f"ERROR: {block.name} timed out after 60s"
-                        logger.error("Tool %s timed out", block.name)
-                    except Exception as e:
-                        result = f"ERROR: {block.name} failed: {e}"
-                        logger.error("Tool %s failed: %s", block.name, e)
-                    return {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    }
-
-                tool_results = await asyncio.gather(*[_run_tool(tc) for tc in tool_calls])
-                tool_results = list(tool_results)
-
-                logger.info("Tools completed: %s", tool_names)
-                yield f"data: [Tools done, generating response...]\n\n"
-
-                # Add assistant response and tool results for next round
-                messages.append({"role": "assistant", "content": response.content})
-                messages.append({"role": "user", "content": tool_results})
-
-        except anthropic.APIError as e:
-            logger.error("Claude API error: %s", e)
-            yield f"data: [ERROR] {e.message}\n\n"
+            logger.info(
+                "Chat stream starting provider=%s model=%s mode=%s messages=%d",
+                provider,
+                model,
+                req.mode,
+                len(api_messages),
+            )
+            async for chunk in llm_stream_complete(
+                llm_messages,
+                task_type=router_task_type,
+                model=requested_model if explicit_model or is_mrdp else None,
+                temperature=0.3,
+                max_tokens=4096,
+            ):
+                full_response += chunk
+                yield f"data: {_json.dumps(chunk)}\n\n"
         except Exception as e:
             logger.exception("Chat stream error")
             yield f"data: [ERROR] {e}\n\n"
