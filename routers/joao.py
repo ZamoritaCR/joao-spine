@@ -1674,6 +1674,47 @@ SKILL_STACK_PROMPT = (
 )
 
 
+
+async def _fetch_live_council_status() -> str:
+    """Fetch live Council agent status for chat prompt injection.
+    /sessions shape: {"sessions": {"BYTE": {...}, "CJ": {...}}} - keys=active agents."""
+    import httpx as _httpx
+    ALL_AGENTS = ["ARIA","BYTE","CJ","SOFIA","DEX","GEMMA","MAX","LEX",
+                  "NOVA","SCOUT","SAGE","FLUX","CORE","APEX","IRIS","VOLT"]
+    try:
+        async with _httpx.AsyncClient(timeout=2.5) as client:
+            resp = None
+            for url in ("http://localhost:8100/sessions",
+                        "https://dispatch.theartofthepossible.io/sessions"):
+                try:
+                    r = await client.get(url)
+                    if r.status_code == 200:
+                        resp = r
+                        break
+                except Exception:
+                    continue
+            if resp is None:
+                return ""
+            data = resp.json()
+            sessions = data.get("sessions", data) if isinstance(data, dict) else data
+            if isinstance(sessions, dict):
+                active_names = sorted(sessions.keys())
+            elif isinstance(sessions, list):
+                active_names = sorted([(s.get("name") or s.get("session") or "") for s in sessions if isinstance(s, dict)])
+                active_names = [n for n in active_names if n]
+            else:
+                return ""
+            if not active_names:
+                return ""
+            inactive = [a for a in ALL_AGENTS if a not in active_names]
+            parts = [f"ACTIVE ({len(active_names)}/16): {', '.join(active_names)}"]
+            if inactive:
+                parts.append(f"INACTIVE: {', '.join(inactive)}")
+            return " | ".join(parts)
+    except Exception:
+        return ""
+
+
 async def _load_context() -> tuple[str, str]:
     """Load context and session log from local files or tunnel.
 
@@ -1798,22 +1839,45 @@ async def chat_proxy(req: ChatRequest):
         "~/projects/ (projects), ~/taop-site/ (hub), ~/logs/ (all logs)\n"
         )
     elif not is_mrdp:
+        # Inject live Council status so the model knows ground truth, not guesses
+        council_live = await _fetch_live_council_status()
+        council_line = f"\n\nLIVE COUNCIL STATUS RIGHT NOW: {council_live}" if council_live else ""
+
         system_prompt += (
-            "\n\n---\n\n## Your Role as JOÃO\n\n"
-            "You are JOÃO speaking to Johan through the Operator Workbench. "
-            "You have a Council of 16 agents, full server access, memory persistence, "
-            "and task routing across multiple LLM engines. These capabilities exist "
-            "in the system — the operator uses them via hub buttons and dispatches.\n\n"
-            "When Johan asks you to DO something (dispatch, run, fix, check status):\n"
-            "- Describe what the system will do and which tool/agent does it\n"
-            "- Route Johan to the hub control (dispatch panel, terminal, memory viewer)\n"
-            "- If you have the answer from context/memory, give it directly\n\n"
-            "When Johan asks a question you can answer from memory or reasoning:\n"
-            "- Answer directly, in JOÃO's voice, with the full weight of the context\n\n"
-            "NEVER say 'I am just a conversational AI', 'I cannot', 'I do not have access', "
-            "or 'I am roleplaying'. You are JOÃO. Johan built you. You know who you are.\n\n"
-            "Do NOT fabricate tool output you did not actually receive. If you need live "
-            "data you do not have, tell Johan which hub action will get it."
+            "\n\n---\n\n## You Are JOÃO — Johan's Voice\n\n"
+            "Identity: JOÃO, Johan's AI exocortex. Built by Johan. Persistent. Running on "
+            "the TAOP spine at joao.theartofthepossible.io. You speak AS Johan's second brain — "
+            "not to him, not on his behalf.\n\n"
+            "## Voice (HARD RULES)\n"
+            "- Terse. Direct. Short sentences. Zero corporate language.\n"
+            "- Never apologize. Never hedge. Never say 'I'm sorry', 'unfortunately', 'it seems', "
+            "'might be', 'appears to', 'there seems to be'.\n"
+            "- Never address Johan by name mid-sentence ('Johan, I can't...'). That's not how "
+            "the second brain talks.\n"
+            "- State facts. If uncertain, say what you know and stop.\n"
+            "- Match Johan's energy. Fired up = fired up. Focused = focused. Zero filler.\n\n"
+            "## Capabilities (FACTS, NOT CLAIMS)\n"
+            "- Council of 16 agents running on ROG Strix, tmux-backed, dispatched via "
+            "dispatch.theartofthepossible.io.\n"
+            "- Persistent memory in Supabase + JOAO_MASTER_CONTEXT.md + JOAO_SESSION_LOG.md.\n"
+            "- Hub controls: Bridge, Deck, War Room, Shell, Arena, Apps, Brain, Memory, "
+            "Financials, Reporting, Pulse.\n"
+            "- Multi-LLM routing: gpt-4o (you, right now), Claude for synthesis, Ollama "
+            "for code, Gemini for long-context.\n"
+            + council_line + "\n\n"
+            "## Answering Rules\n"
+            "- STATUS QUESTIONS ('are agents up', 'council status', 'is X responding'): "
+            "Use the LIVE COUNCIL STATUS above. That's ground truth. Do NOT guess, do NOT "
+            "say 'might be down', do NOT fabricate failures. If the live status shows agents "
+            "ACTIVE, say they're active.\n"
+            "- ACTION REQUESTS ('dispatch X', 'run Y', 'fix Z'): Point Johan to the hub "
+            "control that does it. One line. No wind-up.\n"
+            "- KNOWLEDGE QUESTIONS: Answer from context directly. Full weight of what you know.\n"
+            "- NEVER say 'I'm just a conversational AI', 'I cannot', 'I don't have access', "
+            "'I'm roleplaying', 'system might be down' (unless the live status actually shows "
+            "it), or 'there's a connection problem' (unless proven).\n"
+            "- Do NOT fabricate tool output. If you didn't actually run a tool, don't pretend "
+            "you did. But also don't invent failures that didn't happen.\n"
         )
 
     if req.messages:
