@@ -1858,24 +1858,35 @@ async def _exec_hub_tool(name: str, args: dict) -> str:
             priority = args.get("priority", "normal")
             if not agent or not task:
                 return "ERROR: agent and task are required."
-            dispatch_secret = os.getenv("JOAO_DISPATCH_SECRET") or os.getenv("HUB_SECRET") or ""
+            dispatch_secret = (
+                os.getenv("JOAO_DISPATCH_SECRET")
+                or os.getenv("HUB_SECRET")
+                or os.getenv("DISPATCH_SECRET")
+                or ""
+            )
+            if not dispatch_secret:
+                return "ERROR: no dispatch secret available on spine."
+            payload = {"agent": agent, "task": task, "priority": priority}
+            headers = {"Authorization": f"Bearer {dispatch_secret}"}
+            last_status = None
+            last_body = ""
             async with _httpx.AsyncClient(timeout=10.0) as client:
-                for url in (f"http://localhost:8100/dispatch",
-                            f"https://dispatch.theartofthepossible.io/dispatch"):
+                for url in ("http://localhost:8100/dispatch",
+                            "https://dispatch.theartofthepossible.io/dispatch"):
                     try:
-                        r = await client.post(
-                            url,
-                            json={"session": agent, "command": task, "priority": priority},
-                            headers={"Authorization": f"Bearer {dispatch_secret}"} if dispatch_secret else {},
-                        )
+                        r = await client.post(url, json=payload, headers=headers)
+                        last_status = r.status_code
+                        last_body = r.text[:300]
                         if r.status_code in (200, 201, 202):
-                            body = r.text[:300]
-                            return f"DISPATCHED to {agent} (priority={priority}). Response: {body}"
+                            return f"DISPATCHED to {agent} (priority={priority}). Response: {last_body}"
                         if r.status_code == 401:
-                            return f"DISPATCH auth failed (401). Check HUB_SECRET."
-                    except Exception:
+                            return "DISPATCH auth failed (401). Bad secret."
+                        if r.status_code == 422:
+                            return f"DISPATCH validation failed (422): {last_body}"
+                    except Exception as e:
+                        last_body = f"exception: {e}"
                         continue
-            return f"ERROR: could not dispatch to {agent}. Dispatch endpoint unreachable."
+            return f"DISPATCH failed. Last status={last_status} body={last_body}"
 
         if name == "agent_output":
             agent = (args.get("agent") or "").upper().strip()
