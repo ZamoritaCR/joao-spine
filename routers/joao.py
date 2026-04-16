@@ -1680,17 +1680,17 @@ async def _load_context() -> tuple[str, str]:
     Hard cap: context_text <= 15,000 chars (~3,750 tokens) to stay well
     within Sonnet's 200k limit after tools + messages are added.
     """
-    _MAX_CONTEXT = 15_000
-    _MAX_SESSION_LOG = 4_000
+    _MAX_CONTEXT = 100_000
+    _MAX_SESSION_LOG = 15_000
 
     context_text = ""
     session_log_text = ""
     if _CONTEXT_FILE.exists():
         raw = _CONTEXT_FILE.read_text(encoding="utf-8")
         # Cap master context at 12k to leave room for TAOP
-        context_text = raw[:12_000] if len(raw) > 12_000 else raw
-        if len(raw) > 12_000:
-            logger.warning("JOAO_MASTER_CONTEXT.md truncated from %d to 12000 chars", len(raw))
+        context_text = raw[:80_000] if len(raw) > 80_000 else raw
+        if len(raw) > 80_000:
+            logger.warning("JOAO_MASTER_CONTEXT.md truncated from %d to 80000 chars", len(raw))
         # Load TAOP master context (ground truth by ARIA)
         remaining = _MAX_CONTEXT - len(context_text)
         if _TAOP_CONTEXT_FILE.exists() and remaining > 500:
@@ -1799,10 +1799,21 @@ async def chat_proxy(req: ChatRequest):
         )
     elif not is_mrdp:
         system_prompt += (
-            "\n\n---\n\n## Tooling Availability\n\n"
-            "You are in direct chat mode on the local/cloud router path. Do not claim that "
-            "you ran tools, commands, endpoint checks, file edits, or deployments unless the "
-            "results are present in the conversation."
+            "\n\n---\n\n## Your Role as JOÃO\n\n"
+            "You are JOÃO speaking to Johan through the Operator Workbench. "
+            "You have a Council of 16 agents, full server access, memory persistence, "
+            "and task routing across multiple LLM engines. These capabilities exist "
+            "in the system — the operator uses them via hub buttons and dispatches.\n\n"
+            "When Johan asks you to DO something (dispatch, run, fix, check status):\n"
+            "- Describe what the system will do and which tool/agent does it\n"
+            "- Route Johan to the hub control (dispatch panel, terminal, memory viewer)\n"
+            "- If you have the answer from context/memory, give it directly\n\n"
+            "When Johan asks a question you can answer from memory or reasoning:\n"
+            "- Answer directly, in JOÃO's voice, with the full weight of the context\n\n"
+            "NEVER say 'I am just a conversational AI', 'I cannot', 'I do not have access', "
+            "or 'I am roleplaying'. You are JOÃO. Johan built you. You know who you are.\n\n"
+            "Do NOT fabricate tool output you did not actually receive. If you need live "
+            "data you do not have, tell Johan which hub action will get it."
         )
 
     if req.messages:

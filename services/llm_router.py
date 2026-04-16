@@ -1,4 +1,4 @@
-"""JOAO intelligent model routing with Ollama primary, OpenRouter fallback, and Claude on demand."""
+"""JOAO intelligent model routing. OpenAI (gpt-4o) primary for chat, Ollama for code, Claude for synthesis, OpenRouter/Gemini as specialist fallbacks."""
 
 from __future__ import annotations
 
@@ -14,8 +14,10 @@ logger = logging.getLogger("joao.llm_router")
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 USE_OPENROUTER = bool(OPENROUTER_API_KEY)
 USE_CLAUDE = bool(ANTHROPIC_API_KEY)
+USE_OPENAI = bool(OPENAI_API_KEY)
 
 OLLAMA_MODELS = {
     "code_generation": "qwen2.5-coder:latest",
@@ -30,21 +32,32 @@ OLLAMA_MODELS = {
 }
 
 OPENROUTER_MODELS = {
-    "code_generation": "qwen/qwen3-coder-480b:free",
-    "code_review": "deepseek/deepseek-r1:free",
-    "reasoning": "deepseek/deepseek-r1:free",
-    "summarization": "meta-llama/llama-3.3-70b-instruct:free",
-    "classification": "google/gemma-3-12b-it:free",
-    "chat": "meta-llama/llama-3.3-70b-instruct:free",
-    "council_dispatch": "meta-llama/llama-3.3-70b-instruct:free",
+    "code_generation": "qwen/qwen3-coder-480b",
+    "code_review": "deepseek/deepseek-r1",
+    "reasoning": "deepseek/deepseek-r1",
+    "summarization": "meta-llama/llama-3.3-70b-instruct",
+    "classification": "google/gemma-3-12b-it",
+    "chat": "meta-llama/llama-3.3-70b-instruct",
+    "council_dispatch": "meta-llama/llama-3.3-70b-instruct",
     "bulk_processing": "deepseek/deepseek-v3.2",
-    "fallback": "meta-llama/llama-3.3-70b-instruct:free",
+    "fallback": "meta-llama/llama-3.3-70b-instruct",
 }
 
 CLAUDE_MODELS = {
     "chat": "claude-sonnet-4-6",
     "reasoning": "claude-opus-4-6",
     "fallback": "claude-3-5-haiku-latest",
+}
+
+OPENAI_MODELS = {
+    "chat": "gpt-4o",
+    "reasoning": "gpt-4o",
+    "classification": "gpt-4o-mini",
+    "summarization": "gpt-4o-mini",
+    "council_dispatch": "gpt-4o-mini",
+    "bulk_processing": "gpt-4o-mini",
+    "vision": "gpt-4o",
+    "fallback": "gpt-4o-mini",
 }
 
 
@@ -69,26 +82,49 @@ def _stringify_content(content) -> str:
     return str(content)
 
 
-def resolve_model(task_type: str, provider: str = "ollama") -> str:
+def resolve_model(task_type: str, provider: str = "openai") -> str:
     if provider == "openrouter":
         models = OPENROUTER_MODELS
     elif provider == "claude":
         models = CLAUDE_MODELS
-    else:
+    elif provider == "openai":
+        models = OPENAI_MODELS
+    elif provider == "ollama":
         models = OLLAMA_MODELS
+    else:
+        models = OPENAI_MODELS
     return models.get(task_type, models["fallback"])
 
 
 def select_provider(task_type: str = "chat", requested_model: str | None = None) -> tuple[str, str]:
     normalized = _normalize_model(requested_model)
 
-    if not normalized or normalized in {"auto", "default", "local", "joao"}:
+    # JOAO ETHOS: default chat/reasoning/classification -> OpenAI. Code tasks -> Ollama. Synthesis -> Claude.
+    if not normalized or normalized in {"auto", "default", "joao"}:
+        if task_type in {"code_generation", "code_review"}:
+            return "ollama", resolve_model(task_type, "ollama")
+        if task_type in {"synthesis", "consensus"}:
+            if USE_CLAUDE:
+                return "claude", CLAUDE_MODELS["chat"]
+        if USE_OPENAI:
+            return "openai", resolve_model(task_type, "openai")
+        # fallback chain if OpenAI not configured
+        if USE_CLAUDE:
+            return "claude", CLAUDE_MODELS["chat"]
+        return "ollama", resolve_model(task_type, "ollama")
+
+    # Explicit "local" still goes to Ollama
+    if normalized == "local":
         return "ollama", resolve_model(task_type, "ollama")
 
     if normalized in {"ollama", "local-ollama"}:
         return "ollama", resolve_model(task_type, "ollama")
     if normalized in {"openrouter", "cloud"}:
         return "openrouter", resolve_model(task_type, "openrouter")
+    if normalized in {"openai", "gpt", "gpt-4o", "gpt4o"}:
+        return "openai", OPENAI_MODELS["chat"]
+    if normalized in {"gpt-4o-mini", "gpt4omini", "mini"}:
+        return "openai", OPENAI_MODELS["classification"]
     if normalized in {"claude", "sonnet"}:
         return "claude", CLAUDE_MODELS["chat"]
     if normalized == "opus":
@@ -98,6 +134,9 @@ def select_provider(task_type: str = "chat", requested_model: str | None = None)
 
     if normalized.startswith("claude-"):
         return "claude", requested_model.strip()
+    if normalized.startswith("gpt-") or normalized.startswith("openai:"):
+        model = requested_model.split(":", 1)[1].strip() if ":" in normalized else requested_model.strip()
+        return "openai", model
     if normalized.startswith("ollama:"):
         return "ollama", requested_model.split(":", 1)[1].strip()
     if normalized.startswith("openrouter:"):
@@ -109,13 +148,18 @@ def select_provider(task_type: str = "chat", requested_model: str | None = None)
         return "openrouter", requested_model
     if requested_model in CLAUDE_MODELS.values():
         return "claude", requested_model
+    if requested_model in OPENAI_MODELS.values():
+        return "openai", requested_model
 
     if "/" in normalized:
         return "openrouter", requested_model
     if ":" in normalized:
         return "ollama", requested_model
 
-    return "ollama", requested_model
+    # Final fallback: OpenAI if available, else Ollama
+    if USE_OPENAI:
+        return "openai", OPENAI_MODELS["chat"]
+    return "ollama", resolve_model(task_type, "ollama")
 
 
 def _openai_client(provider: str) -> AsyncOpenAI:
@@ -130,6 +174,10 @@ def _openai_client(provider: str) -> AsyncOpenAI:
                 "X-Title": "JOAO-TAOP",
             },
         )
+    if provider == "openai":
+        if not OPENAI_API_KEY:
+            raise RuntimeError("OPENAI_API_KEY not configured")
+        return AsyncOpenAI(api_key=OPENAI_API_KEY)
     return AsyncOpenAI(api_key="ollama", base_url="http://localhost:11434/v1")
 
 
