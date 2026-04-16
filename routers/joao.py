@@ -1763,6 +1763,228 @@ async def _load_context() -> tuple[str, str]:
     return context_text, session_log_text
 
 
+# ── HUB CHAT TOOLS (OpenAI function-calling) ─────────────────────────────
+# These let JOAO in the hub chat actually execute, not just talk about executing.
+# When Johan asks "are agents up" or "dispatch BYTE to X", GPT-4o calls these.
+
+HUB_CHAT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "council_status",
+            "description": (
+                "Get live status of all 16 Council agents. Returns which are "
+                "ACTIVE (tmux session alive) and which are INACTIVE. Call this "
+                "when Johan asks about agent/Council/system status."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "council_dispatch",
+            "description": (
+                "Dispatch a task to a Council agent. The agent executes autonomously "
+                "in their tmux session. Use when Johan explicitly asks to dispatch, "
+                "run, build, fix, or send a task to a specific named agent."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "agent": {
+                        "type": "string",
+                        "description": "Agent name: ARIA, BYTE, CJ, SOFIA, DEX, GEMMA, MAX, LEX, NOVA, SCOUT, SAGE, FLUX, CORE, APEX, IRIS, VOLT",
+                    },
+                    "task": {"type": "string", "description": "Detailed task description for the agent"},
+                    "priority": {"type": "string", "enum": ["normal", "urgent", "critical"], "description": "Task priority"},
+                },
+                "required": ["agent", "task"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "agent_output",
+            "description": (
+                "Read the recent terminal output / work product from a specific "
+                "Council agent's tmux session. Use to check what an agent just did "
+                "or to verify a dispatched task completed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "agent": {"type": "string", "description": "Agent name whose output to fetch"},
+                },
+                "required": ["agent"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_read",
+            "description": (
+                "Read JOAO memory files. 'master' = JOAO_MASTER_CONTEXT.md (full context, "
+                "identity, stack, projects). 'session' = JOAO_SESSION_LOG.md (recent activity). "
+                "Use when Johan asks about past context, projects, or what was done recently."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file": {"type": "string", "enum": ["master", "session"], "description": "Which file"},
+                    "tail_lines": {"type": "integer", "description": "Only return last N lines (0 = full file). Default 200 for 'session', 0 for 'master'."},
+                },
+                "required": ["file"],
+            },
+        },
+    },
+]
+
+
+async def _exec_hub_tool(name: str, args: dict) -> str:
+    """Execute a hub chat tool call. Returns a string for the tool result message."""
+    import httpx as _httpx
+    import json as _json
+    try:
+        if name == "council_status":
+            status = await _fetch_live_council_status()
+            return status or "Could not reach dispatch endpoint."
+
+        if name == "council_dispatch":
+            agent = (args.get("agent") or "").upper().strip()
+            task = args.get("task") or ""
+            priority = args.get("priority", "normal")
+            if not agent or not task:
+                return "ERROR: agent and task are required."
+            dispatch_secret = os.getenv("JOAO_DISPATCH_SECRET") or os.getenv("HUB_SECRET") or ""
+            async with _httpx.AsyncClient(timeout=10.0) as client:
+                for url in (f"http://localhost:8100/dispatch",
+                            f"https://dispatch.theartofthepossible.io/dispatch"):
+                    try:
+                        r = await client.post(
+                            url,
+                            json={"session": agent, "command": task, "priority": priority},
+                            headers={"Authorization": f"Bearer {dispatch_secret}"} if dispatch_secret else {},
+                        )
+                        if r.status_code in (200, 201, 202):
+                            body = r.text[:300]
+                            return f"DISPATCHED to {agent} (priority={priority}). Response: {body}"
+                        if r.status_code == 401:
+                            return f"DISPATCH auth failed (401). Check HUB_SECRET."
+                    except Exception:
+                        continue
+            return f"ERROR: could not dispatch to {agent}. Dispatch endpoint unreachable."
+
+        if name == "agent_output":
+            agent = (args.get("agent") or "").upper().strip()
+            if not agent:
+                return "ERROR: agent name required."
+            async with _httpx.AsyncClient(timeout=5.0) as client:
+                for url in (f"http://localhost:8100/session/{agent}",
+                            f"https://dispatch.theartofthepossible.io/session/{agent}"):
+                    try:
+                        r = await client.get(url)
+                        if r.status_code == 200:
+                            try:
+                                data = r.json()
+                                body = data.get("output") or data.get("last_50_lines") or _json.dumps(data)[:1500]
+                            except Exception:
+                                body = r.text[:1500]
+                            # Truncate to avoid context blowup
+                            if len(body) > 2000:
+                                body = body[-2000:]
+                            return f"Recent output from {agent}:\n{body}"
+                    except Exception:
+                        continue
+            return f"ERROR: could not fetch output for {agent}."
+
+        if name == "memory_read":
+            which = args.get("file", "session")
+            tail = int(args.get("tail_lines", 200 if which == "session" else 0))
+            fname = "JOAO_MASTER_CONTEXT.md" if which == "master" else "JOAO_SESSION_LOG.md"
+            fpath = Path("/home/zamoritacr/joao-spine") / fname
+            if not fpath.exists():
+                return f"ERROR: {fname} not found."
+            content = fpath.read_text(encoding="utf-8", errors="ignore")
+            if tail > 0:
+                lines = content.splitlines()
+                content = "\n".join(lines[-tail:])
+            # Hard cap to keep tool output from blowing up context
+            if len(content) > 20000:
+                content = content[-20000:]
+            return content
+
+        return f"ERROR: unknown tool '{name}'"
+    except Exception as exc:
+        return f"ERROR running {name}: {exc}"
+
+
+async def _openai_chat_with_tools(messages: list, model: str, max_iters: int = 4):
+    """OpenAI tool-calling loop. Yields SSE-ready text chunks.
+    Runs up to max_iters tool rounds, then streams the final assistant response."""
+    import json as _json
+    from services.llm_router import _openai_client, OPENAI_MODELS
+
+    client = _openai_client("openai")
+    convo = list(messages)
+
+    for iteration in range(max_iters):
+        # Non-stream call to see if we need tools
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=convo,
+            tools=HUB_CHAT_TOOLS,
+            tool_choice="auto",
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        msg = resp.choices[0].message
+        tool_calls = getattr(msg, "tool_calls", None) or []
+
+        if not tool_calls:
+            # No more tool calls — stream the final text response naturally
+            final_text = msg.content or ""
+            # Re-run as a stream to get chunks (or just emit the text)
+            # Simpler: emit in small chunks for UI responsiveness
+            CHUNK = 40
+            for i in range(0, len(final_text), CHUNK):
+                yield final_text[i:i+CHUNK]
+            return
+
+        # Append the assistant tool-call message
+        convo.append({
+            "role": "assistant",
+            "content": msg.content or "",
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                }
+                for tc in tool_calls
+            ],
+        })
+
+        # Execute each tool call and append tool result
+        for tc in tool_calls:
+            try:
+                args = _json.loads(tc.function.arguments or "{}")
+            except Exception:
+                args = {}
+            logger.info("Hub tool call: %s args=%s", tc.function.name, args)
+            result = await _exec_hub_tool(tc.function.name, args)
+            convo.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result[:4000],
+            })
+
+    # Hit iteration limit — stream whatever we have
+    yield "Reached tool-call iteration limit. Tell Johan if this keeps happening."
+
+
 @router.post("/chat")
 async def chat_proxy(req: ChatRequest):
     """Proxy chat through the JOAO LLM router with persistent memory context. Streams SSE."""
@@ -1864,6 +2086,8 @@ async def chat_proxy(req: ChatRequest):
             "Financials, Reporting, Pulse.\n"
             "- Multi-LLM routing: gpt-4o (you, right now), Claude for synthesis, Ollama "
             "for code, Gemini for long-context.\n"
+            "- You have REAL TOOLS you can call: council_status, council_dispatch, "
+            "agent_output, memory_read. USE them when Johan asks. Don't describe using them — use them.\n"
             + council_line + "\n\n"
             "## Answering Rules\n"
             "- STATUS QUESTIONS ('are agents up', 'council status', 'is X responding'): "
@@ -1893,21 +2117,28 @@ async def chat_proxy(req: ChatRequest):
 
         try:
             logger.info(
-                "Chat stream starting provider=%s model=%s mode=%s messages=%d",
+                "Chat stream starting provider=%s model=%s mode=%s messages=%d tools=%s",
                 provider,
                 model,
                 req.mode,
                 len(api_messages),
+                provider == "openai" and not is_mrdp,
             )
-            async for chunk in llm_stream_complete(
-                llm_messages,
-                task_type=router_task_type,
-                model=requested_model if explicit_model or is_mrdp else None,
-                temperature=0.3,
-                max_tokens=4096,
-            ):
-                full_response += chunk
-                yield f"data: {_json.dumps(chunk)}\n\n"
+            # JOAO hub mode on OpenAI gets function-calling (real tool execution)
+            if provider == "openai" and not is_mrdp:
+                async for chunk in _openai_chat_with_tools(llm_messages, model):
+                    full_response += chunk
+                    yield f"data: {_json.dumps(chunk)}\n\n"
+            else:
+                async for chunk in llm_stream_complete(
+                    llm_messages,
+                    task_type=router_task_type,
+                    model=requested_model if explicit_model or is_mrdp else None,
+                    temperature=0.3,
+                    max_tokens=4096,
+                ):
+                    full_response += chunk
+                    yield f"data: {_json.dumps(chunk)}\n\n"
         except Exception as e:
             logger.exception("Chat stream error")
             yield f"data: [ERROR] {e}\n\n"
