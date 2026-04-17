@@ -39,6 +39,14 @@ async def require_dispatch_auth(
         )
         return request_id
 
+    # dispatch_auth_bearer: allow legacy Bearer JOAO_DISPATCH_SECRET path
+    bearer_secret = (os.environ.get("JOAO_DISPATCH_SECRET", "") or secret_str).strip()
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if bearer_secret and auth_header.lower().startswith("bearer "):
+        bearer_token = auth_header[7:].strip()
+        if hmac.compare_digest(bearer_secret, bearer_token):
+            return request_id
+
     if not x_joao_signature or not x_joao_timestamp:
         logger.warning(
             "dispatch_auth_failed: missing headers",

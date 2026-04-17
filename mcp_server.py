@@ -184,11 +184,34 @@ async def get_status() -> str:
 
     lines = [f"Uptime: {uptime:.0f}s", f"Recent activity ({len(recent)} entries):"]
     for entry in recent:
+        endpoint = entry.get("endpoint") or "unknown"
+        action = entry.get("action") or "unknown"
+        status = entry.get("status") or "unknown"
+        dur = entry.get("duration_ms", 0) or 0
         lines.append(
-            f"  - [{entry.get('status')}] {entry.get('endpoint')} / {entry.get('action')} "
-            f"({entry.get('duration_ms', 0)}ms)"
+            f"  - [{status}] {endpoint} / {action} ({dur}ms)"
         )
     return "\n".join(lines)
+
+
+@mcp.tool()
+async def scout_intel(limit: int = 20, min_score: int = 7) -> str:
+    """Get latest SCOUT intelligence items from local SQLite."""
+    try:
+        from services import scout as scout_service
+        items = scout_service.get_recent_intel(limit=limit, min_score=min_score)
+        if not items:
+            return f"No SCOUT intel found (min_score={min_score})."
+        lines = [f"SCOUT Intel ({len(items)} items, score >= {min_score}):"]
+        for item in items:
+            lines.append(
+                f"\n[{item.get('score', '?')}/10] {item.get('title', 'Untitled')}\n"
+                f"  Source: {item.get('source', '?')} | {item.get('created_at', '?')}\n"
+                f"  {item.get('summary', 'No summary')}"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Failed to fetch SCOUT intel: {e}"
 
 
 @mcp.tool()

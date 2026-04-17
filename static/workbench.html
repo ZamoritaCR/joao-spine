@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JOAO Workbench · Mixed Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Cormorant+Garamond:ital,wght@1,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #faf6f0;
+      --ink: #2f2a27;
+      --muted: #6f665f;
+      --line: #dfd3c8;
+      --gold: #d28d11;
+      --mint: #00e5a0;
+      --teal: #00d2d3;
+      --red: #ff4757;
+      --panel: #fffdf9;
+      --surface: #fff;
+      --focus: #f0b429;
+      --shadow: 0 16px 36px rgba(70, 52, 35, 0.11);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Atkinson Hyperlegible", "IBM Plex Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(240, 180, 41, 0.14), transparent 32%),
+        radial-gradient(circle at 88% 8%, rgba(0, 210, 211, 0.1), transparent 26%),
+        var(--cream);
+      line-height: 1.5;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+      color: inherit;
+    }
+
+    a { color: inherit; }
+
+    .app {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px;
+    }
+
+    .topbar {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .title h1 {
+      margin: 0;
+      font: 600 italic clamp(30px, 4.6vw, 52px)/0.95 "Cormorant Garamond", serif;
+      color: var(--gold);
+      letter-spacing: -0.02em;
+    }
+
+    .title p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .title .eyebrow {
+      margin: 0;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+      font-size: 12px;
+      color: #9f6500;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+      font-weight: 600;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      border: 1px solid #e8cfaa;
+      background: #fff2df;
+      color: #7d5508;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 0.5rem 0.8rem;
+      cursor: pointer;
+    }
+
+    .btn:hover { border-color: #c8b6a5; }
+
+    .btn-primary {
+      border-color: #e5b252;
+      background: #ffefcc;
+      font-weight: 700;
+    }
+
+    .btn-mint {
+      border-color: rgba(0, 210, 211, 0.38);
+      background: rgba(0, 210, 211, 0.09);
+    }
+
+    .strip {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid #eadfd4;
+      background: #fff;
+      border-radius: 12px;
+      padding: 8px;
+      min-height: 62px;
+    }
+
+    .metric small {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .metric strong {
+      font-size: 16px;
+      font-family: "IBM Plex Sans", system-ui, sans-serif;
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .aside,
+    .main {
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .aside {
+      display: grid;
+      grid-template-rows: auto auto auto auto 1fr;
+    }
+
+    .panel {
+      border-bottom: 1px solid #efe3d7;
+      padding: 12px;
+    }
+
+    .panel:last-child { border-bottom: 0; }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font: 600 italic 24px/1.05 "Cormorant Garamond", serif;
+      color: #8f630f;
+    }
+
+    .label {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .input,
+    .textarea,
+    .select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .textarea { resize: vertical; min-height: 82px; }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    .tiny-list {
+      display: grid;
+      gap: 6px;
+      max-height: 130px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .tiny-item {
+      border: 1px solid #eadfd4;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px;
+      font-size: 13px;
+    }
+
+    .tiny-item strong { display: block; margin-bottom: 2px; }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .tabs {
+      border-bottom: 1px solid #efe3d7;
+      padding: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    .tab {
+      border: 1px solid #e5d6c8;
+      background: #fff;
+      border-radius: 999px;
+      padding: 0.42rem 0.7rem;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .tab.active {
+      border-color: #f0b429;
+      background: #ffefcc;
+      color: #6a4605;
+      font-weight: 700;
+    }
+
+    .views {
+      min-height: 0;
+      position: relative;
+    }
+
+    .view {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+      padding: 12px;
+      display: none;
+    }
+
+    .view.active { display: block; }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .card {
+      border: 1px solid #eadfd4;
+      border-radius: 14px;
+      background: #fff;
+      padding: 10px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font: 600 italic 22px/1.05 "Cormorant Garamond", serif;
+      color: #8f630f;
+    }
+
+    iframe {
+      width: 100%;
+      border: 1px solid #e6d8cb;
+      border-radius: 12px;
+      background: #fff;
+      min-height: 540px;
+    }
+
+    .iframe-short { min-height: 420px; }
+
+    .chat-log {
+      border: 1px solid #eadfd4;
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      max-height: 320px;
+      overflow: auto;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+
+    .chat-line {
+      padding: 8px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      border: 1px solid #efe3d7;
+      background: #fffcf9;
+    }
+
+    .chat-line strong {
+      display: block;
+      margin-bottom: 3px;
+      color: #845b12;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .palette {
+      position: fixed;
+      inset: 0;
+      background: rgba(47, 42, 39, 0.35);
+      display: none;
+      place-items: start center;
+      padding-top: 9vh;
+      z-index: 100;
+    }
+
+    .palette.open { display: grid; }
+
+    .palette-card {
+      width: min(760px, 94vw);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+
+    .palette-results {
+      margin-top: 8px;
+      display: grid;
+      gap: 6px;
+      max-height: 46vh;
+      overflow: auto;
+    }
+
+    .palette-item {
+      border: 1px solid #eadfd4;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .palette-item small { color: var(--muted); }
+
+    @media (max-width: 1220px) {
+      .layout { grid-template-columns: 1fr; }
+      .aside { grid-template-rows: repeat(5, auto); }
+      iframe { min-height: 460px; }
+      .strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .title h1 { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="title">
+        <p class="eyebrow">JOAO Unified Platform</p>
+        <h1>Workbench Mixed System</h1>
+        <p>Hub live controls + Mind Graph + all workbench components in one operating surface.</p>
+      </div>
+      <div class="top-actions">
+        <span class="badge">✨ Component Fusion Live</span>
+        <button class="btn btn-mint" id="refreshAllBtn">Refresh</button>
+        <a class="btn" href="/hub">Open Hub</a>
+        <a class="btn" href="/workbench-preview">Preview Board</a>
+      </div>
+    </header>
+
+    <section class="strip" id="metricStrip">
+      <article class="metric"><small>Spine</small><strong id="mSpine">-</strong></article>
+      <article class="metric"><small>CPU</small><strong id="mCpu">-</strong></article>
+      <article class="metric"><small>Memory</small><strong id="mMem">-</strong></article>
+      <article class="metric"><small>Disk</small><strong id="mDisk">-</strong></article>
+      <article class="metric"><small>Agents Alive</small><strong id="mAgents">-</strong></article>
+      <article class="metric"><small>Dispatches</small><strong id="mDispatches">-</strong></article>
+      <article class="metric"><small>Credits</small><strong id="mCredits">-</strong></article>
+    </section>
+
+    <section class="layout">
+      <aside class="aside">
+        <section class="panel">
+          <h2>Auth + Session</h2>
+          <label class="label">Hub Token
+            <input class="input" id="tokenInput" type="password" placeholder="HUB_SECRET">
+          </label>
+          <label class="label">Session
+            <input class="input" id="sessionInput" value="mixed-platform-main">
+          </label>
+          <div class="row">
+            <button class="btn btn-primary" id="unlockBtn">Unlock APIs</button>
+            <button class="btn" id="guestBtn">Guest UI</button>
+          </div>
+          <div class="status" id="authStatus">Waiting for token.</div>
+        </section>
+
+        <section class="panel">
+          <h2>Brains</h2>
+          <label class="label">Mode
+            <select class="select" id="brainMode">
+              <option value="joao">JOAO</option>
+              <option value="mrdp">MrDP</option>
+            </select>
+          </label>
+          <label class="label">Prompt
+            <textarea class="textarea" id="brainPrompt" placeholder="Ask JOAO anything..."></textarea>
+          </label>
+          <div class="row">
+            <button class="btn btn-primary" id="sendBrainBtn">Send Brain Request</button>
+          </div>
+          <div class="status" id="brainStatus"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Dispatch</h2>
+          <label class="label">Agent
+            <select class="select" id="dispatchAgent"></select>
+          </label>
+          <label class="label">Project Tag
+            <input class="input" id="dispatchProject" placeholder="mind-graph-v2">
+          </label>
+          <label class="label">Task
+            <textarea class="textarea" id="dispatchTask" placeholder="Describe the task"></textarea>
+          </label>
+          <button class="btn btn-primary" id="dispatchBtn">Dispatch Agent</button>
+          <div class="status" id="dispatchStatus"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Memory Feed</h2>
+          <div id="memoryList" class="tiny-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Services + Agents</h2>
+          <div id="serviceList" class="tiny-list" style="margin-bottom:8px"></div>
+          <div id="agentList" class="tiny-list"></div>
+        </section>
+      </aside>
+
+      <main class="main">
+        <nav class="tabs" id="tabs">
+          <button class="tab active" data-view="live">Live Workbench</button>
+          <button class="tab" data-view="graph">Mind Graph (E)</button>
+          <button class="tab" data-view="a">Broadsheet (A)</button>
+          <button class="tab" data-view="b">Terminal Grid (B)</button>
+          <button class="tab" data-view="c">Spatial Board (C)</button>
+          <button class="tab" data-view="d">Palette Ops (D)</button>
+        </nav>
+
+        <section class="views">
+          <article class="view active" id="view-live">
+            <div class="stack">
+              <div class="card">
+                <h3>Command Center Feed</h3>
+                <p style="margin:0 0 8px;color:var(--muted)">This is the mixed, single-system operator layer: live brain streaming, dispatch history, and direct route launchers.</p>
+                <div class="row" style="margin-bottom:8px">
+                  <button class="btn" data-goto="graph">Go Mind Graph</button>
+                  <button class="btn" data-goto="a">Go Broadsheet</button>
+                  <button class="btn" data-goto="b">Go Terminal Grid</button>
+                  <button class="btn" data-goto="c">Go Spatial</button>
+                  <button class="btn" data-goto="d">Go Palette</button>
+                </div>
+                <div class="chat-log" id="chatLog"></div>
+              </div>
+              <div class="card">
+                <h3>Recent Dispatches</h3>
+                <div id="dispatchList" class="tiny-list"></div>
+              </div>
+              <div class="card">
+                <h3>Hub Compatibility</h3>
+                <iframe class="iframe-short" src="/hub"></iframe>
+              </div>
+            </div>
+          </article>
+
+          <article class="view" id="view-graph">
+            <div class="stack"><div class="card"><h3>Option E · Mind Graph</h3><iframe src="/workbench-preview/option-e"></iframe></div></div>
+          </article>
+
+          <article class="view" id="view-a">
+            <div class="stack"><div class="card"><h3>Option A · Editorial Broadsheet</h3><iframe src="/workbench-preview/option-a"></iframe></div></div>
+          </article>
+
+          <article class="view" id="view-b">
+            <div class="stack"><div class="card"><h3>Option B · Trading Terminal</h3><iframe src="/workbench-preview/option-b"></iframe></div></div>
+          </article>
+
+          <article class="view" id="view-c">
+            <div class="stack"><div class="card"><h3>Option C · Spatial Canvas</h3><iframe src="/workbench-preview/option-c"></iframe></div></div>
+          </article>
+
+          <article class="view" id="view-d">
+            <div class="stack"><div class="card"><h3>Option D · Command Palette First</h3><iframe src="/workbench-preview/option-d"></iframe></div></div>
+          </article>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <div class="palette" id="palette">
+    <div class="palette-card">
+      <label for="paletteInput">Command</label>
+      <input id="paletteInput" class="input" placeholder="Type command (e.g. view graph, refresh, open hub)">
+      <div class="palette-results" id="paletteResults"></div>
+    </div>
+  </div>
+
+  <script>
+    const AGENTS = ["BYTE","ARIA","CJ","SOFIA","DEX","GEMMA","MAX","LEX","NOVA","SAGE","FLUX","CORE","APEX","IRIS","VOLT","SCOUT"];
+
+    const state = {
+      token: sessionStorage.getItem("joao-hub-token") || localStorage.getItem("joao-hub-token") || "",
+      messages: [],
+      activeView: "live"
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function apiUrl(path) {
+      const u = new URL(path, window.location.origin);
+      if (state.token) u.searchParams.set("token", state.token);
+      return u.toString();
+    }
+
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(apiUrl(path), {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {})
+        }
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return res.json();
+      return res.text();
+    }
+
+    function setStatus(el, text, bad = false) {
+      el.textContent = text;
+      el.style.color = bad ? "var(--red)" : "var(--muted)";
+    }
+
+    function setView(name) {
+      state.activeView = name;
+      document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+      document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
+    }
+
+    function addChat(role, text) {
+      const log = $("chatLog");
+      const line = document.createElement("div");
+      line.className = "chat-line";
+      line.innerHTML = `<strong>${role}</strong><div>${String(text || "").replace(/</g, "&lt;")}</div>`;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+      return line;
+    }
+
+    function renderAgentSelect() {
+      $("dispatchAgent").innerHTML = AGENTS.map((a) => `<option value="${a}">${a}</option>`).join("");
+    }
+
+    async function unlockWithToken(token) {
+      state.token = (token || "").trim();
+      if (!state.token) {
+        sessionStorage.removeItem("joao-hub-token");
+        localStorage.removeItem("joao-hub-token");
+        setStatus($("authStatus"), "Guest mode: UI only.");
+        return;
+      }
+      try {
+        const r = await fetch(new URL("/api/auth", window.location.origin), {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({token: state.token})
+        });
+        if (!r.ok) throw new Error(`Auth failed (${r.status})`);
+        sessionStorage.setItem("joao-hub-token", state.token);
+        localStorage.setItem("joao-hub-token", state.token);
+        setStatus($("authStatus"), "Unlocked. Live APIs connected.");
+        await refreshAll();
+      } catch (e) {
+        setStatus($("authStatus"), `Auth error: ${e.message}`, true);
+      }
+    }
+
+    async function refreshAll() {
+      if (!state.token) {
+        $("mSpine").textContent = "guest";
+        return;
+      }
+      try {
+        const [system, agents, services, dispatches, memory, credits] = await Promise.all([
+          apiFetch("/api/system"),
+          apiFetch("/api/agents"),
+          apiFetch("/api/services"),
+          apiFetch("/api/dispatches?limit=18"),
+          apiFetch("/api/memory?limit=14"),
+          apiFetch("/api/credits")
+        ]);
+
+        $("mSpine").textContent = system.services?.["joao-spine"] || "unknown";
+        $("mCpu").textContent = `${system.cpu_percent ?? "-"}%`;
+        $("mMem").textContent = `${system.memory?.percent ?? "-"}%`;
+        $("mDisk").textContent = `${system.disk?.percent ?? "-"}%`;
+        const alive = Object.values(agents.agents || {}).filter((x) => x.alive).length;
+        $("mAgents").textContent = `${alive}/16`;
+        $("mDispatches").textContent = String((dispatches.dispatches || []).length);
+        $("mCredits").textContent = credits.balance == null ? "n/a" : `$${credits.balance}`;
+
+        $("serviceList").innerHTML = (services.services || []).map((s) => `<div class="tiny-item"><strong>${s.name}</strong>${s.status}</div>`).join("") || "<div class=\"tiny-item\">No service data.</div>";
+        $("agentList").innerHTML = Object.entries(agents.agents || {}).map(([name, info]) => `<div class="tiny-item"><strong>${name}</strong>${info.alive ? "alive" : "offline"}</div>`).join("") || "<div class=\"tiny-item\">No agent data.</div>";
+
+        $("dispatchList").innerHTML = (dispatches.dispatches || []).slice(0, 14).map((d) => {
+          const task = (d.task || "").replace(/</g, "&lt;").slice(0, 180);
+          return `<div class="tiny-item"><strong>${d.agent} · ${d.status}</strong>${task}</div>`;
+        }).join("") || "<div class=\"tiny-item\">No dispatches yet.</div>";
+
+        const memRows = [...(memory.pinned || []), ...(memory.recent || [])].slice(0, 14);
+        $("memoryList").innerHTML = memRows.map((m) => {
+          const sum = (m.summary || m.content || "").replace(/</g, "&lt;").slice(0, 180);
+          return `<div class="tiny-item"><strong>${m.source || "memory"}</strong>${sum}</div>`;
+        }).join("") || "<div class=\"tiny-item\">No memory rows.</div>";
+      } catch (e) {
+        setStatus($("authStatus"), `Refresh failed: ${e.message}`, true);
+      }
+    }
+
+    async function sendDispatch() {
+      if (!state.token) {
+        setStatus($("dispatchStatus"), "Unlock token first.", true);
+        return;
+      }
+      const payload = {
+        agent: $("dispatchAgent").value,
+        task: $("dispatchTask").value.trim(),
+        project_tag: $("dispatchProject").value.trim()
+      };
+      if (!payload.task) {
+        setStatus($("dispatchStatus"), "Task is required.", true);
+        return;
+      }
+      try {
+        setStatus($("dispatchStatus"), "Dispatching...");
+        const out = await apiFetch("/api/dispatch", {method: "POST", body: JSON.stringify(payload)});
+        setStatus($("dispatchStatus"), `Dispatched ${out.agent} · ${out.status}`);
+        $("dispatchTask").value = "";
+        await refreshAll();
+      } catch (e) {
+        setStatus($("dispatchStatus"), `Dispatch failed: ${e.message}`, true);
+      }
+    }
+
+    async function sendBrain() {
+      if (!state.token) {
+        setStatus($("brainStatus"), "Unlock token first.", true);
+        return;
+      }
+      const prompt = $("brainPrompt").value.trim();
+      if (!prompt) {
+        setStatus($("brainStatus"), "Prompt is required.", true);
+        return;
+      }
+
+      const session = $("sessionInput").value.trim() || "mixed-platform-main";
+      const mode = $("brainMode").value;
+
+      state.messages.push({role: "user", content: prompt});
+      addChat("user", prompt);
+      $("brainPrompt").value = "";
+      setStatus($("brainStatus"), "Streaming response...");
+
+      const assistantNode = addChat("assistant", "");
+      let assistantText = "";
+
+      try {
+        const response = await fetch(apiUrl("/api/brain"), {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({messages: state.messages, session_id: session, mode})
+        });
+
+        if (!response.ok || !response.body) {
+          const txt = await response.text();
+          throw new Error(txt || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, {stream: true});
+          const chunks = buf.split("\n\n");
+          buf = chunks.pop() || "";
+
+          for (const chunk of chunks) {
+            const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+            if (!line) continue;
+            const payload = line.slice(6);
+            try {
+              const msg = JSON.parse(payload);
+              if (msg.type === "token") {
+                assistantText += msg.text || "";
+                assistantNode.querySelector("div").textContent = assistantText;
+              } else if (msg.type === "done") {
+                assistantText = msg.full_text || assistantText;
+                assistantNode.querySelector("div").textContent = assistantText;
+              } else if (msg.type === "error") {
+                throw new Error(msg.message || "Brain error");
+              }
+            } catch (_) {
+              // ignore malformed chunk
+            }
+          }
+        }
+
+        state.messages.push({role: "assistant", content: assistantText || "(empty response)"});
+        setStatus($("brainStatus"), "Response complete.");
+      } catch (e) {
+        assistantNode.querySelector("div").textContent = `Error: ${e.message}`;
+        setStatus($("brainStatus"), `Brain failed: ${e.message}`, true);
+      }
+    }
+
+    const paletteCommands = [
+      {title: "View Live Workbench", note: "Switch tab", run: () => setView("live")},
+      {title: "View Mind Graph", note: "Switch tab", run: () => setView("graph")},
+      {title: "View Broadsheet", note: "Switch tab", run: () => setView("a")},
+      {title: "View Terminal Grid", note: "Switch tab", run: () => setView("b")},
+      {title: "View Spatial Board", note: "Switch tab", run: () => setView("c")},
+      {title: "View Palette Ops", note: "Switch tab", run: () => setView("d")},
+      {title: "Refresh Everything", note: "Live data", run: () => refreshAll()},
+      {title: "Open Hub", note: "Route", run: () => window.open("/hub", "_blank")},
+      {title: "Open Preview Board", note: "Route", run: () => window.open("/workbench-preview", "_blank")}
+    ];
+
+    function openPalette() {
+      $("palette").classList.add("open");
+      $("paletteInput").value = "";
+      paintPalette("");
+      $("paletteInput").focus();
+    }
+
+    function closePalette() {
+      $("palette").classList.remove("open");
+    }
+
+    function paintPalette(query) {
+      const q = (query || "").toLowerCase().trim();
+      const rows = paletteCommands.filter((c) => !q || c.title.toLowerCase().includes(q));
+      $("paletteResults").innerHTML = rows.map((c, i) => `<button class="palette-item" data-i="${i}"><span>${c.title}</span><small>${c.note}</small></button>`).join("") || "<div class=\"tiny-item\">No commands.</div>";
+      const buttons = $("paletteResults").querySelectorAll("button[data-i]");
+      buttons.forEach((b) => {
+        b.onclick = () => {
+          rows[Number(b.dataset.i)].run();
+          closePalette();
+        };
+      });
+    }
+
+    function bindEvents() {
+      $("unlockBtn").onclick = () => unlockWithToken($("tokenInput").value);
+      $("guestBtn").onclick = () => unlockWithToken("");
+      $("refreshAllBtn").onclick = () => refreshAll();
+      $("dispatchBtn").onclick = () => sendDispatch();
+      $("sendBrainBtn").onclick = () => sendBrain();
+      $("tabs").querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => setView(tab.dataset.view)));
+      document.querySelectorAll("[data-goto]").forEach((btn) => btn.addEventListener("click", () => setView(btn.dataset.goto)));
+
+      document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          openPalette();
+        }
+        if (e.key === "Escape") closePalette();
+      });
+      $("palette").addEventListener("click", (e) => { if (e.target === $("palette")) closePalette(); });
+      $("paletteInput").addEventListener("input", (e) => paintPalette(e.target.value));
+      $("paletteInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          const first = $("paletteResults").querySelector("button[data-i]");
+          if (first) first.click();
+        }
+      });
+    }
+
+    function boot() {
+      renderAgentSelect();
+      bindEvents();
+      $("tokenInput").value = state.token;
+      if (state.token) {
+        unlockWithToken(state.token);
+      } else {
+        addChat("system", "Unlock token to activate live Hub APIs, brain streaming, and dispatch.");
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
