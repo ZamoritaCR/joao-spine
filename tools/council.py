@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import uuid
+
 from services import dispatch, qa_pipeline
 
 logger = logging.getLogger(__name__)
@@ -59,7 +61,11 @@ async def joao_council_dispatch(
     except Exception:
         logger.warning("Failed to log council dispatch to Supabase", exc_info=True)
 
+    dispatch_id = result.get("dispatch_id") or result.get("id") or uuid.uuid4().hex[:12]
+
     return (
+        f"dispatch_id={dispatch_id}\n"
+        f"Dispatch ID: {dispatch_id}\n"
         f"Dispatched to {agent}\n"
         f"Task: {task[:200]}\n"
         f"Priority: {priority}\n"
