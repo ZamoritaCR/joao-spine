@@ -1,0 +1,162 @@
+# ============================================================================
+# TAOP Product Manifest — the single source of truth
+# ============================================================================
+# Location:  ~/joao-spine/.taop-manifest.yaml (tracked in git)
+# Canonical at runtime: /home/zamoritacr/.taop-manifest.yaml (symlink to above)
+# Purpose:   Declares canonical path, branch, deploy target, live port,
+#            tunnel hostname, and owner for every active TAOP product.
+#
+# Read by:
+#   - scripts/taop_manifest_validate.py  (cron every 5 min)
+#
+# NOTE: Dr. Data entries intentionally omitted per owner directive.
+# Derived from live ROG probe 2026-04-16 20:50 UTC.
+# ============================================================================
+
+schema_version: "1.0"
+generated_at: "2026-04-16T21:30:00Z"
+rog_host: "taop-server"
+rog_tailscale_ip: "100.93.94.121"
+
+products:
+
+  - id: joao-spine
+    display_name: "JOÃO Spine (FastAPI)"
+    canonical_path: /home/zamoritacr/joao-spine
+    branch_policy: main
+    live_port: 7778
+    tunnel_hostname: joao.theartofthepossible.io
+    pid_hint: "uvicorn main:app --host 0.0.0.0 --port 7778"
+    health_probe: "GET http://localhost:7778/health"
+    expected_status: 200
+    owner: johan
+    notes: "7.6 GB repo — candidate for disk cleanup (logs, .venv, backups)."
+    status: active
+
+  - id: joao-interface
+    display_name: "JOÃO Interface (memory + UI static)"
+    canonical_path: /home/zamoritacr/joao-interface
+    branch_policy: master
+    live_port: null
+    tunnel_hostname: null
+    memory_dir: /home/zamoritacr/joao-interface/memory
+    owner: johan
+    notes: "Memory writes happen here. See scripts/memory_consolidate.sh."
+    status: active
+
+  - id: joao-local-dispatch
+    display_name: "Local dispatch service (tmux bridge)"
+    canonical_path: /home/zamoritacr/joao-spine
+    live_port: 8100
+    tunnel_hostname: dispatch.theartofthepossible.io
+    pid_hint: "gunicorn joao_local_dispatch:app -w 4"
+    health_probe: "GET http://localhost:8100/health"
+    owner: johan
+    status: active
+
+  - id: focusflow
+    display_name: "FocusFlow (Whisper + Claude summarizer)"
+    canonical_path: /home/zamoritacr/focusflow
+    live_port: 8001
+    tunnel_hostname: focusflow.theartofthepossible.io
+    tunnel_config_port: 7775
+    pid_hint: "uvicorn main:app --host 0.0.0.0 --port 8001"
+    owner: johan
+    notes: "TUNNEL MISCONFIG — cloudflared points at 7775 but service is on 8001. Fix in /etc/cloudflared/config.yml."
+    status: active_but_public_broken
+
+  - id: os-agent
+    display_name: "OS agent (pyautogui/mss)"
+    canonical_path: /home/zamoritacr
+    live_port: 7801
+    tunnel_hostname: null
+    pid_hint: "uvicorn os_agent:app --host 0.0.0.0 --port 7801"
+    owner: johan
+    status: active
+
+  - id: monster-mcp
+    display_name: "Monster MCP / dopamine.invest"
+    canonical_path: /home/zamoritacr/monster-mcp
+    live_port: 7760
+    tunnel_hostname: monsterai.theartofthepossible.io
+    tunnel_hostname_alt: monster.theartofthepossible.io
+    owner: johan
+    notes: "PORT 7760 HAS NO LISTENER. Public URL returns 502."
+    status: down
+
+  - id: taop-mcp
+    display_name: "TAOP MCP server"
+    canonical_path: /home/zamoritacr/joao-spine
+    live_port: 7778
+    tunnel_hostname: taop-mcp.theartofthepossible.io
+    tunnel_config_port: 7780
+    owner: johan
+    notes: "TUNNEL MISCONFIG — cloudflared points at 7780 but MCP served via spine at 7778/taop/mcp-http/mcp."
+    status: active_but_public_broken
+
+  - id: chat-public
+    display_name: "Chat public (dopamine.chat front)"
+    canonical_path: "UNKNOWN — candidate: ~/chat-public OR ~/claude-chat"
+    live_port: 7781
+    tunnel_hostname: chat.theartofthepossible.io
+    pid_hint: "python3 (pid varies)"
+    owner: johan
+    notes: "Port listening but provenance not determined. Resolve."
+    status: needs_investigation
+
+# ----------------------------------------------------------------------------
+# Archive candidates — disk cleanup targets
+# ----------------------------------------------------------------------------
+archive_candidates:
+  - path: /home/zamoritacr/taop-repos/<REDACTED_GITHUB_PAT_DIR>
+    reason: "Directory name is a plaintext GitHub PAT — LEAKED CREDENTIAL"
+    action: "URGENT: rotate PAT at github.com/settings/tokens, THEN rm -rf this directory"
+    priority: critical
+
+  - path: /home/zamoritacr/joao-spine-backups
+    size_hint: "936 KB"
+    reason: "Old backup snapshots from recovery sessions"
+    action: "Review; keep most recent, delete rest"
+
+  - path: /home/zamoritacr/taop-mcp
+    size_hint: "247 MB"
+    reason: "Old standalone MCP; superseded by joao-spine/routers/taop_mcp.py"
+    action: "Confirm nothing depends on it, then archive"
+
+  - path: /home/zamoritacr/joao-mcp
+    size_hint: "163 MB"
+    reason: "Older MCP attempt; superseded by joao-spine/routers/taop_mcp.py"
+    action: "Confirm nothing depends on it, then archive"
+
+# ----------------------------------------------------------------------------
+# Infrastructure contracts (not products, but load-bearing)
+# ----------------------------------------------------------------------------
+infra:
+  cloudflared:
+    named_tunnel_id: ec7e62bd-b860-427d-af56-c610962a404f
+    config_path: /etc/cloudflared/config.yml
+    credentials_path: /etc/cloudflared/ec7e62bd-b860-427d-af56-c610962a404f.json
+
+  supabase:
+    url: https://wkfewpynskakgbetscsa.supabase.co
+    tables_in_use:
+      - hub_dispatches
+      - dispatch_log
+      - arena_executions
+      - idea_vault
+      - briefings
+      - session_log       # created by migration 20260416_gap_closure_receipts.sql
+      - agent_outputs     # created by migration 20260416_gap_closure_receipts.sql
+
+  ollama:
+    endpoint: http://localhost:11434
+    models_installed:
+      - qwen2.5-coder:latest
+      - deepseek-coder-v2:latest
+      - phi4:latest
+      - llama3.1:8b
+
+  nas:
+    mount: /mnt/nas/taop
+    server: 192.168.0.53
+    protocol: cifs
