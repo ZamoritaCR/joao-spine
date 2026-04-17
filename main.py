@@ -69,6 +69,8 @@ from routers.telegram_webhook import router as telegram_webhook_router
 from routers.os_autonomy import os_app as os_autonomy_app
 from routers.arena import router as arena_router
 from routers.cockpit import router as cockpit_router
+from routers.codex import router as codex_router
+from routers.browse import router as browse_router
 
 # Dr. Data V2 -- independent codebase (only available on ROG, not Railway)
 import sys as _sys
@@ -161,6 +163,8 @@ app.include_router(arena_router)
 if _drdata_available:
     app.include_router(drdata_router)
 app.include_router(cockpit_router)
+app.include_router(codex_router)
+app.include_router(browse_router)
 app.mount("/os", os_autonomy_app)
 
 
@@ -179,6 +183,14 @@ async def taop_hub():
     if hub_path.exists():
         return FileResponse(hub_path, media_type="text/html")
     return FileResponse(_STATIC_DIR / "index.html", media_type="text/html")
+
+
+@app.get("/cockpit", include_in_schema=False)
+async def cockpit_ui():
+    cockpit_path = _STATIC_DIR / "cockpit.html"
+    if cockpit_path.exists():
+        return FileResponse(cockpit_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Cockpit UI not deployed")
 
 
 @app.get("/login", include_in_schema=False)

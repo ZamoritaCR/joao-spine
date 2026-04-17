@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JOAO Cockpit — Neurodivergent Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface-raised: #1a1a26;
+      --border: #2a2a3a;
+      --text: #e8e6e3;
+      --text-dim: #8a8a9a;
+      --accent: #c9a96e;
+      --accent-dim: #8a7a4e;
+      --green: #4ade80;
+      --red: #f87171;
+      --orange: #fb923c;
+      --blue: #60a5fa;
+      --radius: 10px;
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* Auth gate */
+    .auth-gate {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 2rem;
+    }
+    .auth-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem; max-width: 420px; width: 100%;
+    }
+    .auth-card h1 {
+      font-family: var(--font-serif);
+      font-size: 1.6rem; font-weight: 600;
+      margin-bottom: .5rem; color: var(--accent);
+    }
+    .auth-card p { color: var(--text-dim); font-size: .85rem; margin-bottom: 1rem; }
+    .auth-card input {
+      width: 100%; padding: .6rem .8rem;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: .9rem;
+      margin-bottom: 1rem;
+    }
+    .auth-card button {
+      width: 100%; padding: .7rem;
+      background: var(--accent); color: var(--bg);
+      border: none; border-radius: 6px;
+      font-weight: 600; cursor: pointer; font-size: .9rem;
+    }
+    .auth-card button:hover { filter: brightness(1.1); }
+    .auth-status { color: var(--red); font-size: .8rem; min-height: 1.2em; margin-top: .5rem; }
+    .eyebrow {
+      font-size: .7rem; text-transform: uppercase; letter-spacing: .12em;
+      color: var(--accent-dim); margin-bottom: .25rem;
+    }
+
+    /* Main layout */
+    .app-shell { display: none; }
+    .app-shell.active { display: block; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .topbar h1 {
+      font-family: var(--font-serif);
+      font-size: 1.3rem; font-weight: 600; color: var(--accent);
+    }
+    .topbar .build { font-size: .7rem; color: var(--text-dim); }
+    .topbar-actions { display: flex; gap: .5rem; }
+    .topbar-actions button {
+      padding: .5rem 1rem; border-radius: 6px; font-size: .8rem;
+      cursor: pointer; border: 1px solid var(--border);
+      background: var(--surface-raised); color: var(--text);
+    }
+    .topbar-actions button:hover { border-color: var(--accent); }
+
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem; padding: 1.5rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .card h2 {
+      font-family: var(--font-serif);
+      font-size: 1.1rem; font-weight: 600;
+      color: var(--accent); margin-bottom: .75rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .chip {
+      display: inline-block; padding: .15rem .5rem;
+      border-radius: 4px; font-size: .7rem;
+      font-family: var(--font-sans); font-weight: 500;
+    }
+    .chip-green { background: rgba(74,222,128,.15); color: var(--green); }
+    .chip-red { background: rgba(248,113,113,.15); color: var(--red); }
+    .chip-orange { background: rgba(251,146,60,.15); color: var(--orange); }
+    .chip-blue { background: rgba(96,165,250,.15); color: var(--blue); }
+
+    /* Status grid */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    .stat {
+      background: var(--bg); border-radius: 6px; padding: .6rem .8rem;
+    }
+    .stat-label { font-size: .7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .08em; }
+    .stat-value { font-size: 1.1rem; font-weight: 600; margin-top: .15rem; }
+
+    /* Scenes */
+    .scene-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+    .scene-btn {
+      padding: .75rem; border-radius: 8px;
+      background: var(--surface-raised); border: 1px solid var(--border);
+      color: var(--text); cursor: pointer; text-align: center;
+      transition: all .15s;
+    }
+    .scene-btn:hover { border-color: var(--accent); background: rgba(201,169,110,.08); }
+    .scene-btn:active { transform: scale(.97); }
+    .scene-btn .scene-icon { font-size: 1.4rem; display: block; margin-bottom: .25rem; }
+    .scene-btn .scene-name { font-size: .8rem; font-weight: 500; }
+    .scene-btn.active { border-color: var(--accent); background: rgba(201,169,110,.12); }
+
+    /* Energy */
+    .energy-row { display: flex; gap: .5rem; margin-top: .5rem; }
+    .energy-btn {
+      flex: 1; padding: .6rem; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--surface-raised);
+      color: var(--text); cursor: pointer; font-size: .75rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .energy-btn:hover { border-color: var(--accent); }
+    .energy-btn.e-high { border-left: 3px solid var(--green); }
+    .energy-btn.e-medium { border-left: 3px solid var(--orange); }
+    .energy-btn.e-low { border-left: 3px solid var(--blue); }
+    .energy-btn.e-crashed { border-left: 3px solid var(--red); }
+
+    /* Devices */
+    .device-list { max-height: 300px; overflow-y: auto; }
+    .device-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .5rem .6rem; border-bottom: 1px solid var(--border);
+      font-size: .8rem;
+    }
+    .device-row:last-child { border-bottom: none; }
+    .device-name { font-weight: 500; }
+    .device-state { color: var(--text-dim); }
+
+    /* Browse */
+    .browse-input {
+      display: flex; gap: .5rem; margin-bottom: .75rem;
+    }
+    .browse-input input {
+      flex: 1; padding: .5rem .7rem;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: .85rem;
+    }
+    .browse-input button {
+      padding: .5rem .8rem; border-radius: 6px;
+      background: var(--accent); color: var(--bg);
+      border: none; font-weight: 600; cursor: pointer; font-size: .8rem;
+      white-space: nowrap;
+    }
+    .browse-result {
+      background: var(--bg); border-radius: 6px; padding: .75rem;
+      font-size: .8rem; max-height: 250px; overflow-y: auto;
+      white-space: pre-wrap; color: var(--text-dim);
+      display: none;
+    }
+    .browse-result.visible { display: block; }
+
+    /* Log */
+    .log {
+      background: var(--bg); border-radius: 6px;
+      padding: .5rem .75rem; font-size: .75rem;
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--text-dim); max-height: 200px;
+      overflow-y: auto;
+    }
+    .log-entry { padding: .2rem 0; border-bottom: 1px solid rgba(255,255,255,.03); }
+    .log-ts { color: var(--accent-dim); }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; padding: 1rem; }
+      .topbar { flex-direction: column; gap: .5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Auth Gate -->
+<section class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <p class="eyebrow">JOAO Neurodivergent Cockpit</p>
+    <h1>Environment at a glance.</h1>
+    <p>Smart home, energy state, web browsing, device control. One screen, zero friction.</p>
+    <input id="tokenInput" type="password" placeholder="HUB_SECRET or dispatch secret">
+    <button id="loginBtn">Enter cockpit</button>
+    <p class="auth-status" id="authStatus"></p>
+  </div>
+</section>
+
+<!-- Main App -->
+<div class="app-shell" id="appShell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">JOAO Cockpit</p>
+      <h1>Neurodivergent Command</h1>
+      <span class="build">LIVE BUILD 2026-04-17</span>
+    </div>
+    <div class="topbar-actions">
+      <button id="refreshBtn">Refresh</button>
+      <button id="logoutBtn">Lock</button>
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- System Status -->
+    <div class="card">
+      <h2>System <span class="chip chip-green" id="piChip">checking</span></h2>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">Pi / HA</div>
+          <div class="stat-value" id="piStatus">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">HA Version</div>
+          <div class="stat-value" id="haVersion">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Devices</div>
+          <div class="stat-value" id="deviceCount">--</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Last Scene</div>
+          <div class="stat-value" id="lastScene">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scenes -->
+    <div class="card">
+      <h2>Scenes</h2>
+      <div class="scene-grid" id="sceneGrid">
+        <button class="scene-btn" data-scene="focus">
+          <span class="scene-icon">&#x1f3af;</span>
+          <span class="scene-name">Focus</span>
+        </button>
+        <button class="scene-btn" data-scene="chill">
+          <span class="scene-icon">&#x1f30a;</span>
+          <span class="scene-name">Chill</span>
+        </button>
+        <button class="scene-btn" data-scene="sleep">
+          <span class="scene-icon">&#x1f319;</span>
+          <span class="scene-name">Sleep</span>
+        </button>
+        <button class="scene-btn" data-scene="morning">
+          <span class="scene-icon">&#x2600;&#xfe0f;</span>
+          <span class="scene-name">Morning</span>
+        </button>
+        <button class="scene-btn" data-scene="movie">
+          <span class="scene-icon">&#x1f3ac;</span>
+          <span class="scene-name">Movie</span>
+        </button>
+        <button class="scene-btn" data-scene="off">
+          <span class="scene-icon">&#x26ab;</span>
+          <span class="scene-name">All Off</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Energy State -->
+    <div class="card">
+      <h2>Energy State <span class="chip chip-blue" id="energyChip">--</span></h2>
+      <p style="font-size:.8rem;color:var(--text-dim);margin-bottom:.5rem;">
+        Log your current energy. Scenes auto-adapt over time.
+      </p>
+      <div class="energy-row">
+        <button class="energy-btn e-high" data-energy="high">High</button>
+        <button class="energy-btn e-medium" data-energy="medium">Medium</button>
+        <button class="energy-btn e-low" data-energy="low">Low</button>
+        <button class="energy-btn e-crashed" data-energy="crashed">Crashed</button>
+      </div>
+    </div>
+
+    <!-- Web Browse -->
+    <div class="card">
+      <h2>Browse <span class="chip chip-orange">Playwright</span></h2>
+      <div class="browse-input">
+        <input id="browseUrl" type="text" placeholder="https://example.com">
+        <button id="browseBtn">Read</button>
+        <button id="screenshotBtn">Screenshot</button>
+      </div>
+      <div class="browse-result" id="browseResult"></div>
+    </div>
+
+    <!-- Devices -->
+    <div class="card">
+      <h2>Devices <span class="chip chip-green" id="devicesChip">--</span></h2>
+      <div class="device-list" id="deviceList">
+        <div class="device-row"><span class="device-name">Loading...</span></div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="card">
+      <h2>Activity Log</h2>
+      <div class="log" id="actLog"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function() {
+  const $ = s => document.querySelector(s);
+  const $$ = s => document.querySelectorAll(s);
+  let TOKEN = localStorage.getItem('cockpit_token') || '';
+
+  function api(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+    return fetch(path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(TOKEN), {
+      ...opts,
+      headers: { ...headers, ...(opts.headers || {}) },
+    });
+  }
+
+  function log(msg) {
+    const el = $('#actLog');
+    const ts = new Date().toLocaleTimeString();
+    el.innerHTML = `<div class="log-entry"><span class="log-ts">${ts}</span> ${msg}</div>` + el.innerHTML;
+  }
+
+  // Auth
+  function tryLogin() {
+    TOKEN = $('#tokenInput').value.trim();
+    if (!TOKEN) { $('#authStatus').textContent = 'Token required'; return; }
+    localStorage.setItem('cockpit_token', TOKEN);
+    api('/cockpit/status').then(r => {
+      if (r.ok) { showApp(); }
+      else { $('#authStatus').textContent = 'Invalid token (HTTP ' + r.status + ')'; }
+    }).catch(e => { $('#authStatus').textContent = 'Connection failed'; });
+  }
+
+  function showApp() {
+    $('#authGate').style.display = 'none';
+    $('#appShell').classList.add('active');
+    refreshAll();
+  }
+
+  $('#loginBtn').onclick = tryLogin;
+  $('#tokenInput').onkeydown = e => { if (e.key === 'Enter') tryLogin(); };
+  $('#logoutBtn').onclick = () => {
+    localStorage.removeItem('cockpit_token'); TOKEN = '';
+    location.reload();
+  };
+  $('#refreshBtn').onclick = () => refreshAll();
+
+  // Auto-login
+  if (TOKEN) {
+    api('/cockpit/status').then(r => {
+      if (r.ok) showApp();
+      else $('#authGate').style.display = 'flex';
+    }).catch(() => { $('#authGate').style.display = 'flex'; });
+  }
+
+  // Status
+  async function refreshStatus() {
+    try {
+      const r = await api('/cockpit/status');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      $('#piStatus').textContent = d.pi || '--';
+      $('#haVersion').textContent = d.ha_version || '--';
+      $('#deviceCount').textContent = d.devices || '--';
+      $('#lastScene').textContent = d.last_scene || 'none';
+
+      const chip = $('#piChip');
+      if (d.pi === 'online') {
+        chip.textContent = 'online'; chip.className = 'chip chip-green';
+      } else {
+        chip.textContent = 'offline'; chip.className = 'chip chip-red';
+      }
+      log('Status refreshed: ' + d.pi);
+    } catch(e) {
+      $('#piChip').textContent = 'error'; $('#piChip').className = 'chip chip-red';
+      log('Status error: ' + e.message);
+    }
+  }
+
+  // Devices
+  async function refreshDevices() {
+    try {
+      const r = await api('/cockpit/devices');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      const list = d.devices || [];
+      $('#devicesChip').textContent = list.length;
+      if (list.length === 0) {
+        $('#deviceList').innerHTML = '<div class="device-row"><span class="device-name" style="color:var(--text-dim)">No devices (Pi offline?)</span></div>';
+        return;
+      }
+      $('#deviceList').innerHTML = list.slice(0, 50).map(dev => {
+        const name = (dev.attributes && dev.attributes.friendly_name) || dev.entity_id || '?';
+        const state = dev.state || '?';
+        return `<div class="device-row"><span class="device-name">${esc(name)}</span><span class="device-state">${esc(state)}</span></div>`;
+      }).join('');
+      log('Devices loaded: ' + list.length);
+    } catch(e) {
+      $('#deviceList').innerHTML = '<div class="device-row"><span class="device-name" style="color:var(--red)">' + esc(e.message) + '</span></div>';
+      log('Devices error: ' + e.message);
+    }
+  }
+
+  // Scenes
+  $$('.scene-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const scene = btn.dataset.scene;
+      log('Activating scene: ' + scene);
+      $$('.scene-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      try {
+        const r = await api('/cockpit/scene/' + scene, { method: 'POST' });
+        const d = await r.json();
+        if (r.ok) {
+          log('Scene ' + scene + ' activated');
+          setTimeout(refreshStatus, 1500);
+        } else {
+          log('Scene error: ' + (d.detail || r.status));
+        }
+      } catch(e) { log('Scene error: ' + e.message); }
+    };
+  });
+
+  // Energy
+  $$('.energy-btn').forEach(btn => {
+    btn.onclick = async () => {
+      const level = btn.dataset.energy;
+      log('Logging energy: ' + level);
+      $('#energyChip').textContent = level;
+      try {
+        const r = await api('/cockpit/energy', {
+          method: 'POST',
+          body: JSON.stringify({ level }),
+        });
+        if (r.ok) log('Energy logged: ' + level);
+        else log('Energy error: HTTP ' + r.status);
+      } catch(e) { log('Energy error: ' + e.message); }
+    };
+  });
+
+  // Browse
+  $('#browseBtn').onclick = async () => {
+    const url = $('#browseUrl').value.trim();
+    if (!url) return;
+    const res = $('#browseResult');
+    res.textContent = 'Fetching...'; res.classList.add('visible');
+    log('Browse read: ' + url);
+    try {
+      const r = await fetch('/joao/browse/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        body: JSON.stringify({ url }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        res.textContent = d.title + '\n' + '='.repeat(40) + '\n' + d.clean_text + '\n\n[' + d.html_len + ' bytes, ' + d.fetch_time_ms + 'ms]';
+        log('Browse done: ' + d.title + ' (' + d.fetch_time_ms + 'ms)');
+      } else {
+        res.textContent = 'Error: ' + (d.detail || r.status);
+      }
+    } catch(e) { res.textContent = 'Error: ' + e.message; }
+  };
+
+  $('#screenshotBtn').onclick = async () => {
+    const url = $('#browseUrl').value.trim();
+    if (!url) return;
+    const res = $('#browseResult');
+    res.innerHTML = 'Taking screenshot...'; res.classList.add('visible');
+    log('Screenshot: ' + url);
+    try {
+      const r = await fetch('/joao/browse/screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        body: JSON.stringify({ url, full_page: false }),
+      });
+      if (r.ok) {
+        const blob = await r.blob();
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        img.style.cssText = 'max-width:100%;border-radius:6px;';
+        res.innerHTML = '';
+        res.appendChild(img);
+        log('Screenshot done');
+      } else {
+        res.textContent = 'Error: HTTP ' + r.status;
+      }
+    } catch(e) { res.textContent = 'Error: ' + e.message; }
+  };
+
+  $('#browseUrl').onkeydown = e => { if (e.key === 'Enter') $('#browseBtn').click(); };
+
+  function refreshAll() {
+    refreshStatus();
+    refreshDevices();
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // Auto-refresh every 30s
+  setInterval(refreshStatus, 30000);
+})();
+</script>
+</body>
+</html>
