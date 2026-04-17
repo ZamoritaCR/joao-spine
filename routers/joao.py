@@ -174,7 +174,50 @@ async def dispatch_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
+    # Verified dispatch (gap-closure-20260416): uses dispatch_with_receipt
+    # which posts, polls for echo, detects /login lockouts, persists receipt.
+    # Falls back to legacy dispatch_command when wait=False (caller wants fire-and-forget).
     t0 = time.time()
+    if req.wait:
+        from services.dispatch_receipt import dispatch_with_receipt
+        import uuid as _uuid
+        verify_token = f"RECEIPT_{_uuid.uuid4().hex[:8]}"
+        # Wrap so we can detect echo even if the command's own output varies.
+        wrapped_cmd = f"echo {verify_token} && {req.command}"
+        receipt = await dispatch_with_receipt(
+            agent=req.session_name,
+            command=wrapped_cmd,
+            verify_token=verify_token,
+            timeout_s=30,
+            metadata={"request_id": request_id, "origin": "/joao/dispatch"},
+        )
+        duration_ms = int((time.time() - t0) * 1000)
+        result = {
+            "session_name": req.session_name,
+            "command": req.command,
+            "status": "completed" if receipt.verified else "failed",
+            "output": receipt.output,
+        }
+        # Session log still fires (belt-and-suspenders; receipt persist happens inside wrapper).
+        await supabase_client.insert_session_log(
+            SessionLogRecord(
+                endpoint="/joao/dispatch",
+                action="dispatch_verified",
+                input_summary=f"{req.session_name}: {req.command[:100]}",
+                output_summary=(receipt.output or "")[:200],
+                status=result["status"],
+                duration_ms=duration_ms,
+                metadata={
+                    "request_id": request_id,
+                    "verified": receipt.verified,
+                    "failure_reason": receipt.failure_reason,
+                    "attempt_count": receipt.attempt_count,
+                },
+            )
+        )
+        return DispatchResponse(request_id=request_id, **result)
+
+    # Legacy fire-and-forget path for wait=False callers.
     result = await dispatch.dispatch_command(
         session_name=req.session_name, command=req.command, wait=req.wait
     )
@@ -191,18 +234,6 @@ async def dispatch_endpoint(
             metadata={"request_id": request_id},
         )
     )
-
-    from models.schemas import AgentOutputRecord
-    await supabase_client.insert_agent_output(
-        AgentOutputRecord(
-            session_name=req.session_name,
-            command=req.command,
-            output=result.get("output") or "",
-            status=result["status"],
-            metadata={"request_id": request_id},
-        )
-    )
-
     return DispatchResponse(request_id=request_id, **result)
 
 
