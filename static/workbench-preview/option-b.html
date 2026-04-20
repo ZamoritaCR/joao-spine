@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Workbench Preview B</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1528;
+  --text: #e8eaf6;
+  --dim: #8892b0;
+  --teal: #00d2d3;
+  --mint: #00e5a0;
+  --amber: #f0b429;
+  --orange: #ff9f43;
+  --purple: #9b6dff;
+  --blue: #7bb8ff;
+  --red: #ff4757;
+  --panel: rgba(22, 31, 56, 0.86);
+  --panel-2: rgba(16, 23, 44, 0.92);
+  --border: rgba(123, 184, 255, 0.22);
+  --radius: 20px;
+  --shadow: 0 18px 45px rgba(7, 10, 19, 0.45);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(123, 184, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(155, 109, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #0f1528 0%, #101936 48%, #0e1426 100%);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+h1, h2, h3, .eyebrow { font-family: "Cormorant Garamond", Georgia, serif; }
+.app { min-height: 100vh; padding: 20px; }
+.top {
+  display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 16px;
+}
+.title h1 { margin: 0; letter-spacing: -0.02em; font-size: clamp(34px, 4vw, 52px); line-height: 0.95; }
+.title p { margin: 8px 0 0; color: var(--dim); }
+.eyebrow { margin: 0; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); }
+.panel {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.panel-block { padding: 14px; border-bottom: 1px solid rgba(136, 146, 176, 0.2); }
+.panel-block:last-child { border-bottom: 0; }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.section-head h2 { margin: 0; font-size: 24px; line-height: 1; }
+.status-chip {
+  border: 1px solid rgba(0, 210, 211, 0.5);
+  background: rgba(0, 210, 211, 0.12);
+  color: #b8ffff;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.field { display: grid; gap: 6px; margin-bottom: 10px; color: var(--dim); font-size: 13px; }
+.field input, .field textarea, .field select {
+  width: 100%; border-radius: 12px; border: 1px solid rgba(123,184,255,0.25); background: rgba(10,14,30,0.9);
+  color: var(--text); padding: 10px 12px;
+}
+button { font: inherit; color: var(--text); border-radius: 12px; border: 1px solid rgba(123,184,255,0.35); background: transparent; padding: 8px 12px; }
+.primary { background: linear-gradient(120deg, rgba(0,210,211,.25), rgba(0,229,160,.2)); border-color: rgba(0,229,160,.55); }
+.secondary { background: rgba(123,184,255,.12); }
+.ghost { border-color: rgba(136,146,176,.35); color: var(--dim); }
+.tab { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.view { display: block; }
+.overview-card, .subpanel {
+  border: 1px solid rgba(136,146,176,.25);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(16,22,40,.62);
+}
+.mini { color: var(--dim); font-size: 13px; line-height: 1.45; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.widget {
+  position: fixed; right: 16px; bottom: 16px; width: 320px; z-index: 9;
+  border-radius: 14px; border: 1px solid rgba(0,229,160,.45);
+  background: linear-gradient(180deg, rgba(13,20,38,.96), rgba(9,14,28,.96));
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+}
+.widget-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(136,146,176,.2); }
+.widget-body { padding: 10px 12px; color: var(--dim); font-size: 13px; }
+@media (max-width: 1050px) {
+  .layout-a, .layout-b, .layout-d { grid-template-columns: 1fr !important; }
+  .layout-c .canvas { min-height: 1300px; }
+}
+
+.layout-b{display:grid;grid-template-columns:260px minmax(0,1fr)300px;gap:10px;}
+.ticker{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+.ticker .subpanel{font-size:12px;}
+.table{font-size:12px;border-collapse:collapse;width:100%;}
+.table td,.table th{border-bottom:1px solid rgba(136,146,176,.2);padding:6px;text-align:left;}
+</style></head>
+<body><div class="app"><header class="top"><div class="title"><p class="eyebrow">Option B — Trading Terminal</p><h1>Ops-First Dense Grid</h1><p>High-frequency monitoring with keyboard-centric orchestration.</p></div><div><button class="secondary">⌘1-8 Panels</button> <button class="primary">⌘K Command</button></div></header>
+<div class="ticker"><div class="subpanel">Ollama<br><strong>128ms</strong></div><div class="subpanel">Groq<br><strong>182ms</strong></div><div class="subpanel">Codex<br><strong>1.7s</strong></div><div class="subpanel">Gemini<br><strong>2.3s</strong></div><div class="subpanel">Claude<br><strong>2.8s</strong></div><div class="subpanel">Spend/hr<br><strong>$0.42</strong></div></div>
+<main class="layout-b">
+<aside class="panel"><div class="panel-block"><div class="section-head"><h2>Dispatch Grid</h2><span class="status-chip">16 live</span></div><div class="mini">BYTE · ARIA · CJ · SOFIA · DEX · GEMMA · MAX · LEX · NOVA · SAGE · FLUX · CORE · APEX · IRIS · VOLT · SCOUT</div></div><div class="panel-block"><div class="section-head"><h2>Self-Fix</h2><span class="status-chip">READY</span></div><div class="mini">allowlist: systemctl --user status/restart, journalctl, tail, ls</div></div></aside>
+<section class="panel"><div class="panel-block"><div class="section-head"><h2>Live Queue</h2><span class="status-chip">stream</span></div><table class="table"><tr><th>Panel</th><th>Status</th><th>Action</th><th>P95</th></tr><tr><td>BRAINS</td><td>online</td><td>route:ollama</td><td>180ms</td></tr><tr><td>BROWSE</td><td>hot</td><td>screenshot</td><td>1.2s</td></tr><tr><td>MEMORY</td><td>indexed</td><td>ripgrep</td><td>95ms</td></tr><tr><td>DISPATCH</td><td>streaming</td><td>agent tail</td><td>240ms</td></tr><tr><td>SCOUT</td><td>ready</td><td>top-N feed</td><td>210ms</td></tr><tr><td>FILES</td><td>ready</td><td>extract</td><td>1.9s</td></tr><tr><td>OPS</td><td>healthy</td><td>metrics pull</td><td>160ms</td></tr><tr><td>SELF-FIX</td><td>armed</td><td>GO gate</td><td>44ms</td></tr></table></div><div class="panel-block"><div class="grid-2">
+<div class="overview-card"><strong>01 BRAINS</strong><p class="mini">5-brain routing, costs, latency</p></div>
+<div class="overview-card"><strong>02 BROWSE</strong><p class="mini">read, screenshot, ask-codex</p></div>
+<div class="overview-card"><strong>03 MEMORY</strong><p class="mini">master/session + diff + search</p></div>
+<div class="overview-card"><strong>04 DISPATCH</strong><p class="mini">16-agent grid + SSE output</p></div>
+<div class="overview-card"><strong>05 SCOUT</strong><p class="mini">intel queue + score filter</p></div>
+<div class="overview-card"><strong>06 FILES</strong><p class="mini">extract + attach + file chat</p></div>
+<div class="overview-card"><strong>07 OPS</strong><p class="mini">uptime, latency, CPU/memory</p></div>
+<div class="overview-card"><strong>08 SELF-FIX</strong><p class="mini">propose, GO, execute + audit</p></div>
+</div></div></section>
+<aside class="panel"><div class="panel-block"><div class="section-head"><h2>Command</h2><span class="status-chip">⌘K</span></div><div class="mini">dispatch byte fix nginx<br>brain "summarize scout" groq<br>selffix propose "restart spine"</div></div><div class="panel-block"><div class="section-head"><h2>Audit</h2><span class="status-chip">append-only</span></div><div class="mini">Latest: propose id wb_aud_4401 → GO → execute</div></div></aside>
+</main></div><aside class="widget"><div class="widget-head"><strong>JOAO</strong><span class="status-chip">hotkey</span></div><div class="widget-body">Terminal style responses + dispatch shortcuts.</div></aside></body></html>

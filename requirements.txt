@@ -26,3 +26,5 @@ requests>=2.31.0
 ptyprocess>=0.7.0
 psutil>=5.9.0
 psycopg2-binary>=2.9.0
+playwright>=1.40.0
+readability-lxml>=0.8.1

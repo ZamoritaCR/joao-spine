@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Workbench Preview C</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1528;
+  --text: #e8eaf6;
+  --dim: #8892b0;
+  --teal: #00d2d3;
+  --mint: #00e5a0;
+  --amber: #f0b429;
+  --orange: #ff9f43;
+  --purple: #9b6dff;
+  --blue: #7bb8ff;
+  --red: #ff4757;
+  --panel: rgba(22, 31, 56, 0.86);
+  --panel-2: rgba(16, 23, 44, 0.92);
+  --border: rgba(123, 184, 255, 0.22);
+  --radius: 20px;
+  --shadow: 0 18px 45px rgba(7, 10, 19, 0.45);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(123, 184, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(155, 109, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #0f1528 0%, #101936 48%, #0e1426 100%);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+h1, h2, h3, .eyebrow { font-family: "Cormorant Garamond", Georgia, serif; }
+.app { min-height: 100vh; padding: 20px; }
+.top {
+  display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 16px;
+}
+.title h1 { margin: 0; letter-spacing: -0.02em; font-size: clamp(34px, 4vw, 52px); line-height: 0.95; }
+.title p { margin: 8px 0 0; color: var(--dim); }
+.eyebrow { margin: 0; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); }
+.panel {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.panel-block { padding: 14px; border-bottom: 1px solid rgba(136, 146, 176, 0.2); }
+.panel-block:last-child { border-bottom: 0; }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.section-head h2 { margin: 0; font-size: 24px; line-height: 1; }
+.status-chip {
+  border: 1px solid rgba(0, 210, 211, 0.5);
+  background: rgba(0, 210, 211, 0.12);
+  color: #b8ffff;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.field { display: grid; gap: 6px; margin-bottom: 10px; color: var(--dim); font-size: 13px; }
+.field input, .field textarea, .field select {
+  width: 100%; border-radius: 12px; border: 1px solid rgba(123,184,255,0.25); background: rgba(10,14,30,0.9);
+  color: var(--text); padding: 10px 12px;
+}
+button { font: inherit; color: var(--text); border-radius: 12px; border: 1px solid rgba(123,184,255,0.35); background: transparent; padding: 8px 12px; }
+.primary { background: linear-gradient(120deg, rgba(0,210,211,.25), rgba(0,229,160,.2)); border-color: rgba(0,229,160,.55); }
+.secondary { background: rgba(123,184,255,.12); }
+.ghost { border-color: rgba(136,146,176,.35); color: var(--dim); }
+.tab { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.view { display: block; }
+.overview-card, .subpanel {
+  border: 1px solid rgba(136,146,176,.25);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(16,22,40,.62);
+}
+.mini { color: var(--dim); font-size: 13px; line-height: 1.45; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.widget {
+  position: fixed; right: 16px; bottom: 16px; width: 320px; z-index: 9;
+  border-radius: 14px; border: 1px solid rgba(0,229,160,.45);
+  background: linear-gradient(180deg, rgba(13,20,38,.96), rgba(9,14,28,.96));
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+}
+.widget-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(136,146,176,.2); }
+.widget-body { padding: 10px 12px; color: var(--dim); font-size: 13px; }
+@media (max-width: 1050px) {
+  .layout-a, .layout-b, .layout-d { grid-template-columns: 1fr !important; }
+  .layout-c .canvas { min-height: 1300px; }
+}
+
+.layout-c .canvas{position:relative;min-height:980px;border:1px dashed rgba(123,184,255,.34);border-radius:22px;padding:10px;}
+.node{position:absolute;width:260px;}
+.node .panel-block{padding:10px;}
+.link{position:absolute;height:2px;background:linear-gradient(90deg, rgba(123,184,255,.8), rgba(0,229,160,.6));transform-origin:left center;}
+</style></head>
+<body><div class="app layout-c"><header class="top"><div class="title"><p class="eyebrow">Option C — Spatial Canvas</p><h1>Node-Based Operator Board</h1><p>Zoomable mental map for strategy + execution threads.</p></div><div><button class="primary">Zoom 100%</button> <button class="secondary">Snap to Grid</button></div></header>
+<section class="panel"><div class="panel-block"><div class="section-head"><h2>Canvas Surface</h2><span class="status-chip">map mode</span></div><div class="canvas">
+<div class="link" style="left:250px;top:140px;width:180px;transform:rotate(8deg);"></div>
+<div class="link" style="left:500px;top:200px;width:180px;transform:rotate(-12deg);"></div>
+<div class="link" style="left:370px;top:380px;width:190px;transform:rotate(18deg);"></div>
+<article class="panel node" style="left:20px;top:30px;"><div class="panel-block"><div class="section-head"><h2>BRAINS</h2><span class="status-chip">router</span></div><div class="mini">Ollama/Groq/Codex/Gemini/Claude</div></div></article>
+<article class="panel node" style="left:310px;top:110px;"><div class="panel-block"><div class="section-head"><h2>BROWSE</h2><span class="status-chip">capture</span></div><div class="mini">read + screenshot + ask</div></div></article>
+<article class="panel node" style="left:620px;top:70px;"><div class="panel-block"><div class="section-head"><h2>MEMORY</h2><span class="status-chip">index</span></div><div class="mini">master/session + diff</div></div></article>
+<article class="panel node" style="left:80px;top:300px;"><div class="panel-block"><div class="section-head"><h2>DISPATCH</h2><span class="status-chip">16 agents</span></div><div class="mini">SSE output + history table</div></div></article>
+<article class="panel node" style="left:390px;top:340px;"><div class="panel-block"><div class="section-head"><h2>SCOUT</h2><span class="status-chip">intel</span></div><div class="mini">score filter + codex analysis</div></div></article>
+<article class="panel node" style="left:700px;top:320px;"><div class="panel-block"><div class="section-head"><h2>FILES</h2><span class="status-chip">extract</span></div><div class="mini">pdf/docx/xlsx/image/code</div></div></article>
+<article class="panel node" style="left:220px;top:560px;"><div class="panel-block"><div class="section-head"><h2>OPS</h2><span class="status-chip">telemetry</span></div><div class="mini">uptime, latency, CPU, systemd</div></div></article>
+<article class="panel node" style="left:560px;top:610px;"><div class="panel-block"><div class="section-head"><h2>SELF-FIX</h2><span class="status-chip">guardrail</span></div><div class="mini">propose → GO → execute</div></div></article>
+</div></div></section></div><aside class="widget"><div class="widget-head"><strong>JOAO Overlay</strong><span class="status-chip">global</span></div><div class="widget-body">Ask from any node and route to chosen brain.</div></aside></body></html>

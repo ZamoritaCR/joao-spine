@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Workbench Preview A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1528;
+  --text: #e8eaf6;
+  --dim: #8892b0;
+  --teal: #00d2d3;
+  --mint: #00e5a0;
+  --amber: #f0b429;
+  --orange: #ff9f43;
+  --purple: #9b6dff;
+  --blue: #7bb8ff;
+  --red: #ff4757;
+  --panel: rgba(22, 31, 56, 0.86);
+  --panel-2: rgba(16, 23, 44, 0.92);
+  --border: rgba(123, 184, 255, 0.22);
+  --radius: 20px;
+  --shadow: 0 18px 45px rgba(7, 10, 19, 0.45);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(123, 184, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(155, 109, 255, 0.16), transparent 26%),
+    linear-gradient(180deg, #0f1528 0%, #101936 48%, #0e1426 100%);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+h1, h2, h3, .eyebrow { font-family: "Cormorant Garamond", Georgia, serif; }
+.app { min-height: 100vh; padding: 20px; }
+.top {
+  display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 16px;
+}
+.title h1 { margin: 0; letter-spacing: -0.02em; font-size: clamp(34px, 4vw, 52px); line-height: 0.95; }
+.title p { margin: 8px 0 0; color: var(--dim); }
+.eyebrow { margin: 0; font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); }
+.panel {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.panel-block { padding: 14px; border-bottom: 1px solid rgba(136, 146, 176, 0.2); }
+.panel-block:last-child { border-bottom: 0; }
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.section-head h2 { margin: 0; font-size: 24px; line-height: 1; }
+.status-chip {
+  border: 1px solid rgba(0, 210, 211, 0.5);
+  background: rgba(0, 210, 211, 0.12);
+  color: #b8ffff;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.field { display: grid; gap: 6px; margin-bottom: 10px; color: var(--dim); font-size: 13px; }
+.field input, .field textarea, .field select {
+  width: 100%; border-radius: 12px; border: 1px solid rgba(123,184,255,0.25); background: rgba(10,14,30,0.9);
+  color: var(--text); padding: 10px 12px;
+}
+button { font: inherit; color: var(--text); border-radius: 12px; border: 1px solid rgba(123,184,255,0.35); background: transparent; padding: 8px 12px; }
+.primary { background: linear-gradient(120deg, rgba(0,210,211,.25), rgba(0,229,160,.2)); border-color: rgba(0,229,160,.55); }
+.secondary { background: rgba(123,184,255,.12); }
+.ghost { border-color: rgba(136,146,176,.35); color: var(--dim); }
+.tab { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+.view { display: block; }
+.overview-card, .subpanel {
+  border: 1px solid rgba(136,146,176,.25);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(16,22,40,.62);
+}
+.mini { color: var(--dim); font-size: 13px; line-height: 1.45; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.widget {
+  position: fixed; right: 16px; bottom: 16px; width: 320px; z-index: 9;
+  border-radius: 14px; border: 1px solid rgba(0,229,160,.45);
+  background: linear-gradient(180deg, rgba(13,20,38,.96), rgba(9,14,28,.96));
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+}
+.widget-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(136,146,176,.2); }
+.widget-body { padding: 10px 12px; color: var(--dim); font-size: 13px; }
+@media (max-width: 1050px) {
+  .layout-a, .layout-b, .layout-d { grid-template-columns: 1fr !important; }
+  .layout-c .canvas { min-height: 1300px; }
+}
+
+.layout-a{display:grid;grid-template-columns:320px minmax(0,1fr)360px;gap:12px;}
+.hero{padding:14px;border:1px solid rgba(0,229,160,.25);border-radius:16px;background:radial-gradient(circle at top right, rgba(0,210,211,.16), transparent 35%), rgba(16,23,44,.75);}
+</style></head>
+<body><div class="app"><header class="top"><div class="title"><p class="eyebrow">Option A — Editorial Broadsheet</p><h1>JOAO Operator Workbench v2</h1><p>Refined /hub parity with serif-led command center composition.</p></div><div><button class="primary">Recommend A</button> <button class="secondary">⌘K</button></div></header>
+<main class="layout-a">
+<aside class="panel"><div class="panel-block"><div class="section-head"><h2>Brains</h2><span class="status-chip">5 online</span></div><div class="grid-2"><div class="subpanel">Ollama 142ms</div><div class="subpanel">Groq 211ms</div><div class="subpanel">Codex 1.8s</div><div class="subpanel">Gemini 2.2s</div><div class="subpanel">Claude 2.9s</div></div></div><div class="panel-block"><div class="section-head"><h2>Dispatch</h2><span class="status-chip">streaming</span></div><div class="mini">BYTE, ARIA, CJ, SOFIA, DEX, GEMMA, MAX, LEX, NOVA, SAGE, FLUX, CORE, APEX, IRIS, VOLT, SCOUT</div></div><div class="panel-block"><div class="section-head"><h2>Self-Fix</h2><span class="status-chip">awaiting GO</span></div><div class="mini">Propose → Confirm → Execute with allowlist + audit log.</div></div></aside>
+<section class="panel"><div class="panel-block"><div class="hero"><p class="eyebrow">Control Center</p><h2 style="margin:.2rem 0 .5rem;">Platform shell with real state, auditability, and multi-brain execution.</h2><p class="mini">Command palette, keyboard jumps, floating JOAO, and panelized workflows for daily operator leverage.</p></div></div><div class="panel-block"><div class="section-head"><h2>8 Panel Surface</h2><div><button class="tab">overview</button> <button class="tab">terminal</button> <button class="tab">logs</button></div></div><div class="grid-2">
+<div class="overview-card"><strong>01 BRAINS</strong><p class="mini">5-brain routing, costs, latency</p></div>
+<div class="overview-card"><strong>02 BROWSE</strong><p class="mini">read, screenshot, ask-codex</p></div>
+<div class="overview-card"><strong>03 MEMORY</strong><p class="mini">master/session + diff + search</p></div>
+<div class="overview-card"><strong>04 DISPATCH</strong><p class="mini">16-agent grid + SSE output</p></div>
+<div class="overview-card"><strong>05 SCOUT</strong><p class="mini">intel queue + score filter</p></div>
+<div class="overview-card"><strong>06 FILES</strong><p class="mini">extract + attach + file chat</p></div>
+<div class="overview-card"><strong>07 OPS</strong><p class="mini">uptime, latency, CPU/memory</p></div>
+<div class="overview-card"><strong>08 SELF-FIX</strong><p class="mini">propose, GO, execute + audit</p></div>
+</div></div><div class="panel-block"><div class="section-head"><h2>OPS Snapshot</h2><span class="status-chip">healthy</span></div><div class="grid-3"><div class="subpanel">Spine uptime<br><strong>04:12:55</strong></div><div class="subpanel">Supabase QPS<br><strong>31/min</strong></div><div class="subpanel">P95 latency<br><strong>284ms</strong></div></div></div></section>
+<aside class="panel"><div class="panel-block"><div class="section-head"><h2>Browse</h2><span class="status-chip">ready</span></div><label class="field"><span>URL</span><input value="https://joao.theartofthepossible.io/hub"></label><div><button class="primary">Read</button> <button class="secondary">Screenshot</button> <button class="ghost">Ask Codex</button></div></div><div class="panel-block"><div class="section-head"><h2>Memory</h2><button class="ghost">Diff</button></div><div class="mini">JOAO_MASTER_CONTEXT.md updated 6m ago<br>JOAO_SESSION_LOG.md appended 2m ago</div></div><div class="panel-block"><div class="section-head"><h2>Files</h2><span class="status-chip">4 parsed</span></div><div class="mini">drop zone · extract pdf/docx/xlsx/image/code · attach to next brain call</div></div></aside>
+</main></div><aside class="widget"><div class="widget-head"><strong>JOAO Always-On</strong><span class="status-chip">live</span></div><div class="widget-body">Ask from any panel · ⌘/ focus · ⌘Enter send</div></aside></body></html>

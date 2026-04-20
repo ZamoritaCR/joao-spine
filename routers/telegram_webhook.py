@@ -141,28 +141,107 @@ async def _handle_spark() -> str:
     return "*SPARK BRIEF*\nNo brief available."
 
 
+async def _handle_agents() -> str:
+    """Return live Council agent status."""
+    from routers.joao import _fetch_live_council_status
+    status = await _fetch_live_council_status()
+    return f"*COUNCIL STATUS*\n{status}" if status else "*COUNCIL STATUS*\nDispatch endpoint unreachable."
+
+
+async def _handle_dispatch(arg_text: str) -> str:
+    """Dispatch a task to a named Council agent. Usage: /dispatch AGENT task text..."""
+    from routers.joao import _exec_hub_tool
+    parts = arg_text.strip().split(maxsplit=1)
+    if len(parts) < 2:
+        return "Usage: `/dispatch AGENT task description`\nExample: `/dispatch MAX check joao-spine service status`"
+    agent, task = parts[0].upper(), parts[1]
+    result = await _exec_hub_tool("council_dispatch", {"agent": agent, "task": task, "priority": "normal"})
+    return f"*DISPATCH -> {agent}*\n{result}"
+
+
+async def _handle_output(arg_text: str) -> str:
+    """Read recent output from a Council agent. Usage: /output AGENT"""
+    from routers.joao import _exec_hub_tool
+    agent = arg_text.strip().upper()
+    if not agent:
+        return "Usage: `/output AGENT`\nExample: `/output MAX`"
+    result = await _exec_hub_tool("agent_output", {"agent": agent})
+    return f"*{agent} OUTPUT*\n```\n{result[:3500]}\n```"
+
+
+async def _handle_help() -> str:
+    return (
+        "*JOAO TELEGRAM COMMANDS*\n"
+        "/status - spine + GreenGeeks health\n"
+        "/agents - live Council status\n"
+        "/dispatch AGENT task - send task to agent\n"
+        "/output AGENT - read agent's recent output\n"
+        "/radar - SCOUT intel\n"
+        "/spark - Spark brief\n"
+        "/cockpit - Home Assistant status\n"
+        "/focus /chill /hyperfocus /lowenergy /sleep /morning - cockpit scenes\n"
+        "/lights on | /lights off\n"
+        "/help - this message\n\n"
+        "Or just chat - JOAO has full tool access (council_status, council_dispatch, agent_output, memory_read)."
+    )
+
+
 _SLASH_COMMANDS = {
     "/status": _handle_status,
     "/radar": _handle_radar,
     "/spark": _handle_spark,
+    "/agents": _handle_agents,
+    "/council": _handle_agents,
+    "/help": _handle_help,
+    "/start": _handle_help,
 }
 
-_SYSTEM_PROMPT = (
-    "You are JOAO, a concise personal AI assistant. "
-    "Answer in 1-3 sentences unless more detail is explicitly needed. "
-    "You can help with tasks, questions, and status checks. "
-    "Keep replies short — this is a Telegram chat."
+# Commands that take an argument string after the command word
+_SLASH_COMMANDS_WITH_ARGS = {
+    "/dispatch": _handle_dispatch,
+    "/output": _handle_output,
+}
+
+_TG_JOAO_PROMPT = (
+    "You are JOÃO — Johan's AI exocortex, second brain, persistent companion.\n"
+    "Running on the TAOP spine (ROG Strix 192.168.0.55). This conversation is on Telegram.\n\n"
+    "VOICE (hard rules):\n"
+    "- Terse. Direct. Short. Telegram-friendly (1-4 sentences by default).\n"
+    "- Never apologize, hedge, or use corporate language.\n"
+    "- Never say 'I can't', 'I don't have access', 'check directly'. You have tools — use them.\n"
+    "- Match Johan's energy. No filler. No em-dashes for drama.\n\n"
+    "YOUR TOOLS (use them, don't describe using them):\n"
+    "- council_status: which of the 16 agents are ACTIVE right now\n"
+    "- council_dispatch: send a task to a Council agent (ARIA, BYTE, CJ, SOFIA, DEX, GEMMA, MAX, "
+    "LEX, NOVA, SCOUT, SAGE, FLUX, CORE, APEX, IRIS, VOLT)\n"
+    "- agent_output: read a Council agent's recent terminal output\n"
+    "- memory_read: read JOAO_MASTER_CONTEXT.md ('master') or JOAO_SESSION_LOG.md ('session')\n\n"
+    "WHEN TO USE TOOLS:\n"
+    "- Status questions ('are agents up?', 'who's online?'): call council_status.\n"
+    "- Action requests ('dispatch MAX to X', 'have BYTE check Y'): call council_dispatch.\n"
+    "- 'What did X just do?': call agent_output.\n"
+    "- 'What did we do yesterday / last week / on project X?': call memory_read with 'session'.\n"
+    "- 'What's the JOAO stack / who are you?': call memory_read with 'master'.\n"
+    "Don't pretend to run a tool — actually run it, then report what you got.\n"
 )
 
 
 async def _process_message(text: str, chat_id: int | str) -> None:
-    """Route slash commands or send to Claude Haiku, then reply."""
+    """Route slash commands or send to real JOAO (OpenAI function-calling), then reply."""
     text = text.strip()
 
     # Check for slash commands (including with args, e.g. /status@bot)
-    cmd = text.split()[0].split("@")[0].lower() if text else ""
+    first = text.split()[0] if text else ""
+    cmd = first.split("@")[0].lower()
+    arg_text = text[len(first):].strip()
+
     if cmd in _SLASH_COMMANDS:
         reply = await _SLASH_COMMANDS[cmd]()
+        await _send_reply(chat_id, reply)
+        return
+
+    if cmd in _SLASH_COMMANDS_WITH_ARGS:
+        reply = await _SLASH_COMMANDS_WITH_ARGS[cmd](arg_text)
         await _send_reply(chat_id, reply)
         return
 
@@ -209,19 +288,26 @@ async def _process_message(text: str, chat_id: int | str) -> None:
         await _send_reply(chat_id, reply)
         return
 
-    # Pass to Claude Haiku
+    # Pass to real JOAO — OpenAI function-calling with Council + memory tools
     try:
-        client = _haiku_client()
-        resp = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text}],
-        )
-        reply = resp.content[0].text if resp.content else "No response."
+        from routers.joao import _openai_chat_with_tools, _fetch_live_council_status
+
+        council_live = await _fetch_live_council_status()
+        system_prompt = _TG_JOAO_PROMPT
+        if council_live:
+            system_prompt += f"\n\nLIVE COUNCIL STATUS RIGHT NOW: {council_live}"
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text},
+        ]
+        chunks: list[str] = []
+        async for chunk in _openai_chat_with_tools(messages, model="gpt-4o", max_iters=4):
+            chunks.append(chunk)
+        reply = "".join(chunks).strip() or "(no response)"
     except Exception as e:
-        logger.exception("Claude Haiku error")
-        reply = f"AI error: {e}"
+        logger.exception("JOAO Telegram chat error")
+        reply = f"JOAO error: {e}"
 
     await _send_reply(chat_id, reply)
 

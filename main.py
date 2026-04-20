@@ -71,6 +71,7 @@ from routers.arena import router as arena_router
 from routers.cockpit import router as cockpit_router
 from routers.codex import router as codex_router
 from routers.browse import router as browse_router
+from routers.workbench_preview import router as workbench_preview_router
 
 # Dr. Data V2 -- independent codebase (only available on ROG, not Railway)
 import sys as _sys
@@ -165,6 +166,7 @@ if _drdata_available:
 app.include_router(cockpit_router)
 app.include_router(codex_router)
 app.include_router(browse_router)
+app.include_router(workbench_preview_router)
 app.mount("/os", os_autonomy_app)
 
 

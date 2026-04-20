@@ -10,6 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install chromium for /browse endpoints (playwright). --with-deps pulls in
+# all required system libraries via apt. Adds ~400MB to the final image but
+# makes the /browse/* endpoints functional on Railway.
+RUN playwright install --with-deps chromium
+
 COPY . .
 
 EXPOSE 8000
