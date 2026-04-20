@@ -84,6 +84,32 @@ AGENT_WORKING_DIR = os.path.expanduser("~/joao-interface")
 COUNCIL_TASK_DIR = "/tmp/council/tasks"
 COUNCIL_OUTPUT_DIR = "/tmp/council/outputs"
 COUNCIL_LAUNCHER = os.path.expanduser("~/council/bin/launch_agent.sh")
+COUNCIL_CLEAN = os.path.expanduser("~/council/bin/council-clean.sh")
+
+
+def _clean_scrollback(raw: str) -> str:
+    """Sanitize tmux capture output via the council-clean helper.
+
+    Strips ANSI escapes, base64 blobs, pager/editor chrome, trailing CR.
+    Preserves the response shape — only the text content of the `output`
+    / `last_50_lines` fields is cleaned. Fails open: on any error,
+    returns the raw input unchanged.
+    """
+    if not raw or not os.path.exists(COUNCIL_CLEAN):
+        return raw
+    try:
+        res = subprocess.run(
+            [COUNCIL_CLEAN],
+            input=raw,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if res.returncode == 0 and res.stdout is not None:
+            return res.stdout
+    except Exception:
+        pass
+    return raw
 
 
 def is_claude_running(session_name: str) -> bool:
@@ -415,7 +441,7 @@ async def get_sessions():
             )
             outputs[agent] = {
                 "session": session,
-                "last_50_lines": result.stdout
+                "last_50_lines": _clean_scrollback(result.stdout)
                 if result.returncode == 0
                 else "capture failed",
             }
@@ -443,7 +469,7 @@ async def get_session(agent: str):
     return {
         "agent": agent,
         "session": session,
-        "output": result.stdout if result.returncode == 0 else "capture failed",
+        "output": _clean_scrollback(result.stdout) if result.returncode == 0 else "capture failed",
     }
 
 
